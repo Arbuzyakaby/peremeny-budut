@@ -2,9 +2,12 @@ extends Node2D
 ## Кабинет-лаборатория, который виден, когда камера отдаляется в финале. Арена оказывается
 ## маленьким ящиком на столе учёного-бюрократа: серый костюм, очки, бейдж, планшет с протоколом.
 ## Всё рисуется кодом в мировых координатах (арена занимает 0..1280 × 0..720).
-## Рука со спичкой рисуется отдельным узлом поверх арены.
+## Рука со спичкой (или огнетушителем) рисуется отдельным узлом поверх арены.
 
 enum Match { NONE, HELD, LIT, FLYING, GONE }
+enum Hold { MATCH, EXTINGUISHER }
+
+const Tex = preload("res://scripts/tex.gd")
 
 const STAND_X := 2550.0   # где учёный останавливается у стола
 const OUTSIDE_X := 5600.0 # откуда он входит
@@ -33,6 +36,11 @@ var flash := 0.0
 var font: SystemFont
 var front: Node2D
 var drops: Array[Vector2] = []  # капли дождя в окне
+var holding := Hold.MATCH
+var writing := false    # пишет в протоколе
+var stamped := 0.0      # 0..1 — на столе лежит протокол со штампом
+var lights := 1.0       # лампа: 1 — горит, 0 — выключена
+var spraying := false
 
 
 func _ready() -> void:
@@ -115,6 +123,11 @@ func _draw_wall() -> void:
 	draw_rect(Rect2(-3000, 1750, 9000, 1500), Color(0.25, 0.22, 0.2))  # пол-линолеум
 	for x in range(-3000, 6000, 300):
 		draw_line(Vector2(x, 1750), Vector2(x, 3200), Color(0.2, 0.18, 0.16), 5.0)
+	for x in range(-3000, 6000, 600):  # стыки плиток линолеума
+		draw_line(Vector2(x + 150, 1750), Vector2(x - 250, 3200), Color(0.28, 0.25, 0.22), 3.0)
+	# пятно света лампы на стене и холодный свет из окна
+	Tex.blob(self, Vector2(640, -200), Vector2(2200, 1500), Color(1, 0.9, 0.6, 0.22 * lights))
+	Tex.blob(self, Vector2(640, -500), Vector2(1300, 900), Color(0.6, 0.7, 1.0, 0.1 + 0.25 * flash))
 
 
 func _draw_window(r: Rect2) -> void:
@@ -201,14 +214,47 @@ func _draw_shelves() -> void:
 		var base := Vector2(-1080 + i * 270, -120)
 		var jar := Rect2(base.x, base.y - 250, 190, 250)
 		draw_rect(jar, Color(0.55, 0.75, 0.8, 0.18))
-		_draw_mini_bear(jar.get_center() + Vector2(0, 30), 3.4, [Color(0.62, 0.4, 0.22), Color(0.55, 0.33, 0.2),
-			Color(0.75, 0.55, 0.35), Color(0.65, 0.45, 0.25)][i])
+		match i:
+			1:
+				_draw_mini_fork(jar.get_center() + Vector2(0, 20))
+			2:
+				_draw_mini_pill(jar.get_center() + Vector2(0, 40))
+			_:
+				_draw_mini_bear(jar.get_center() + Vector2(0, 30), 3.4, [Color(0.62, 0.4, 0.22), Color(0.55, 0.33, 0.2),
+					Color(0.75, 0.55, 0.35), Color(0.65, 0.45, 0.25)][i])
 		draw_rect(jar, Color(0.75, 0.9, 0.95, 0.55), false, 7.0)
 		draw_line(jar.position + Vector2(25, 30), jar.position + Vector2(25, 200), Color(1, 1, 1, 0.35), 10.0)
 		draw_rect(Rect2(jar.position.x - 8, jar.position.y - 34, jar.size.x + 16, 38), Color(0.35, 0.35, 0.4))
 		draw_rect(Rect2(jar.position.x + 45, jar.position.y + 150, 100, 55), Color(0.93, 0.88, 0.75))
-		draw_string(font, Vector2(jar.position.x + 52, jar.position.y + 192), "№%d" % (12 + i * 9),
+		draw_string(font, Vector2(jar.position.x + 52, jar.position.y + 192), "№%d" % [21, 44, 45, 46][i],
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 34, Color(0.2, 0.1, 0.05))
+
+
+func _draw_mini_fork(c: Vector2) -> void:
+	var steel := Color(0.55, 0.45, 0.4)
+	draw_line(c + Vector2(0, 90), c + Vector2(0, -10), Color(0.2, 0.15, 0.12), 26.0)
+	draw_line(c + Vector2(0, 90), c + Vector2(0, -10), steel, 18.0)
+	for k in 4:
+		var x := -33.0 + k * 22.0
+		draw_line(c + Vector2(x, -10), c + Vector2(x, -95), Color(0.2, 0.15, 0.12), 13.0)
+		draw_line(c + Vector2(x, -10), c + Vector2(x, -95), steel, 8.0)
+	draw_line(c + Vector2(-36, -10), c + Vector2(36, -10), steel, 16.0)
+	for k in 5:  # пятна ржавчины
+		draw_circle(c + Vector2(-12 + k * 6, -40 + k * 25), 7.0, Color(0.55, 0.25, 0.1, 0.8))
+
+
+func _draw_mini_pill(c: Vector2) -> void:
+	draw_circle(c + Vector2(-38, 0), 38.0, Color(0.15, 0.1, 0.12))
+	draw_circle(c + Vector2(38, 0), 38.0, Color(0.15, 0.1, 0.12))
+	draw_rect(Rect2(c + Vector2(-38, -38), Vector2(76, 76)), Color(0.15, 0.1, 0.12))
+	draw_circle(c + Vector2(-38, 0), 32.0, Color(0.92, 0.2, 0.22))
+	draw_rect(Rect2(c + Vector2(-38, -32), Vector2(38, 64)), Color(0.92, 0.2, 0.22))
+	draw_circle(c + Vector2(38, 0), 32.0, Color(0.97, 0.95, 0.9))
+	draw_rect(Rect2(c + Vector2(0, -32), Vector2(38, 64)), Color(0.97, 0.95, 0.9))
+	for k in [-1.0, 1.0]:  # глаза-крестики
+		var e: Vector2 = c + Vector2(-38 + k * 12, -6)
+		draw_line(e - Vector2(7, 7), e + Vector2(7, 7), Color.BLACK, 5.0)
+		draw_line(e - Vector2(7, -7), e + Vector2(7, -7), Color.BLACK, 5.0)
 
 
 func _draw_mini_bear(c: Vector2, s: float, fur: Color) -> void:
@@ -226,11 +272,11 @@ func _draw_mini_bear(c: Vector2, s: float, fur: Color) -> void:
 func _draw_lamp() -> void:
 	draw_line(Vector2(640, -2500), Vector2(640, -560), Color(0.1, 0.1, 0.1), 10.0)
 	draw_colored_polygon(PackedVector2Array([Vector2(560, -300), Vector2(720, -300), Vector2(1000, 0), Vector2(280, 0)]),
-		Color(1, 0.95, 0.6, 0.07))
+		Color(1, 0.95, 0.6, 0.07 * lights))
 	draw_colored_polygon(PackedVector2Array([Vector2(600, -560), Vector2(680, -560), Vector2(780, -380), Vector2(500, -380)]),
 		Color(0.3, 0.32, 0.35))
-	draw_circle(Vector2(640, -370), 45.0, Color(1, 0.97, 0.85))
-	draw_circle(Vector2(640, -370), 110.0, Color(1, 0.95, 0.7, 0.12))
+	draw_circle(Vector2(640, -370), 45.0, Color(1, 0.97, 0.85).lerp(Color(0.35, 0.33, 0.3), 1.0 - lights))
+	Tex.blob(self, Vector2(640, -370), Vector2.ONE * 220.0, Color(1, 0.95, 0.7, 0.35 * lights))
 
 
 # ---------------------------------------------------------------- учёный-бюрократ
@@ -292,6 +338,13 @@ func _draw_person() -> void:
 		draw_line(clip.position + Vector2(50, 90 + k * 42), clip.position + Vector2(280 - (k % 3) * 40, 90 + k * 42),
 			Color(0.55, 0.55, 0.6), 6.0)
 	draw_rect(Rect2(clip.position + Vector2(110, -20), Vector2(110, 50)), Color(0.72, 0.74, 0.78))
+	if writing:  # ручка бегает по строчкам
+		var line_i := int(t * 1.5) % 6
+		var pen := clip.position + Vector2(50 + fmod(t * 260.0, 200.0), 86 + line_i * 42) + Vector2(0, sin(t * 40.0) * 6.0)
+		draw_line(pen, pen + Vector2(90, -150), Color(0.1, 0.15, 0.4), 16.0)
+		draw_line(pen, pen + Vector2(12, -20), Color(0.8, 0.75, 0.3), 10.0)
+		draw_circle(pen + Vector2(90, -150), 40.0, LINE)
+		draw_circle(pen + Vector2(90, -150), 32.0, skin)
 	draw_circle(hand_r, 78.0, LINE)
 	draw_circle(hand_r, 68.0, skin)
 	# шея и голова
@@ -357,6 +410,10 @@ func _draw_table() -> void:
 	draw_rect(Rect2(-1300, TABLE_Y, 5800, 100), Color(0.42, 0.32, 0.24))
 	draw_rect(Rect2(-1300, TABLE_Y, 5800, 14), Color(0.55, 0.43, 0.33))
 	draw_rect(Rect2(-1300, TABLE_Y + 100, 5800, 80), Color(0.3, 0.23, 0.17))
+	for k in 5:  # волокна столешницы
+		draw_line(Vector2(-1300, TABLE_Y + 22 + k * 16), Vector2(4500, TABLE_Y + 26 + k * 16 + sin(k) * 6.0),
+			Color(0.36, 0.27, 0.2, 0.7), 3.0)
+	Tex.blob(self, Vector2(1600, TABLE_Y + 260), Vector2(3600, 120), Color(0, 0, 0, 0.35))  # тень под столом
 	for x in [-1150.0, 4250.0]:
 		draw_rect(Rect2(x - 55, TABLE_Y + 180, 110, 1600), Color(0.3, 0.23, 0.17))
 	# стопки бланков и печать
@@ -367,6 +424,19 @@ func _draw_table() -> void:
 	draw_rect(Rect2(3755, TABLE_Y - 190, 60, 130), Color(0.55, 0.35, 0.2))
 	draw_circle(Vector2(3785, TABLE_Y - 200), 45.0, Color(0.55, 0.35, 0.2))
 	draw_rect(Rect2(3920, TABLE_Y - 30, 200, 30), Color(0.6, 0.15, 0.15))  # штемпельная подушка
+	if stamped > 0.0:  # протокол со штампом рядом с ящиком
+		draw_set_transform(Vector2(1770, TABLE_Y - 300), -0.12, Vector2.ONE)
+		var sheet := Rect2(-330, -260, 660, 440)
+		draw_rect(Rect2(sheet.position + Vector2(14, 18), sheet.size), Color(0, 0, 0, 0.25))
+		draw_rect(sheet, Color(0.98, 0.97, 0.93))
+		draw_string(font, Vector2(-290, -190), "ПРОТОКОЛ №47", HORIZONTAL_ALIGNMENT_LEFT, -1, 52, Color(0.15, 0.15, 0.2))
+		for k in 5:
+			draw_line(Vector2(-290, -130 + k * 40), Vector2(260 - (k % 2) * 110, -130 + k * 40), Color(0.6, 0.6, 0.65), 7.0)
+		var red := Color(0.8, 0.08, 0.08, 0.85 * minf(stamped * 3.0, 1.0))
+		draw_set_transform(Vector2(1770, TABLE_Y - 250), -0.3, Vector2.ONE * (1.0 + (1.0 - stamped) * 0.8))
+		draw_rect(Rect2(-280, -55, 560, 110), red, false, 12.0)
+		draw_string(font, Vector2(-262, 26), "УТИЛИЗИРОВАНО", HORIZONTAL_ALIGNMENT_LEFT, -1, 66, red)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _draw_box_front() -> void:
@@ -402,7 +472,9 @@ func _draw_front() -> void:
 		front.draw_circle(sh, w / 2.0, col)
 		front.draw_circle(elbow, w / 2.0, col)
 	front.draw_line(wrist, hd + (elbow - hd).normalized() * 40.0, Color(0.96, 0.96, 0.97), 120.0)  # манжета
-	if match_state == Match.HELD or match_state == Match.LIT:
+	if holding == Hold.EXTINGUISHER:
+		_draw_extinguisher(hd)
+	elif match_state == Match.HELD or match_state == Match.LIT:
 		_draw_match(hd + Vector2(-10, -30), match_tip(), match_state == Match.LIT)
 	front.draw_circle(hd, 80.0, LINE)
 	front.draw_circle(hd, 70.0, skin)
@@ -414,6 +486,29 @@ func _draw_front() -> void:
 	if match_state == Match.FLYING:
 		var dir := Vector2.from_angle(match_rot)
 		_draw_match(match_pos - dir * 190.0, match_pos, true)
+
+
+## Сопло огнетушителя (куда бьёт пена).
+func nozzle() -> Vector2:
+	return _hand_drawn() + Vector2(-210, -40)
+
+
+func _draw_extinguisher(hd: Vector2) -> void:
+	var body := Rect2(hd + Vector2(-70, -40), Vector2(140, 420))
+	front.draw_rect(body.grow(10), LINE)
+	front.draw_rect(body, Color(0.8, 0.1, 0.1))
+	front.draw_rect(Rect2(body.position + Vector2(18, 0), Vector2(26, body.size.y)), Color(1, 0.4, 0.35, 0.6))
+	front.draw_rect(Rect2(body.position + Vector2(0, 150), Vector2(140, 90)), Color(0.95, 0.95, 0.92))
+	front.draw_string(font, body.position + Vector2(14, 212), "ОУ-2", HORIZONTAL_ALIGNMENT_LEFT, -1, 44, LINE)
+	front.draw_rect(Rect2(hd + Vector2(-40, -110), Vector2(80, 80)), Color(0.2, 0.2, 0.22))  # вентиль
+	var n := nozzle()
+	front.draw_line(hd + Vector2(0, -90), hd + Vector2(-110, -60), LINE, 34.0)
+	front.draw_line(hd + Vector2(0, -90), hd + Vector2(-110, -60), Color(0.15, 0.15, 0.17), 24.0)
+	front.draw_line(hd + Vector2(-110, -60), n, Color(0.15, 0.15, 0.17), 24.0)
+	front.draw_colored_polygon(PackedVector2Array([n + Vector2(10, -20), n + Vector2(-70, -45), n + Vector2(-70, 45),
+		n + Vector2(10, 20)]), Color(0.12, 0.12, 0.14))
+	if spraying:
+		Tex.blob(front, n + Vector2(-140, 60), Vector2(230, 160), Color(1, 1, 1, 0.55))
 
 
 func _draw_match(from: Vector2, tip: Vector2, lit: bool) -> void:

@@ -6,8 +6,11 @@ signal difficulty_chosen(index: int)
 signal retry_pressed
 signal menu_pressed
 signal records_reset
+signal perk_chosen(id: String)
 
 const Settings = preload("res://scripts/settings.gd")
+const Skills = preload("res://scripts/skills.gd")
+const SkillTreeUI = preload("res://scripts/skill_tree_ui.gd")
 
 const GOLD := Color(1, 0.82, 0.3)
 const PANEL_BG := Color(0.13, 0.08, 0.05, 0.9)
@@ -21,7 +24,17 @@ const TIPS := [
 	"Оглушённый медведь приносит двойные очки.",
 	"Каратисты бьют больно — держи дистанцию.",
 	"Иглы швей пришивают змею — она замедляется.",
+	"Вилку не бей в лоб — зубцы! Заходи сбоку или сзади.",
+	"Вилка, врезавшаяся в бортик, застревает — кусай!",
+	"Таблетку можно съесть, только пока она на земле.",
+	"Ударная волна таблетки оглушает — уходи рывком.",
+	"Ниндзя появляется сбоку — не подставляй бок.",
+	"Хлопушка взрывается и по медведям — стравливай!",
+	"Медведя в пузыре не съесть — сначала лопни щит.",
+	"Чешуйки из забегов тратятся в Древе навыков.",
+	"Вилку в спринте можно направить в яичницу!",
 ]
+const STAGE_NAMES := ["МЕДВЕДИ", "ВИЛКИ", "ТАБЛЕТКИ", "ЯИЧНИЦА"]
 
 var sfx: Node  # проигрыватель звуков (sfx.gd), назначается игрой
 
@@ -39,6 +52,13 @@ var menu_box: CenterContainer
 var end_box: CenterContainer
 var pause_box: CenterContainer
 var settings_box: CenterContainer
+var skill_box: CenterContainer
+var skill_ui: SkillTreeUI
+var perk_box: CenterContainer
+var perk_title: Label
+var perk_buttons: Array[Button] = []
+var perk_ids: Array = []
+var tree_button: Button
 var settings_return: CenterContainer
 var settings_first: Control
 var reset_button: Button
@@ -48,6 +68,9 @@ var speaker_label: Label
 var caption_label: Label
 var caption_tween: Tween
 var skip_label: Label
+var title_card: Label
+var credits_label: Label
+var credits_tween: Tween
 var fps_label: Label
 var version_label: Label
 var cinematic := false
@@ -86,6 +109,8 @@ var menu_intro := 0.0
 var menu_fade: Array[Control] = []
 var bears_eaten := 0
 var bears_total := 0
+var stage := 0
+var shield := 0
 var score_target := 0
 var score_shown := 0.0
 var boss_visible := false
@@ -156,6 +181,8 @@ func _ready() -> void:
 	_build_end()
 	_build_pause()
 	_build_settings()
+	_build_skills()
+	_build_perks()
 	_show_only(null)
 	game_ui.visible = false
 
@@ -302,6 +329,23 @@ func _build_caption() -> void:
 	prompt_label.pivot_offset = Vector2(500, 25)
 	prompt_label.visible = false
 	root.add_child(prompt_label)
+	title_card = _label("", 88, Color(0.55, 1, 0.5), true)
+	title_card.set_anchors_preset(Control.PRESET_CENTER)
+	title_card.offset_left = -640
+	title_card.offset_right = 640
+	title_card.offset_top = 150
+	title_card.offset_bottom = 290
+	title_card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_card.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_card.pivot_offset = Vector2(640, 70)
+	title_card.modulate.a = 0.0
+	root.add_child(title_card)
+	credits_label = _label("", 24, Color(1, 0.95, 0.85))
+	credits_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	credits_label.position = Vector2(0, 720)
+	credits_label.size = Vector2(1280, 10)
+	credits_label.visible = false
+	root.add_child(credits_label)
 	skip_label = _label("Esc — пропустить", 15, Color(1, 1, 1, 0.55))
 	skip_label.position = Vector2(1110, 28)
 	skip_label.visible = false
@@ -309,7 +353,7 @@ func _build_caption() -> void:
 	fps_label = _label("", 15, Color(0.7, 1, 0.7))
 	fps_label.position = Vector2(606, 6)
 	root.add_child(fps_label)
-	version_label = _label("v" + str(ProjectSettings.get_setting("application/config/version", "4.0")), 16,
+	version_label = _label("v" + str(ProjectSettings.get_setting("application/config/version", "5.0")), 16,
 		Color(1, 1, 1, 0.6))
 	version_label.position = Vector2(1200, 690)
 	root.add_child(version_label)
@@ -321,7 +365,7 @@ func _build_menu() -> void:
 	menu_panel = PanelContainer.new()
 	menu_box.add_child(menu_panel)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
+	box.add_theme_constant_override("separation", 8)
 	menu_panel.add_child(box)
 	title_art = Control.new()
 	title_art.custom_minimum_size = Vector2(440, 128)
@@ -335,21 +379,30 @@ func _build_menu() -> void:
 	box.add_child(sep)
 	var choose := _centered(_label("ВЫБЕРИ СЛОЖНОСТЬ", 18, GOLD, true))
 	box.add_child(choose)
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 12)
-	box.add_child(row)
-	for i in 3:
+	var diff_center := CenterContainer.new()
+	box.add_child(diff_center)
+	var row := GridContainer.new()
+	row.columns = 2
+	row.add_theme_constant_override("h_separation", 12)
+	row.add_theme_constant_override("v_separation", 10)
+	diff_center.add_child(row)
+	for i in 4:
 		var b := _button("", difficulty_chosen.emit.bind(i))
-		b.custom_minimum_size = Vector2(140, 54)
+		b.custom_minimum_size = Vector2(214, 50)
 		b.add_theme_font_size_override("font_size", 19)
 		b.focus_entered.connect(_show_desc.bind(i))
 		row.add_child(b)
 		diff_buttons.append(b)
 		menu_fade.append(b)
 	desc_label = _centered(_label("", 18, Color(1, 0.95, 0.88)))
-	desc_label.custom_minimum_size = Vector2(0, 80)
+	desc_label.custom_minimum_size = Vector2(0, 66)
 	box.add_child(desc_label)
+	tree_button = _button("ДРЕВО НАВЫКОВ", _open_skills)
+	tree_button.custom_minimum_size = Vector2(394, 48)
+	var tree_center := CenterContainer.new()
+	tree_center.add_child(tree_button)
+	box.add_child(tree_center)
+	menu_fade.append(tree_button)
 	var row2 := HBoxContainer.new()
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
 	row2.add_theme_constant_override("separation", 14)
@@ -484,6 +537,76 @@ func _build_settings() -> void:
 	row.add_child(back)
 
 
+func _build_skills() -> void:
+	skill_box = _center_box()
+	var panel := PanelContainer.new()
+	skill_box.add_child(panel)
+	skill_ui = SkillTreeUI.new()
+	panel.add_child(skill_ui)
+	skill_ui.build(self)
+	skill_ui.closed.connect(_close_skills)
+
+
+func _open_skills() -> void:
+	_show_only(skill_box)
+	skill_ui.open()
+
+
+func _close_skills() -> void:
+	_show_only(menu_box)
+	_update_tree_button()
+	tree_button.grab_focus.call_deferred()
+
+
+func _update_tree_button() -> void:
+	Skills.ensure_loaded()
+	tree_button.text = "ДРЕВО НАВЫКОВ  •  %d ч." % Skills.scales
+
+
+## Выбор улучшения между этапами: три карточки, мышь или клавиши 1/2/3.
+func _build_perks() -> void:
+	perk_box = _center_box()
+	var box := _panel(perk_box)
+	perk_title = _centered(_label("ВЫБЕРИ УЛУЧШЕНИЕ", 40, GOLD, true))
+	box.add_child(perk_title)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 18)
+	box.add_child(row)
+	for i in 3:
+		var b := _button("", _choose_perk.bind(i))
+		b.custom_minimum_size = Vector2(250, 170)
+		b.add_theme_font_size_override("font_size", 19)
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		row.add_child(b)
+		perk_buttons.append(b)
+	box.add_child(_centered(_label("Клавиши 1 / 2 / 3 или мышь", 16, Color(0.85, 0.8, 0.72))))
+
+
+func show_perks(cards: Array, next_stage: String) -> void:
+	perk_ids.clear()
+	perk_title.text = "ДАЛЬШЕ: %s\nВЫБЕРИ УЛУЧШЕНИЕ" % next_stage
+	for i in perk_buttons.size():
+		var c: Dictionary = cards[i]
+		perk_ids.append(c["id"])
+		var b := perk_buttons[i]
+		b.text = "%d. %s\n\n%s" % [i + 1, c["name"], c["desc"]]
+		var col: Color = c["color"]
+		b.add_theme_stylebox_override("normal", _box(col.darkened(0.7), col, 16, 3))
+		b.add_theme_stylebox_override("hover", _box(col.darkened(0.5), Color.WHITE, 16, 3))
+		b.add_theme_stylebox_override("focus", _box(col.darkened(0.5), Color.WHITE, 16, 4))
+	_show_only(perk_box)
+	perk_buttons[0].grab_focus.call_deferred()
+	_sound("perk")
+
+
+func _choose_perk(i: int) -> void:
+	if not perk_box.visible or i >= perk_ids.size():
+		return
+	_show_only(null)
+	perk_chosen.emit(perk_ids[i])
+
+
 func _section(grid: GridContainer, text: String) -> void:
 	grid.add_child(_label(text, 16, GOLD, true))
 	grid.add_child(Control.new())
@@ -602,7 +725,7 @@ func _quit() -> void:
 # ---------------------------------------------------------------- показ экранов
 
 func _show_only(which: CenterContainer) -> void:
-	for c in [menu_box, end_box, pause_box, settings_box]:
+	for c in [menu_box, end_box, pause_box, settings_box, skill_box, perk_box]:
 		c.visible = c == which
 	dim.visible = which != null and which != menu_box  # в меню видна живая демо-арена
 
@@ -621,6 +744,7 @@ func show_menu(diffs: Array, bests: Array, selected: int) -> void:
 		b.add_theme_stylebox_override("hover", _box(col.darkened(0.3), Color.WHITE, 14, 3))
 		b.add_theme_stylebox_override("pressed", _box(col.darkened(0.7), Color.WHITE, 14, 3))
 	_show_only(menu_box)
+	_update_tree_button()
 	diff_buttons[selected].grab_focus.call_deferred()
 	_show_desc(selected)
 	# вступительная анимация: панель выезжает, буквы падают, кнопки проявляются
@@ -702,8 +826,20 @@ func _sound(sound_name: String) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if perk_box.visible and event is InputEventKey and event.pressed and not event.echo:
+		var k: int = event.physical_keycode
+		if k >= KEY_1 and k <= KEY_3:
+			_sound("ui_select")
+			_choose_perk(k - KEY_1)
+			get_viewport().set_input_as_handled()
+			return
 	if event.is_action_pressed("pause"):
-		if settings_box.visible:
+		if perk_box.visible:
+			get_viewport().set_input_as_handled()
+			return
+		if skill_box.visible:
+			_close_skills()
+		elif settings_box.visible:
 			_close_settings()
 		elif pause_box.visible:
 			_set_paused(false)
@@ -758,6 +894,42 @@ func show_caption(speaker: String, text: String) -> void:
 	caption_tween.tween_property(caption_box, "modulate:a", 1.0, 0.35)
 
 
+## Крупный титр по центру экрана (финал).
+func show_title_card(text: String, color: Color) -> void:
+	title_card.text = text
+	title_card.label_settings.font_color = color
+	title_card.modulate.a = 0.0
+	title_card.scale = Vector2(0.85, 0.85)
+	var tw := create_tween()
+	tw.tween_property(title_card, "modulate:a", 1.0, 1.6)
+	tw.parallel().tween_property(title_card, "scale", Vector2.ONE, 4.0).set_ease(Tween.EASE_OUT)
+
+
+func hide_title_card(time := 1.2) -> void:
+	create_tween().tween_property(title_card, "modulate:a", 0.0, time)
+
+
+## Титры ползут снизу вверх.
+func roll_credits(text: String, duration: float) -> void:
+	credits_label.text = text
+	credits_label.visible = true
+	credits_label.modulate.a = 1.0
+	credits_label.position.y = 720.0
+	var h := (text.count("\n") + 1) * 36.0 + 100.0
+	if credits_tween:
+		credits_tween.kill()
+	credits_tween = create_tween()
+	credits_tween.tween_property(credits_label, "position:y", -h, duration)
+	credits_tween.tween_callback(func() -> void: credits_label.visible = false)
+
+
+func stop_credits() -> void:
+	if credits_tween:
+		credits_tween.kill()
+	credits_label.visible = false
+	title_card.modulate.a = 0.0
+
+
 func hide_caption() -> void:
 	if caption_tween:
 		caption_tween.kill()
@@ -769,10 +941,12 @@ func set_score(value: int) -> void:
 	score_target = value
 
 
-func set_bears(eaten: int, total: int) -> void:
-	bears_eaten = eaten
+## Цель этапа: stage — 0 медведи, 1 вилки, 2 таблетки, 3 яичница (без счётчика).
+func set_goal(stage_index: int, done: int, total: int) -> void:
+	stage = stage_index
+	bears_eaten = done
 	bears_total = total
-	bears_label.text = "%d/%d" % [eaten, total] if total > 0 else ""
+	bears_label.text = "%d/%d" % [done, total] if total > 0 else ""
 
 
 func set_lives(value: int) -> void:
@@ -846,13 +1020,17 @@ func _process(delta: float) -> void:
 
 
 func _panel_rects() -> Array[Rect2]:
-	var w := maxi(max_lives, 3) * 40 + 36
-	var rects: Array[Rect2] = [Rect2(16, 14, 340, 116), Rect2(1280 - 16 - w, 14, w, 84)]
+	var w := _right_width()
+	var rects: Array[Rect2] = [Rect2(16, 14, 340, 150), Rect2(1280 - 16 - w, 14, w, 84)]
 	if ability_type >= 0:
 		rects.append(Rect2(1280 - 16 - 270, 106, 270, 58))
 	if boss_visible:
 		rects.append(Rect2(250, 634, 780, 70))
 	return rects
+
+
+func _right_width() -> int:
+	return maxi(max_lives, 3) * 40 + 36 + (40 if shield > 0 else 0)
 
 
 # ---------------------------------------------------------------- рисование
@@ -867,14 +1045,17 @@ func _on_overlay_draw() -> void:
 		return
 
 	var panel := _box(PANEL_BG, Color(0.55, 0.38, 0.2), 16, 3)
-	# Слева: счёт и медведи
-	overlay.draw_style_box(panel, Rect2(16, 14, 340, 116 if bears_total > 0 else 82))
+	# Слева: счёт, цель этапа и дорожка этапов
+	overlay.draw_style_box(panel, Rect2(16, 14, 340, 150))
 	if bears_total > 0:
-		_draw_bear_icon(Vector2(46, 101))
+		_draw_stage_icon(Vector2(46, 101), stage, 1.0)
 		_draw_bar(Rect2(66, 94, 208, 14), float(bears_eaten) / bears_total, Color(0.75, 0.5, 0.28), Color(0.95, 0.75, 0.5))
+	else:
+		overlay.draw_string(title_font, Vector2(34, 108), "ПОБЕДИ ЯИЧНИЦУ!", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(1, 0.8, 0.4))
+	_draw_stage_track(Vector2(46, 140))
 
-	# Справа: жизни и рывок
-	var w := maxi(max_lives, 3) * 40 + 36
+	# Справа: жизни, щит и стамина
+	var w := _right_width()
 	var x0 := 1280.0 - 16.0 - w
 	overlay.draw_style_box(panel, Rect2(x0, 14, w, 84))
 	for i in max_lives:
@@ -890,6 +1071,13 @@ func _on_overlay_draw() -> void:
 		elif i == lives and heart_anim > 0.0:  # только что потерянное сердце улетает
 			_draw_heart(c + Vector2(0, -20.0 * (1.0 - heart_anim)), s * (1.0 + (1.0 - heart_anim)),
 				Color(1, 0.2, 0.3, heart_anim))
+	if shield > 0:  # щит
+		var c := Vector2(x0 + 38 + max_lives * 40, 44)
+		overlay.draw_circle(c, 14.0, Color(0.3, 0.55, 0.9, 0.5))
+		overlay.draw_arc(c, 14.0, 0, TAU, 24, Color(0.75, 0.9, 1.0), 2.5)
+		overlay.draw_arc(c, 10.0, -2.5, -1.6, 6, Color(1, 1, 1, 0.8), 2.0)
+		if shield > 1:
+			overlay.draw_string(title_font, c + Vector2(8, 16), "×%d" % shield, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
 	# стамина: при истощении мигает красным
 	var st_col := Color(0.3, 0.8, 0.35)
 	var st_top := Color(0.6, 1, 0.6)
@@ -933,6 +1121,59 @@ func _draw_ability_icon(c: Vector2, type: int) -> void:
 		4:  # швея — иголка
 			overlay.draw_line(c + Vector2(4, 14), c + Vector2(16, 0), Color(0.85, 0.87, 0.92), 2.0)
 			overlay.draw_circle(c + Vector2(4, 14), 3.5, Color(0.95, 0.8, 0.2))
+		5:  # ниндзя — сюрикен
+			var pts := PackedVector2Array()
+			for i in 8:
+				pts.append(c + Vector2(10, 8) + Vector2.from_angle(TAU * i / 8.0 + t * 3.0) * (8.0 if i % 2 == 0 else 3.0))
+			overlay.draw_colored_polygon(pts, Color(0.7, 0.73, 0.8))
+		6:  # хлопушка
+			overlay.draw_rect(Rect2(c + Vector2(4, 4), Vector2(13, 8)), Color(0.95, 0.3, 0.5))
+			overlay.draw_circle(c + Vector2(2, 3), 2.5 + sin(t * 20.0), Color(1, 0.85, 0.3))
+		7:  # медсестра — крест
+			overlay.draw_rect(Rect2(c + Vector2(7, 1), Vector2(5, 15)), Color(0.9, 0.12, 0.15))
+			overlay.draw_rect(Rect2(c + Vector2(2, 6), Vector2(15, 5)), Color(0.9, 0.12, 0.15))
+
+
+## Иконка цели этапа: медведь, вилка, таблетка или яичница.
+func _draw_stage_icon(c: Vector2, which: int, k: float) -> void:
+	match which:
+		0:
+			_draw_bear_icon(c)
+		1:
+			var col := Color(0.72, 0.62, 0.55, k)
+			overlay.draw_line(c + Vector2(-12, 10), c + Vector2(4, -4), Color(0.2, 0.15, 0.12, k), 6.0)
+			overlay.draw_line(c + Vector2(-12, 10), c + Vector2(4, -4), col, 3.5)
+			for i in 3:
+				var o := Vector2(-4 + i * 4, -4 + i * 4) * 0.7
+				overlay.draw_line(c + Vector2(2, -2) + o, c + Vector2(12, -12) + o, col, 2.2)
+			overlay.draw_circle(c + Vector2(-4, 2), 2.2, Color(0.65, 0.3, 0.12, k))
+		2:
+			var r := Rect2(c - Vector2(12, 6), Vector2(24, 12))
+			overlay.draw_circle(c - Vector2(6, 0), 6.5, Color(0.92, 0.2, 0.22, k))
+			overlay.draw_circle(c + Vector2(6, 0), 6.5, Color(0.97, 0.95, 0.9, k))
+			overlay.draw_rect(Rect2(r.position + Vector2(6, 0.5), Vector2(6, 11)), Color(0.92, 0.2, 0.22, k))
+			overlay.draw_rect(Rect2(c + Vector2(0, -5.5), Vector2(6, 11)), Color(0.97, 0.95, 0.9, k))
+		3:
+			overlay.draw_circle(c, 12.0, Color(0.99, 0.97, 0.9, k))
+			overlay.draw_circle(c + Vector2(1, -1), 5.5, Color(1, 0.75, 0.1, k))
+
+
+## Дорожка этапов: медведь → вилка → таблетка → яичница.
+func _draw_stage_track(origin: Vector2) -> void:
+	for i in 4:
+		var c := origin + Vector2(i * 88, 0)
+		if i < 3:
+			var done_col := Color(0.6, 1, 0.5) if i < stage else Color(0.4, 0.3, 0.22)
+			overlay.draw_line(c + Vector2(18, 0), c + Vector2(70, 0), Color(0.05, 0.03, 0.02), 6.0)
+			overlay.draw_line(c + Vector2(18, 0), c + Vector2(70, 0), done_col, 3.0)
+		var current := i == stage
+		if current:
+			overlay.draw_circle(c, 17.0 + 1.5 * sin(t * 5.0), Color(1, 0.82, 0.3, 0.35))
+			overlay.draw_arc(c, 16.0, 0, TAU, 24, GOLD, 2.5)
+		_draw_stage_icon(c, i, 1.0 if i <= stage else 0.35)
+		if i < stage:
+			overlay.draw_line(c + Vector2(4, 8), c + Vector2(8, 12), Color(0.4, 1, 0.4), 3.0)
+			overlay.draw_line(c + Vector2(8, 12), c + Vector2(16, 2), Color(0.4, 1, 0.4), 3.0)
 
 
 func _draw_boss_bar() -> void:

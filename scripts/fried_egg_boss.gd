@@ -14,6 +14,7 @@ signal yolk_opened
 signal defeated
 
 const Snake = preload("res://scripts/snake.gd")
+const Tex = preload("res://scripts/tex.gd")
 
 const WHITE_RADIUS := 150.0
 const YOLK_RADIUS := 48.0
@@ -51,7 +52,15 @@ var last_head := Vector2.ZERO
 var flash := 0.0
 var last_phase := 1
 var chip := 0.0
+var bite_damage := 1  # «Сильные челюсти» — укус снимает 2 деления
+var lace: Array[Vector3] = []  # хрустящее кружево по краю: угол, радиус, размер
 var seeds: Array[float] = [randf() * TAU, randf() * TAU, randf() * TAU]
+
+
+func _ready() -> void:
+	material = Tex.material(Tex.Mat.EGG, randf() * 10.0)
+	for i in 70:
+		lace.append(Vector3(randf() * TAU, randf_range(0.93, 1.04), randf_range(4.0, 11.0)))
 
 
 func configure(boss_hp: int, projectile_speed: float, yolk_time: float, idle_tempo: float) -> void:
@@ -298,11 +307,11 @@ func take_chip(amount: float) -> bool:
 
 func _take_bite(snake: Snake, away: Vector2) -> void:
 	snake.push(away * 650.0)
-	_lose_hp()
+	_lose_hp(bite_damage)
 
 
-func _lose_hp() -> void:
-	hp -= 1
+func _lose_hp(amount := 1) -> void:
+	hp = maxi(hp - amount, 0)
 	flash = 1.0
 	bitten.emit(hp)
 	if hp <= 0:
@@ -351,6 +360,7 @@ func _draw() -> void:
 		inner.append(v * (r - 9.0))
 		shadow.append(v * r * shadow_k + Vector2(10, 14))
 	draw_colored_polygon(shadow, Color(0, 0, 0, 0.2 * shadow_k))
+	Tex.blob(self, Vector2(10, 14), Vector2.ONE * WHITE_RADIUS * 1.25 * shadow_k, Color(0, 0, 0, 0.18 * shadow_k))
 
 	draw_set_transform(offset, 0.0, sq)
 	var rage := float(p - 1) / 2.0
@@ -359,11 +369,26 @@ func _draw() -> void:
 	if act == Act.WINDUP or act == Act.CHARGE:
 		white = white.lerp(Color(1.0, 0.75, 0.7), 0.5)
 	white = white.lerp(Color(1, 0.4, 0.4), flash * 0.6)
+	for l in lace:  # хрустящее поджаристое кружево по краю
+		var lp := Vector2.from_angle(l.x) * WHITE_RADIUS * l.y
+		draw_circle(lp, l.z, crust.darkened(0.25))
+		draw_circle(lp + Vector2(-1, -1), l.z * 0.6, crust.lightened(0.1))
 	draw_colored_polygon(outer, crust)
-	draw_colored_polygon(inner, white)
+	draw_colored_polygon(inner, white.darkened(0.04))
+	# полупрозрачный край белка и более плотная середина
+	var mid := PackedVector2Array()
+	for v in inner:
+		mid.append(v * 0.78 + Vector2(-4, -5))
+	draw_colored_polygon(mid, white)
+	Tex.blob(self, Vector2(-40, -50), Vector2(95, 70), Color(1, 1, 1, 0.45))
 	for i in 6:  # пузырьки на белке
 		var bp := Vector2.from_angle(seeds[i % 3] + i * 1.1) * (80.0 + 12.0 * sin(t + i))
-		draw_arc(bp, 5.0 + i % 3, 0, TAU, 12, Color(0.85, 0.83, 0.78), 1.5)
+		draw_circle(bp, 5.0 + i % 3, Color(0.93, 0.91, 0.86))
+		draw_arc(bp, 5.0 + i % 3, 0, TAU, 12, Color(0.8, 0.78, 0.72), 1.5)
+		draw_circle(bp + Vector2(-1.5, -1.5), 1.5, Color(1, 1, 1, 0.9))
+	for i in 3:  # масляные блики
+		var op := Vector2.from_angle(seeds[i] * 2.0 + 0.8) * 110.0
+		Tex.blob(self, op, Vector2(18, 9), Color(1, 0.85, 0.35, 0.35))
 
 	# Желток
 	var yc := YOLK_OFFSET
@@ -375,12 +400,17 @@ func _draw() -> void:
 		yr *= 1.0 + 0.06 * pulse
 		if act_t < 0.8 and int(act_t * 10.0) % 2 == 0:  # скоро закроется
 			draw_arc(yc, yr + 16.0, 0, TAU, 40, Color(1, 0.3, 0.1, 0.8), 3.0)
-	draw_circle(yc + Vector2(4, 6), yr, Color(0.85, 0.45, 0.05))
-	draw_circle(yc, yr, Color(1.0, 0.8, 0.1) if open else Color(0.95, 0.6, 0.12))
+	Tex.blob(self, yc + Vector2(6, 9), Vector2.ONE * yr * 1.3, Color(0.6, 0.35, 0.0, 0.35))
+	draw_circle(yc + Vector2(3, 5), yr, Color(0.85, 0.45, 0.05))
+	var yolk_col := Color(1.0, 0.8, 0.1) if open else Color(0.95, 0.6, 0.12)
+	draw_circle(yc, yr, yolk_col.darkened(0.08))
+	draw_circle(yc + Vector2(-3, -4), yr * 0.86, yolk_col)
+	draw_circle(yc + Vector2(-7, -9), yr * 0.55, yolk_col.lightened(0.12))
 	if not open:
 		draw_circle(yc, yr, Color(1, 1, 1, 0.22))  # запёкшаяся плёнка — укусить нельзя
 		draw_arc(yc, yr - 3.0, 0, TAU, 32, Color(1, 1, 1, 0.35), 3.0)
-	draw_circle(yc + Vector2(-yr * 0.42, -yr * 0.45), yr * 0.17, Color(1, 1, 1, 0.8))
+	Tex.blob(self, yc + Vector2(-yr * 0.4, -yr * 0.45), Vector2.ONE * yr * 0.35, Color(1, 1, 1, 0.7))
+	draw_circle(yc + Vector2(-yr * 0.42, -yr * 0.45), yr * 0.14, Color(1, 1, 1, 0.9))
 
 	# Лицо
 	var dark := Color(0.35, 0.15, 0.05)
