@@ -147,6 +147,13 @@ static func code(ci: CanvasItem, c: Vector2, col: Color, s := 1.0) -> void:
 	ci.draw_line(c + Vector2(2, -9) * s, c + Vector2(-2, 9) * s, col, 2.0 * s)
 
 
+## Клык — узел ветки «атака» в древе навыков.
+static func fang(ci: CanvasItem, c: Vector2, col: Color, s := 1.0) -> void:
+	for k in [-1.0, 1.0]:
+		ci.draw_colored_polygon(PackedVector2Array([
+			c + Vector2(k * 6.5, -7) * s, c + Vector2(k * 1.5, -7) * s, c + Vector2(k * 4.0, 8) * s]), col)
+
+
 static func star(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
 	var pts := PackedVector2Array()
 	for i in 10:

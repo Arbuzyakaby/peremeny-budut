@@ -100,9 +100,11 @@ func build() -> void:
 	controls_label = Design.label("", "caption", Design.MUTED, HORIZONTAL_ALIGNMENT_LEFT)
 	controls_label.label_settings = Design.label_settings("hud", Design.MUTED)
 	controls_label.label_settings.font_size = 13
-	controls_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	controls_label.anchor_left = 0.5
+	controls_label.anchor_right = 1.0
 	controls_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	controls_label.offset_left = -640
+	controls_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	controls_label.offset_left = Design.SPACE[5]
 	controls_label.offset_right = -Design.SPACE[5]
 	controls_label.offset_top = 96
 	add_child(controls_label)
@@ -110,8 +112,9 @@ func build() -> void:
 
 	tip_label = Design.label("", "h3", Design.CREAM, HORIZONTAL_ALIGNMENT_RIGHT)
 	tip_label.label_settings = Design.label_settings("hud", Design.CREAM)
-	tip_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	tip_label.offset_left = -640
+	tip_label.anchor_left = 0.5
+	tip_label.anchor_right = 1.0
+	tip_label.offset_left = Design.SPACE[5]
 	tip_label.offset_right = -Design.SPACE[5]
 	tip_label.offset_top = Design.SPACE[5]
 	tip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

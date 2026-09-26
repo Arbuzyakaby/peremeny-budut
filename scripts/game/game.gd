@@ -411,8 +411,7 @@ func _try_attack() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("dev_panel"):
-		if Settings.flag("dev_mode") or OS.is_debug_build():
-			dev_panel.toggle()
+		dev_panel.toggle()
 		get_viewport().set_input_as_handled()
 		return
 	if state == State.CUTSCENE and ending:
