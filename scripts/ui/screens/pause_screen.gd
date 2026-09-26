@@ -1,0 +1,44 @@
+extends "res://scripts/ui/screens/screen.gd"
+## Пауза: сводка забега и три действия. Выход в меню можно подтверждать (настройка confirm_quit).
+
+signal resume_requested
+signal settings_requested
+signal menu_requested
+
+var info: Label
+var menu_button: Button
+var menu_armed := false
+
+
+func build() -> void:
+	make_frame(Design.SPACE[3])
+	title("ПАУЗА", "h1")
+	info = Design.label("", "small", Design.MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+	content.add_child(info)
+	content.add_child(Design.spacer(Design.SPACE[2]))
+	first_focus = Design.button("ПРОДОЛЖИТЬ", resume_requested.emit, "Primary", Vector2(320, Design.TOUCH_MIN + 4))
+	content.add_child(first_focus)
+	content.add_child(Design.button("НАСТРОЙКИ", settings_requested.emit, "", Vector2(320, Design.TOUCH_MIN)))
+	menu_button = Design.button("В МЕНЮ", _on_menu, "Ghost", Vector2(320, Design.TOUCH_MIN))
+	content.add_child(menu_button)
+
+
+func show_pause(summary: String) -> void:
+	info.text = summary
+	menu_armed = false
+	menu_button.text = "В МЕНЮ"
+	open()
+
+
+func _on_menu() -> void:
+	if Settings.flag("confirm_quit") and not menu_armed:
+		menu_armed = true
+		menu_button.text = "ЗАБЕГ ПРОПАДЁТ — ЖМИ ЕЩЁ РАЗ"
+		Design.play("ui_error")
+		return
+	menu_requested.emit()
+
+
+func handle_back() -> bool:
+	resume_requested.emit()
+	return true

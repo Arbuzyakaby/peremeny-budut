@@ -1,0 +1,41 @@
+extends Control
+## Экран загрузки при первом запуске: пока в фоне синтезируются звуки (на телефоне это заметно).
+
+const Design = preload("res://scripts/ui/design.gd")
+const Icons = preload("res://scripts/ui/icons.gd")
+
+var progress := 0.0
+var shown := 0.0
+var t := 0.0
+var status := "Синтезируем звуки"
+
+
+func _init() -> void:
+	set_anchors_preset(Control.PRESET_FULL_RECT)
+	mouse_filter = Control.MOUSE_FILTER_STOP
+
+
+func _process(delta: float) -> void:
+	t += delta
+	shown = move_toward(shown, progress, delta * 2.5)
+	queue_redraw()
+
+
+func _draw() -> void:
+	draw_rect(Rect2(Vector2.ZERO, size), Design.SURFACE_0)
+	var c := size / 2.0
+	var font := Design.font("heavy")
+	var title := "ЗМЕЯ"
+	var fs := 84
+	var w := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	draw_string_outline(font, c + Vector2(-w / 2.0, -20), title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 12, Color(0.05, 0.2, 0.05))
+	draw_string(font, c + Vector2(-w / 2.0, -20), title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.45, 0.9, 0.4))
+	var bar := Rect2(c + Vector2(-180, 24), Vector2(360, 10))
+	Design.draw_bar(self, bar, shown, Design.YOLK)
+	var dots := ".".repeat(int(t * 3.0) % 4)
+	var body := Design.font("body")
+	var tw := body.get_string_size(status + "...", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+	draw_string(body, c + Vector2(-tw / 2.0, 66), status + dots, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Design.MUTED)
+	for i in 3:  # три иконки врагов «подпрыгивают» по очереди
+		var k := maxf(sin(t * 5.0 - i * 0.9), 0.0)
+		Icons.stage(self, c + Vector2(-40 + i * 40, 110 - k * 8.0), i, 0.9)

@@ -1,0 +1,290 @@
+extends Control
+## Игровые панели поверх арены: слева — счёт, цель этапа и дорожка этапов; справа — жизни, щит,
+## стамина и текущая атака; полоса HP яичницы (снизу, а на сенсорном экране — сверху, чтобы не
+## мешать кнопкам). Плюс вспышка урона, виньетка, киношные полосы, таймер, FPS и бейдж DEV.
+## Панели становятся полупрозрачными, когда под ними ползёт змея.
+
+const Design = preload("res://scripts/ui/design.gd")
+const Icons = preload("res://scripts/ui/icons.gd")
+const Settings = preload("res://scripts/core/settings.gd")
+const Tex = preload("res://scripts/gfx/tex.gd")
+
+const PAD := 16.0
+
+var in_game := false
+var touch := false
+var diff_name := ""
+var diff_color := Design.YOLK
+var score_target := 0
+var score_shown := 0.0
+var stage := 0
+var goal_done := 0
+var goal_total := 0
+var lives := 3
+var max_lives := 3
+var heart_anim := 0.0
+var shield := 0
+var stamina := 1.0
+var exhausted := false
+var ability_type := -1
+var ability_name := ""
+var ability_charges := 0
+var ability_flash := 0.0
+var boss_visible := false
+var boss_hp := 0
+var boss_max := 1
+var boss_phase := 1
+var boss_hp_shown := 0.0
+var boss_hp_ghost := 0.0
+var boss_flash := 0.0
+var hurt_flash := 0.0
+var cine := 0.0
+var play_time := 0.0
+var dev_run := false
+var snake_screen := Vector2(-999, -999)  # голова змеи в координатах экрана
+var safe := Vector4.ZERO                 # отступы безопасной зоны
+var t := 0.0
+
+
+func _init() -> void:
+	set_anchors_preset(Control.PRESET_FULL_RECT)
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func reset_run(name_text: String, color: Color, lives_max: int) -> void:
+	in_game = true
+	diff_name = name_text
+	diff_color = color
+	max_lives = lives_max
+	lives = lives_max
+	score_shown = 0.0
+	score_target = 0
+	ability_type = -1
+	boss_visible = false
+	dev_run = false
+
+
+func set_lives(value: int) -> void:
+	if value < lives:
+		heart_anim = 1.0
+		if Settings.flag("hurt_flash"):
+			hurt_flash = 1.0
+	lives = value
+
+
+func set_ability(type: int, title_text: String, count: int) -> void:
+	if type != ability_type or count > ability_charges:
+		ability_flash = 1.0
+	ability_type = type
+	ability_name = title_text
+	ability_charges = count
+
+
+func set_boss(visible_bar: bool, hp: int, max_hp: int, phase: int) -> void:
+	if visible_bar and not boss_visible:
+		boss_hp_shown = 0.0
+		boss_hp_ghost = 0.0
+	elif hp < boss_hp:
+		boss_flash = 1.0
+	boss_visible = visible_bar
+	boss_hp = hp
+	boss_max = maxi(max_hp, 1)
+	boss_phase = clampi(phase, 1, 3)
+
+
+func _process(delta: float) -> void:
+	t += delta
+	heart_anim = maxf(heart_anim - delta * 2.0, 0.0)
+	hurt_flash = maxf(hurt_flash - delta * 3.0, 0.0)
+	boss_flash = maxf(boss_flash - delta * 3.0, 0.0)
+	ability_flash = maxf(ability_flash - delta * 2.0, 0.0)
+	score_shown = move_toward(score_shown, score_target, maxf(delta * 600.0, absf(score_target - score_shown) * delta * 6.0))
+	boss_hp_shown = move_toward(boss_hp_shown, boss_hp, delta * 8.0)
+	boss_hp_ghost = move_toward(boss_hp_ghost, boss_hp_shown, delta * (1.5 if boss_hp_ghost > boss_hp_shown else 20.0))
+	var covered := false
+	if in_game:
+		for r in panel_rects():
+			if r.grow(30).has_point(snake_screen):
+				covered = true
+	modulate.a = move_toward(modulate.a, 0.35 if covered else 1.0, delta * 4.0)
+	queue_redraw()
+
+
+# ---------------------------------------------------------------- раскладка
+
+func _left_rect() -> Rect2:
+	return Rect2(PAD + safe.x, PAD + safe.y, 340, 150)
+
+
+func _right_width() -> float:
+	return maxi(max_lives, 3) * 40 + 36 + (40 if shield > 0 else 0)
+
+
+func _right_rect() -> Rect2:
+	var w := _right_width()
+	return Rect2(size.x - PAD - safe.z - w, PAD + safe.y, w, 84)
+
+
+func _ability_rect() -> Rect2:
+	return Rect2(size.x - PAD - safe.z - 270, PAD + safe.y + 92, 270, 58)
+
+
+## Место под кнопку паузы на сенсорном экране — слева от панели жизней.
+func pause_slot() -> Rect2:
+	var r := _right_rect()
+	return Rect2(r.position.x - PAD - 56, r.position.y + 14, 56, 56)
+
+
+func _boss_rect() -> Rect2:
+	if touch:  # сверху, между панелями — внизу кнопки
+		var left := _left_rect().end.x + PAD
+		var right := pause_slot().position.x - PAD
+		var w := clampf(right - left, 320.0, 720.0)
+		return Rect2((left + right - w) / 2.0, PAD + safe.y, w, 70)
+	var w2 := minf(780.0, size.x - 2 * (PAD + 24.0))
+	return Rect2((size.x - w2) / 2.0, size.y - 86 - safe.w, w2, 70)
+
+
+func panel_rects() -> Array[Rect2]:
+	var rects: Array[Rect2] = [_left_rect(), _right_rect()]
+	if ability_type >= 0:
+		rects.append(_ability_rect())
+	if boss_visible:
+		rects.append(_boss_rect())
+	return rects
+
+
+# ---------------------------------------------------------------- рисование
+
+func _draw() -> void:
+	var full := Rect2(Vector2.ZERO, size)
+	if in_game and Settings.flag("vignette"):
+		draw_texture_rect(Tex.vignette(), full, false, Color(1, 1, 1, 0.55))
+	if hurt_flash > 0.0:
+		draw_rect(full, Color(0.9, 0.05, 0.05, 0.2 * hurt_flash))
+	if cine > 0.0:  # киношные полосы
+		draw_rect(Rect2(0, 0, size.x, 84 * cine), Color.BLACK)
+		draw_rect(Rect2(0, size.y - 84 * cine, size.x, 84 * cine), Color.BLACK)
+	if Settings.flag("show_fps"):
+		var fps := "FPS %d" % Engine.get_frames_per_second()
+		_text(Vector2(size.x / 2.0 - 30, 20 + safe.y), fps, "mono", 14, Design.MINT)
+	if not in_game:
+		return
+	var panel := Design.box(Color(Design.SURFACE_1, 0.88), Design.LINE, Design.RADIUS_LG - 6, 2)
+	_draw_left(panel)
+	_draw_right(panel)
+	if ability_type >= 0:
+		_draw_ability()
+	if boss_visible:
+		_draw_boss_bar()
+
+
+func _draw_left(panel: StyleBox) -> void:
+	var r := _left_rect()
+	draw_style_box(panel, r)
+	var o := r.position
+	_text(o + Vector2(20, 26), "СЧЁТ", "heavy", 13, Design.YOLK)
+	_text(o + Vector2(18, 62), str(int(score_shown)), "heavy", 32, Design.CREAM, 6)
+	var chip_w := Design.font("heavy").get_string_size(diff_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 20
+	var chip := Rect2(o + Vector2(r.size.x - chip_w - 16, 12), Vector2(chip_w, 22))
+	draw_style_box(Design.box(Color(diff_color, 0.16), Color(diff_color, 0.7), Design.RADIUS_PILL, 1, Vector2.ZERO), chip)
+	_text(chip.position + Vector2(10, 16), diff_name, "heavy", 12, diff_color.lightened(0.3))
+	if dev_run:
+		var dev := Rect2(chip.position - Vector2(52, 0), Vector2(44, 22))
+		draw_style_box(Design.box(Color(Design.PLUM, 0.2), Design.PLUM, Design.RADIUS_PILL, 1, Vector2.ZERO), dev)
+		_text(dev.position + Vector2(9, 16), "DEV", "heavy", 12, Design.PLUM)
+	if Settings.flag("show_timer"):
+		var secs := int(play_time)
+		_text(o + Vector2(r.size.x - 86, 62), "%d:%02d" % [secs / 60, secs % 60], "mono", 18, Design.MUTED)
+	if goal_total > 0:
+		Icons.stage(self, o + Vector2(30, 87), stage)
+		Design.draw_bar(self, Rect2(o + Vector2(50, 80), Vector2(208, 14)), float(goal_done) / goal_total,
+			Design.STAGE_ACCENTS[stage])
+		_text(o + Vector2(268, 93), "%d/%d" % [goal_done, goal_total], "heavy", 17, Design.CREAM, 4)
+	else:
+		_text(o + Vector2(18, 94), "ПОБЕДИ ЯИЧНИЦУ!", "heavy", 17, Design.YOLK, 4)
+	_draw_stage_track(o + Vector2(30, 126))
+
+
+func _draw_stage_track(origin: Vector2) -> void:
+	for i in 4:
+		var c := origin + Vector2(i * 88, 0)
+		if i < 3:
+			var done_col := Design.MINT if i < stage else Design.LINE
+			draw_line(c + Vector2(18, 0), c + Vector2(70, 0), Design.INK, 6.0)
+			draw_line(c + Vector2(18, 0), c + Vector2(70, 0), done_col, 3.0)
+		if i == stage:
+			draw_circle(c, 17.0 + 1.5 * sin(t * 5.0), Color(Design.YOLK, 0.3))
+			draw_arc(c, 16.0, 0, TAU, 24, Design.YOLK, 2.5)
+		Icons.stage(self, c, i, 1.0, 1.0 if i <= stage else 0.35)
+		if i < stage:
+			Icons.check(self, c + Vector2(10, 7), Design.MINT, 0.7)
+
+
+func _draw_right(panel: StyleBox) -> void:
+	var r := _right_rect()
+	draw_style_box(panel, r)
+	for i in max_lives:
+		var c := r.position + Vector2(38 + i * 40, 30)
+		var alive := i < lives
+		var s := 12.0
+		if alive and lives == 1:
+			s *= 1.0 + 0.12 * sin(t * 9.0)
+		Icons.heart(self, c, s + 3.0, Color(0.15, 0.02, 0.05))
+		Icons.heart(self, c, s, Color(0.95, 0.15, 0.25) if alive else Color(0.35, 0.3, 0.3, 0.7))
+		if alive:
+			draw_circle(c + Vector2(-s * 0.55, -s * 0.35), s * 0.2, Color(1, 1, 1, 0.5))
+		elif i == lives and heart_anim > 0.0:  # только что потерянное сердце улетает
+			Icons.heart(self, c + Vector2(0, -20.0 * (1.0 - heart_anim)), s * (2.0 - heart_anim), Color(1, 0.2, 0.3, heart_anim))
+	if shield > 0:
+		var c := r.position + Vector2(38 + max_lives * 40, 30)
+		Icons.shield(self, c, 14.0)
+		if shield > 1:
+			_text(c + Vector2(8, 16), "×%d" % shield, "heavy", 14, Color.WHITE, 3)
+	var st_col := Design.MINT
+	if exhausted:
+		st_col = Design.TOMATO if int(t * 6.0) % 2 == 0 else Design.TOMATO.darkened(0.4)
+	Design.draw_bar(self, Rect2(r.position + Vector2(20, 60), Vector2(r.size.x - 40, 10)), stamina, st_col)
+
+
+func _draw_ability() -> void:
+	var r := _ability_rect()
+	var border := Design.LINE.lerp(Design.MINT, ability_flash)
+	draw_style_box(Design.box(Color(Design.SURFACE_1, 0.88), border, Design.RADIUS_MD, 2), r)
+	Icons.ability(self, r.position + Vector2(32, 30), ability_type, t)
+	_text(r.position + Vector2(60, 26), ability_name, "heavy", 16, Design.MINT, 4)
+	_text(r.position + Vector2(60, 47), "кнопка АТАКА" if touch else "Пробел / ЛКМ", "body", 13, Design.MUTED)
+	var cnt := "×%d" % ability_charges
+	var f := Design.font("heavy")
+	draw_string_outline(f, r.position + Vector2(196, 42), cnt, HORIZONTAL_ALIGNMENT_RIGHT, 60, 26, 5, Design.INK)
+	draw_string(f, r.position + Vector2(196, 42), cnt, HORIZONTAL_ALIGNMENT_RIGHT, 60, 26, Color.WHITE)
+
+
+func _draw_boss_bar() -> void:
+	var frame := _boss_rect()
+	var col: Color = Design.PHASE_COLORS[boss_phase - 1]
+	draw_style_box(Design.box(Color(Design.SURFACE_1, 0.9), col, Design.RADIUS_MD, 2), frame)
+	_text(frame.position + Vector2(22, 26), "ГИГАНТСКАЯ ЯИЧНИЦА", "heavy", 18, Design.CREAM, 4)
+	var f := Design.font("heavy")
+	draw_string(f, frame.position + Vector2(frame.size.x - 222, 26), "ФАЗА %d" % boss_phase, HORIZONTAL_ALIGNMENT_RIGHT,
+		200, 16, col)
+	var bar := Rect2(frame.position + Vector2(22, 38), Vector2(frame.size.x - 44, 18))
+	draw_rect(bar.grow(2), Design.INK)
+	draw_rect(bar, Color(0.25, 0.12, 0.08))
+	var ghost := bar
+	ghost.size.x *= clampf(boss_hp_ghost / boss_max, 0.0, 1.0)
+	draw_rect(ghost, Color(1, 0.95, 0.85, 0.8))
+	var fill := bar
+	fill.size.x *= clampf(boss_hp_shown / boss_max, 0.0, 1.0)
+	draw_rect(fill, col.lerp(Color.WHITE, boss_flash * 0.7))
+	draw_rect(Rect2(fill.position, Vector2(fill.size.x, 5)), Color(1, 1, 1, 0.3))
+	for k in [1.0 / 3.0, 2.0 / 3.0]:
+		var x: float = bar.position.x + bar.size.x * k
+		draw_line(Vector2(x, bar.position.y - 2), Vector2(x, bar.end.y + 2), Design.INK, 3.0)
+
+
+func _text(pos: Vector2, text: String, weight: String, fs: int, col: Color, outline := 0) -> void:
+	var f := Design.font(weight)
+	if outline > 0:
+		draw_string_outline(f, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, outline, Color(Design.INK, 0.9))
+	draw_string(f, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)

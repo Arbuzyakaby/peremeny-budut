@@ -1,0 +1,54 @@
+extends "res://tests/test_case.gd"
+## Таблицы баланса согласованы между собой.
+
+const Balance = preload("res://scripts/core/balance.gd")
+const SynthMusic = preload("res://scripts/audio/synth_music.gd")
+const TeddyBear = preload("res://scripts/entities/teddy_bear.gd")
+
+const KEYS := ["name", "color", "lives", "bears", "forks", "pills", "bear_speed", "bear_aggr", "boss_hp",
+	"proj_speed", "yolk_time", "tempo", "score_mult", "no_skills", "desc"]
+
+
+func test_four_difficulties_with_all_keys() -> void:
+	assert_eq(Balance.DIFFICULTIES.size(), 4)
+	for d: Dictionary in Balance.DIFFICULTIES:
+		for k in KEYS:
+			assert_true(d.has(k), "%s: нет ключа %s" % [d.get("name", "?"), k])
+
+
+func test_difficulty_grows_monotonically() -> void:
+	for i in range(1, Balance.DIFFICULTIES.size()):
+		var a: Dictionary = Balance.DIFFICULTIES[i - 1]
+		var b: Dictionary = Balance.DIFFICULTIES[i]
+		assert_true(b["lives"] <= a["lives"], "жизней не больше, чем на предыдущей")
+		for k in ["bears", "forks", "pills", "boss_hp", "score_mult"]:
+			assert_true(b[k] > a[k], "%s растёт: %s" % [k, b["name"]])
+		assert_true(b["tempo"] < a["tempo"], "темп быстрее")
+
+
+func test_only_ultra_disables_skills() -> void:
+	for i in 3:
+		assert_false(Balance.DIFFICULTIES[i]["no_skills"])
+	assert_true(Balance.DIFFICULTIES[3]["no_skills"])
+	assert_eq(Balance.DIFFICULTIES[3]["lives"], 1)
+
+
+func test_stages_table() -> void:
+	assert_eq(Balance.STAGES.size(), Balance.STAGE_COUNT)
+	assert_eq(Balance.STAGES[Balance.BOSS_STAGE]["key"], "", "у босса нет счётчика цели")
+	for st: Dictionary in Balance.STAGES:
+		assert_true(st["music"] in SynthMusic.TRACKS, "трек %s существует" % st["music"])
+	assert_eq(Balance.goal(Balance.DIFFICULTIES[1], 0), 15)
+	assert_eq(Balance.goal(Balance.DIFFICULTIES[1], 3), 0)
+
+
+func test_every_special_bear_gives_ability() -> void:
+	for type in range(1, TeddyBear.Type.size()):
+		assert_true(Balance.ABILITIES.has(type), "атака для типа %d" % type)
+	assert_false(Balance.ABILITIES.has(TeddyBear.Type.NORMAL), "обычный медведь атаки не даёт")
+	assert_eq(Balance.BEAR_POINTS.size(), TeddyBear.Type.size())
+
+
+func test_difficulty_index_is_clamped() -> void:
+	assert_eq(Balance.difficulty(-5)["name"], Balance.DIFFICULTIES[0]["name"])
+	assert_eq(Balance.difficulty(99)["name"], Balance.DIFFICULTIES[3]["name"])
