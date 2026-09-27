@@ -41,6 +41,12 @@ var allies: Array = []     # все медведи на поле (для мед�
 var heal_target = null     # медведь, к которому бежит медсестра (без типа — тот же скрипт)
 var heal_glow := 0.0
 var fade := 1.0            # ниндзя растворяется
+## Кооператив (squad.gd): "" — сам по себе, "guard" — встать в точку order_pos (прикрыть союзника),
+## "rescue" — добежать до order_target (выдернуть застрявшую вилку).
+var order := ""
+var order_pos := Vector2.INF
+var order_target: Node2D = null
+var lead_hint := Vector2.INF  # куда целиться метателю (перекрёстный огонь)
 
 
 func is_edible() -> bool:

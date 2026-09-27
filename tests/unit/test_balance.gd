@@ -4,9 +4,10 @@ extends "res://tests/test_case.gd"
 const Balance = preload("res://scripts/core/balance.gd")
 const SynthMusic = preload("res://scripts/audio/synth_music.gd")
 const TeddyBear = preload("res://scripts/entities/teddy_bear.gd")
+const Tex = preload("res://scripts/gfx/tex.gd")
 
 const KEYS := ["name", "color", "lives", "bears", "forks", "pills", "bear_speed", "bear_aggr", "boss_hp",
-	"proj_speed", "yolk_time", "tempo", "score_mult", "no_skills", "desc"]
+	"proj_speed", "yolk_time", "tempo", "score_mult", "no_skills", "coop", "desc"]
 
 
 func test_four_difficulties_with_all_keys() -> void:
@@ -52,3 +53,15 @@ func test_every_special_bear_gives_ability() -> void:
 func test_difficulty_index_is_clamped() -> void:
 	assert_eq(Balance.difficulty(-5)["name"], Balance.DIFFICULTIES[0]["name"])
 	assert_eq(Balance.difficulty(99)["name"], Balance.DIFFICULTIES[3]["name"])
+
+
+func test_coop_only_on_hard_and_ultra() -> void:
+	assert_eq(Balance.DIFFICULTIES[0]["coop"], 0, "Лёгкая — без кооператива")
+	assert_eq(Balance.DIFFICULTIES[1]["coop"], 0, "Нормальная — без кооператива")
+	assert_eq(Balance.DIFFICULTIES[2]["coop"], 1, "Сложная — враги помогают друг другу")
+	assert_eq(Balance.DIFFICULTIES[3]["coop"], 2, "Ультра — стаей")
+
+
+func test_fork_stage_uses_drawer_floor() -> void:
+	assert_eq(Balance.STAGES[1]["floor"], Tex.Floor.DRAWER, "вилки — в ящике для приборов, а не на сером подносе")
+	assert_has(String(Balance.STAGES[1]["hint"]), "НЕ БЕЙ В ЛОБ")

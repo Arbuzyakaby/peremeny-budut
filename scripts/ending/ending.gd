@@ -311,6 +311,11 @@ func _burn_snake() -> void:
 	sfx.play("burn")
 	sfx.play("lose", 0.8, -6.0)
 	create_tween().tween_property(snake, "burnt", 1.0, 1.5)
+	# шейдер обугливания: фронт бежит по телу, тлеющая кромка, потом седая зола
+	var burn_mat := Tex.material(Tex.Mat.PLASTIC, 3.0)
+	snake.material = burn_mat
+	create_tween().tween_method(func(k: float) -> void: burn_mat.set_shader_parameter("burn", k), 0.0, 1.55, 3.5)
+	sfx.play("melt", 1.0, -6.0)
 	if tw:
 		tw.kill()
 	var last_words := "Внесу в отчёт: утилизация проведена успешно."

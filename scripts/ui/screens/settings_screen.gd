@@ -1,7 +1,8 @@
 extends "res://scripts/ui/screens/screen.gd"
 ## Настройки: вкладки ЗВУК · ЭКРАН · ИГРА · УПРАВЛЕНИЕ · ДОСТУПНОСТЬ. Строки строятся по
-## Settings.SCHEMA: тумблер, ползунок или сегменты. Внизу — сбросы и номер версии
-## (7 нажатий на версию включают режим разработчика).
+## Settings.SCHEMA приборными контролами: рычажный тумблер (вкл/выкл), крутилка (громкости),
+## фейдер (прочие числа), галетный переключатель (варианты). Внизу — сбросы (опасный — под
+## откидной крышкой) и номер версии (7 нажатий на версию включают режим разработчика).
 
 signal records_reset
 signal setting_changed(key: String)
@@ -9,12 +10,16 @@ signal dev_mode_unlocked
 
 const Segmented = preload("res://scripts/ui/widgets/segmented.gd")
 const ToggleSwitch = preload("res://scripts/ui/widgets/toggle_switch.gd")
+const RotaryKnob = preload("res://scripts/ui/widgets/rotary_knob.gd")
+const Fader = preload("res://scripts/ui/widgets/fader.gd")
+const RotarySwitch = preload("res://scripts/ui/widgets/rotary_switch.gd")
 
 const DEV_TAPS := 7
 
 var tabs: Segmented
 var pages: Dictionary = {}  # id вкладки -> VBoxContainer
 var controls: Dictionary = {}  # key -> контрол (для обновления после сброса)
+var value_labels: Dictionary = {}  # key -> подпись значения у крутилки/фейдера
 var reset_records_button: Button
 var reset_settings_button: Button
 var version_button: Button
@@ -81,29 +86,30 @@ func _add_row(page: VBoxContainer, s: Dictionary) -> void:
 			controls[key] = sw
 		Settings.Kind.FLOAT:
 			var box := Design.hbox(Design.SPACE[3], BoxContainer.ALIGNMENT_END)
-			var slider := HSlider.new()
-			slider.min_value = s.get("min", 0.0)
-			slider.max_value = s.get("max", 1.0)
-			slider.step = s.get("step", 0.05)
-			slider.custom_minimum_size = Vector2(240, 40)
-			slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			slider.value = Settings.num(key)
-			var value := Design.label(_fmt(key, slider.value), "h3", Design.YOLK, HORIZONTAL_ALIGNMENT_RIGHT)
+			var ctl: Range = RotaryKnob.new() if s["tab"] == "sound" else Fader.new()
+			ctl.min_value = s.get("min", 0.0)
+			ctl.max_value = s.get("max", 1.0)
+			ctl.step = s.get("step", 0.05)
+			ctl.set_value_no_signal(Settings.num(key))
+			if ctl is RotaryKnob:
+				ctl.default_value = float(s["default"])
+			var value := Design.label(_fmt(key, ctl.value), "h3", Design.YOLK, HORIZONTAL_ALIGNMENT_RIGHT)
 			value.custom_minimum_size = Vector2(64, 0)
-			slider.value_changed.connect(func(v: float) -> void:
+			value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			ctl.value_changed.connect(func(v: float) -> void:
 				value.text = _fmt(key, v)
 				_apply(key, v))
-			slider.focus_entered.connect(Design.play.bind("ui_move"))
-			box.add_child(slider)
+			box.add_child(ctl)
 			box.add_child(value)
 			row.add_child(box)
-			controls[key] = slider
+			controls[key] = ctl
+			value_labels[key] = value
 		Settings.Kind.ENUM:
-			var seg := Segmented.new()
-			seg.setup(s["options"], Settings.choice(key), 56.0)
-			seg.changed.connect(func(i: int) -> void: _apply(key, i))
-			row.add_child(seg)
-			controls[key] = seg
+			var sw := RotarySwitch.new()
+			sw.setup(s["options"], Settings.choice(key))
+			sw.changed.connect(func(i: int) -> void: _apply(key, i))
+			row.add_child(sw)
+			controls[key] = sw
 	page.add_child(row)
 
 
@@ -156,10 +162,12 @@ func refresh() -> void:
 		var c: Control = controls[key]
 		if c is ToggleSwitch:
 			c.set_on(Settings.flag(key))
-		elif c is HSlider:
-			(c as HSlider).set_value_no_signal(Settings.num(key))
-			var value := c.get_parent().get_child(1) as Label
-			value.text = _fmt(key, Settings.num(key))
+		elif c is Range:
+			var r := c as Range
+			r.set_value_no_signal(Settings.num(key))
+			r.set("last_detent", r.call("detent_index"))
+			r.queue_redraw()
+			(value_labels[key] as Label).text = _fmt(key, Settings.num(key))
 		elif c.has_method("select"):
 			c.select(Settings.choice(key))
 
@@ -181,12 +189,14 @@ func _on_reset_settings() -> void:
 
 
 func _on_reset_records() -> void:
-	if not records_armed:
+	if not records_armed:  # первое нажатие откидывает крышку
 		records_armed = true
 		reset_records_button.text = "ТОЧНО? ЖМИ ЕЩЁ"
+		Design.set_cover(reset_records_button, true)
 		return
 	records_armed = false
 	reset_records_button.text = "РЕКОРДЫ СБРОШЕНЫ"
+	Design.set_cover(reset_records_button, false)
 	records_reset.emit()
 
 

@@ -181,7 +181,7 @@ func update(delta: float, snake: Snake) -> void:
 						_get_dizzy(1.0)
 			elif dist < RADIUS + Snake.HEAD_RADIUS + 4.0:
 				var dmg := 2 if karate and aggr >= 0.9 else 1
-				if snake.take_damage(dmg):
+				if snake.take_damage(dmg, "bear"):
 					sound.emit("kick" if karate else "punch")
 				snake.push(dash_dir * (800.0 if karate else 520.0))
 				no_eat_t = 0.4
@@ -229,6 +229,8 @@ func update(delta: float, snake: Snake) -> void:
 
 func _throw(snake: Snake, head: Vector2, target: Vector2, avenging: bool) -> void:
 	var lead := head + Vector2.from_angle(snake.heading) * 70.0 if snake else target
+	if lead_hint != Vector2.INF and not avenging:  # отряд подсказал, куда змею отбросит вилка
+		lead = lead_hint
 	if avenging:
 		lead = target + (grudge.get("vel") as Vector2) * 0.3
 		grudge = null
@@ -268,6 +270,8 @@ func _roam(delta: float, to_head: Vector2, dist: float, avenging: bool, head: Ve
 		if type == Type.MEDIC:
 			k = -0.8
 		vel = vel.lerp(to_head.normalized() * speed * k, 3.0 * delta)
+		return
+	if order != "" and _follow_order(delta, dist):
 		return
 	if type == Type.MEDIC:
 		_medic(delta, to_head, dist)
@@ -333,6 +337,26 @@ func _medic(delta: float, to_head: Vector2, dist: float) -> void:
 	if wander_t <= 0.0:
 		wander_t = randf_range(1.0, 2.5)
 		vel = Vector2.from_angle(randf() * TAU) * speed
+
+
+## Приказ отряда: бежать к точке прикрытия или к застрявшей вилке. false — приказ неактуален.
+func _follow_order(delta: float, dist: float) -> bool:
+	if dist < 110.0:  # змея вплотную — не до приказов
+		return false
+	var goal := order_pos
+	if order == "rescue":
+		if not is_instance_valid(order_target):
+			order = ""
+			return false
+		goal = order_target.position
+	if goal == Vector2.INF:
+		return false
+	var to_goal := goal - position
+	if to_goal.length() < 14.0:
+		vel = vel.move_toward(Vector2.ZERO, 600.0 * delta)
+	else:
+		vel = vel.lerp(to_goal.normalized() * speed * 1.6, 4.0 * delta)
+	return true
 
 
 func _recover(time: float) -> void:

@@ -1,57 +1,266 @@
 extends Node2D
-## Пожар на арене: расходится кругом от точки падения спички, выжигает пол, охватывает стенки
-## ящика, поднимает искры и дым в комнату. extinguish() — тушение: пламя опадает, валит пар.
+## Пожар в ящике. Физика — клеточная симуляция горения (fire_sim.gd): теплопроводность, конвекция,
+## излучение пламени, кислород, топливо, плавление, уголь и зола. Картинка — шейдер (FIRE_SHADER):
+## языки пламени поднимаются над горящими клетками и окрашены по температуре (кривая абсолютно
+## чёрного тела), дерево обугливается с трещинами «крокодиловой кожи» и тлеет, бумага сгорает до
+## светлой золы, пластик плавится и стекает блестящей лужей, металл раскаляется докрасна и остывает,
+## над огнём дрожит марево. После тушения остаются уголь и зола — навсегда.
+## Искры, дым и пар — лёгкие вторичные частицы. API прежний: start / fill_instantly / extinguish /
+## covers / coverage и поля origin, radius, strength, t, active.
 
 const Tex = preload("res://scripts/gfx/tex.gd")
+const Settings = preload("res://scripts/core/settings.gd")
+const Platform = preload("res://scripts/core/platform.gd")
+const FireSim = preload("res://scripts/ending/fire_sim.gd")
 const AREA := Rect2(0, 0, 1280, 720)
+const SIM_RATE := 12.0
+
+const FIRE_SHADER := """
+shader_type canvas_item;
+uniform sampler2D data_tex : filter_linear;      // R — температура, G — уголь, B — зола, A — расплав
+uniform sampler2D info_tex : filter_linear;      // R — материал ×32 (читается texelFetch), G — пена
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
+uniform vec2 cells = vec2(96.0, 54.0);
+uniform float max_t = 1400.0;
+uniform bool haze = true;
+%s
+// цвет раскалённого тела по температуре в °C (приближение кривой абсолютно чёрного тела)
+vec3 blackbody(float t) {
+	float k = clamp((t - 450.0) / 1000.0, 0.0, 1.0);
+	vec3 c = mix(vec3(0.45, 0.02, 0.0), vec3(1.0, 0.3, 0.02), smoothstep(0.0, 0.3, k));
+	c = mix(c, vec3(1.0, 0.72, 0.22), smoothstep(0.3, 0.65, k));
+	c = mix(c, vec3(1.0, 0.95, 0.82), smoothstep(0.65, 1.0, k));
+	return c * (0.5 + 1.1 * k);
+}
+void fragment() {
+	vec2 px = UV * vec2(1280.0, 720.0);
+	vec4 d = texture(data_tex, UV);
+	float temp = d.r * max_t;
+	float burnt = d.g;
+	float ash = d.b;
+	float melt = d.a;
+	ivec2 cell_i = clamp(ivec2(UV * cells), ivec2(0), ivec2(cells) - 1);
+	float mat = floor(texelFetch(info_tex, cell_i, 0).r * 255.0 / 32.0 + 0.5);
+	float foam = texture(info_tex, UV).g;
+	float n = fbm(px * 0.03);
+	float n2 = fbm(px * 0.11 + 7.0);
+	vec4 col = vec4(0.0);
+	// уголь: неровный фронт обугливания
+	float char_a = smoothstep(0.04, 0.55, burnt + (n - 0.5) * 0.4);
+	vec3 charc = vec3(0.055, 0.042, 0.033) * (0.7 + 0.6 * n2);
+	if (mat == 1.0) {  // дерево: трещины «крокодиловой кожи» вдоль волокон
+		vec2 q = px * vec2(0.06, 0.12) + n * 3.0;
+		float cr = min(abs(fract(q.x + vnoise(q * 0.7) * 0.8) - 0.5), abs(fract(q.y * 0.6) - 0.5));
+		charc *= 0.55 + 0.6 * smoothstep(0.02, 0.12, cr);
+	}
+	col = vec4(charc, char_a * 0.93);
+	// зола: пепельно-серая, у бумаги почти белая, лежит хлопьями
+	float ash_a = smoothstep(0.08, 0.8, ash + (n2 - 0.5) * 0.35);
+	vec3 ashc = mix(vec3(0.36, 0.34, 0.32), vec3(0.72, 0.7, 0.66), n2);          // дерево, ткань
+	if (mat == 2.0) ashc = mix(vec3(0.62, 0.6, 0.57), vec3(0.9, 0.88, 0.84), n2); // бумага — почти белая
+	if (mat == 5.0 || mat == 3.0) {                                               // масло и пластик — сажа
+		ashc = mix(vec3(0.08, 0.075, 0.07), vec3(0.3, 0.28, 0.26), smoothstep(0.55, 0.8, n2));
+		ash_a *= 0.9;
+	}
+	col.rgb = mix(col.rgb, ashc, ash_a * 0.85);
+	col.a = max(col.a, ash_a * 0.85);
+	// тление: раскалённый уголь светится в трещинах
+	float glow = smoothstep(420.0, 850.0, temp) * char_a;
+	float embers = glow * (0.35 + 0.65 * smoothstep(0.5, 0.78, n2 + 0.18 * sin(TIME * 2.3 + n * 11.0)));
+	col.rgb += blackbody(temp) * embers;
+	col.a = max(col.a, embers * 0.9);
+	// металл не горит: его накал и окалину рисуют сами обломки (fire.gd::_draw_debris) — по их форме
+	if (mat == 4.0 || mat == 7.0) {
+		col.a *= 0.3;
+	}
+	// расплавленный пластик: тёмная глянцевая лужа с бликом и пузырями
+	if (melt > 0.05) {
+		float m = smoothstep(0.08, 0.5, melt + (n - 0.5) * 0.3);
+		vec3 pc = vec3(0.1, 0.08, 0.1) + vec3(0.25, 0.22, 0.26) * pow(max(0.0, sin(px.x * 0.05 + px.y * 0.02 + n * 6.0)), 18.0);
+		pc += blackbody(temp) * smoothstep(500.0, 900.0, temp) * 0.6;
+		float bubble = smoothstep(0.93, 0.97, vnoise(px * 0.25 + vec2(0.0, TIME * 0.5))) * smoothstep(300.0, 500.0, temp);
+		pc += vec3(0.3) * bubble;
+		col = mix(col, vec4(pc, 0.95), m);
+	}
+	// пламя: над каждой горячей клеткой поднимается язык (тем ниже и тусклее, чем дальше от клетки);
+	// форму режет быстрый вытянутый вверх шум — языки, просветы, срывающиеся «лоскуты»
+	float flame = 0.0;
+	float ft = 0.0;
+	vec2 cell = 1.0 / cells;
+	for (int k = 0; k < 8; k++) {
+		float fk = float(k);
+		vec2 off = vec2((vnoise(vec2(px.y * 0.025 - TIME * 2.4, fk * 1.7)) - 0.5) * cell.x * 1.4, cell.y * fk * 0.65);
+		float tk = texture(data_tex, UV + off).r * max_t;
+		float heat = smoothstep(360.0, 950.0, tk) * (1.0 - fk / 8.5);
+		if (heat > flame) { flame = heat; ft = tk; }
+	}
+	float rise = TIME * 3.4;
+	float n1 = fbm(vec2(px.x * 0.07, px.y * 0.019 + rise));
+	float n3 = vnoise(vec2(px.x * 0.16, px.y * 0.05 + rise * 2.3));
+	float shape = flame * (0.15 + 1.0 * n1 + 0.45 * n3);
+	float tongue = smoothstep(0.42, 0.85, shape);
+	vec3 fc = mix(vec3(0.5, 0.05, 0.02), vec3(1.0, 0.42, 0.05), smoothstep(0.48, 0.82, shape));
+	fc = mix(fc, vec3(1.0, 0.78, 0.3), smoothstep(0.82, 1.0, shape));
+	fc = mix(fc, vec3(1.0, 0.95, 0.8), smoothstep(1.02, 1.25, shape));
+	fc *= 0.85 + 0.35 * smoothstep(700.0, 1100.0, ft);
+	col.rgb = mix(col.rgb, fc, tongue * 0.9);
+	col.a = max(col.a, tongue * 0.85);
+	// пена огнетушителя: белые пузыри
+	if (foam > 0.02) {
+		float bub = fbm(px * 0.06 + vec2(0.0, TIME * 0.2));
+		float b = smoothstep(0.2, 0.5, foam * 0.9 + (bub - 0.5) * 0.6);
+		vec3 fcol = vec3(0.88, 0.91, 0.95) * (0.82 + 0.25 * bub) + 0.08 * smoothstep(0.6, 0.8, fbm(px * 0.12));
+		col = mix(col, vec4(fcol, 0.9), b);
+	}
+	// марево над горячим: смещаем то, что под огнём
+	float haze_k = haze ? smoothstep(150.0, 700.0, temp) : 0.0;
+	if (haze_k > 0.01) {
+		vec2 wob = vec2(vnoise(px * 0.05 + vec2(0.0, TIME * 4.0)) - 0.5, vnoise(px * 0.05 + vec2(9.0, TIME * 3.3)) - 0.5);
+		vec3 behind = texture(screen_tex, SCREEN_UV + wob * 0.006 * haze_k).rgb;
+		col.rgb = mix(behind, col.rgb, col.a);
+		col.a = max(col.a, haze_k);
+	}
+	COLOR = col;
+}
+"""
+
+## Обломки битвы на дне ящика: разные материалы горят по-разному. [вид, позиция, размер, поворот]
+const DEBRIS := [
+	["paper", Vector2(220, 170), Vector2(70, 50), 0.3], ["paper", Vector2(1010, 560), Vector2(64, 46), -0.5],
+	["paper", Vector2(760, 150), Vector2(56, 40), 0.9],
+	["plastic", Vector2(380, 520), Vector2(22, 0), 0.0], ["plastic", Vector2(940, 260), Vector2(20, 0), 0.0],
+	["plastic", Vector2(620, 610), Vector2(18, 0), 0.0], ["plastic", Vector2(1120, 380), Vector2(20, 0), 0.0],
+	["metal", Vector2(470, 300), Vector2(90, 0), 0.6], ["metal", Vector2(860, 470), Vector2(80, 0), -0.9],
+	["metal", Vector2(180, 430), Vector2(70, 0), 2.1],
+	["fabric", Vector2(560, 210), Vector2(26, 0), 0.0], ["fabric", Vector2(1080, 170), Vector2(22, 0), 0.0],
+	["fabric", Vector2(300, 620), Vector2(24, 0), 0.0],
+	["shell", Vector2(700, 420), Vector2(26, 0), 0.4], ["shell", Vector2(420, 120), Vector2(22, 0), 2.0],
+]
 
 var origin := Vector2(640, 360)
 var radius := 0.0
-var speed := 260.0
 var active := false
 var strength := 1.0   # 1 — горит в полную силу, 0 — потушен
 var t := 0.0
-var flames: Array[Vector3] = []  # x, y, размер
+var sim: FireSim
+var rect: ColorRect
+var data_img: Image
+var info_img: Image
+var data_tex: ImageTexture
+var info_tex: ImageTexture
+var _data := PackedByteArray()
+var _info := PackedByteArray()
+var _acc := 0.0
+var _foam_t := -1.0
+var _foam_time := 2.4
+var debris: Node2D
 var embers: CPUParticles2D
 var smoke: CPUParticles2D
 var steam: CPUParticles2D
 
 
+func _ready() -> void:
+	if sim != null:
+		return
+	var low := Platform.is_mobile()
+	sim = FireSim.new(64 if low else 96, 36 if low else 54, AREA)
+	_build_materials()
+	debris = Node2D.new()  # обломки лежат под змеёй, огонь — над ней
+	debris.z_index = -5
+	debris.draw.connect(_draw_debris)
+	add_child(debris)
+
+
+## Карта материалов: пол — масляная плёнка на чугунной сковороде, бортики — дерево, обломки битвы.
+func _build_materials() -> void:
+	sim.fill_rect(AREA, FireSim.Mat.OIL)
+	for r in [Rect2(0, 0, 1280, 24), Rect2(0, 696, 1280, 24), Rect2(0, 0, 24, 720), Rect2(1256, 0, 24, 720)]:
+		sim.fill_rect(r, FireSim.Mat.WOOD)
+	for d: Array in DEBRIS:
+		var p: Vector2 = d[1]
+		var s: Vector2 = d[2]
+		match d[0]:
+			"paper":
+				sim.fill_rect(Rect2(p - s / 2.0, s), FireSim.Mat.PAPER)
+			"plastic":
+				sim.fill_circle(p, s.x, FireSim.Mat.PLASTIC)
+			"metal":
+				var dir := Vector2.from_angle(d[3]) * s.x / 2.0
+				sim.fill_line(p - dir, p + dir, 10.0, FireSim.Mat.METAL)
+			"fabric":
+				sim.fill_circle(p, s.x, FireSim.Mat.FABRIC)
+			"shell":
+				sim.fill_circle(p, s.x * 0.7, FireSim.Mat.SHELL)
+
+
 func start(at: Vector2) -> void:
+	if sim == null:
+		_ready()
 	origin = at
 	active = true
-	flames.clear()
-	for i in 230:
-		flames.append(Vector3(randf_range(AREA.position.x + 10, AREA.end.x - 10),
-			randf_range(AREA.position.y + 10, AREA.end.y - 10), randf_range(18.0, 40.0)))
-	for i in 46:  # языки пламени по бортикам — торчат из ящика
-		flames.append(Vector3(randf_range(0, 1280), randf_range(0, 18), randf_range(35.0, 75.0)))
-	for i in 24:  # и по боковым стенкам
-		var x := randf_range(0, 20) if i % 2 == 0 else randf_range(1260, 1280)
-		flames.append(Vector3(x, randf_range(20, 700), randf_range(30.0, 60.0)))
-	flames.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.y < b.y)
-	embers = _particles(180, 3.0, Vector2(0, -240), Vector2(4, 12),
+	sim.ignite(at, 42.0, 950.0)
+	_make_render()
+	var pm := Settings.particle_mult()
+	embers = _particles(int(140 * pm), 2.6, Vector2(0, -240), Vector2(4, 11),
 		[Color(1, 0.95, 0.5, 1), Color(1, 0.45, 0.1, 0.9), Color(0.6, 0.1, 0.05, 0)], AREA.get_center(), AREA.size / 2.0)
-	smoke = _particles(90, 8.0, Vector2(0, -90), Vector2(90, 220),
-		[Color(0.25, 0.22, 0.2, 0), Color(0.16, 0.15, 0.14, 0.55), Color(0.1, 0.1, 0.1, 0)], Vector2(640, 250), Vector2(620, 300))
+	smoke = _particles(int(70 * pm), 7.0, Vector2(0, -80), Vector2(90, 220),
+		[Color(0.25, 0.22, 0.2, 0), Color(0.14, 0.13, 0.12, 0.5), Color(0.1, 0.1, 0.1, 0)], Vector2(640, 250), Vector2(620, 300))
 	smoke.z_index = 30
-	steam = _particles(80, 4.0, Vector2(0, -120), Vector2(80, 180),
+	steam = _particles(int(80 * pm), 4.0, Vector2(0, -120), Vector2(80, 180),
 		[Color(0.95, 0.95, 1, 0), Color(0.9, 0.92, 0.95, 0.5), Color(1, 1, 1, 0)], AREA.get_center(), AREA.size / 2.0)
 	steam.z_index = 31
+	_upload()
 
 
+func _make_render() -> void:
+	if rect:
+		return
+	sim.pack(_data, _info)
+	data_img = Image.create_from_data(sim.w, sim.h, false, Image.FORMAT_RGBA8, _data)
+	info_img = Image.create_from_data(sim.w, sim.h, false, Image.FORMAT_RG8, _info)
+	data_tex = ImageTexture.create_from_image(data_img)
+	info_tex = ImageTexture.create_from_image(info_img)
+	var sh := Shader.new()
+	sh.code = FIRE_SHADER % Tex.NOISE
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	m.set_shader_parameter("data_tex", data_tex)
+	m.set_shader_parameter("info_tex", info_tex)
+	m.set_shader_parameter("cells", Vector2(sim.w, sim.h))
+	m.set_shader_parameter("max_t", FireSim.MAX_T)
+	m.set_shader_parameter("haze", not Platform.is_mobile())
+	rect = ColorRect.new()
+	rect.size = AREA.size
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.material = m
+	add_child(rect)
+
+
+func _upload() -> void:
+	if rect == null:
+		return
+	sim.pack(_data, _info)
+	data_img.set_data(sim.w, sim.h, false, Image.FORMAT_RGBA8, _data)
+	info_img.set_data(sim.w, sim.h, false, Image.FORMAT_RG8, _info)
+	data_tex.update(data_img)
+	info_tex.update(info_img)
+
+
+## Пропуск финала: пожар мгновенно догорел, осталась зола.
 func fill_instantly() -> void:
 	if not active:
 		start(origin)
+	sim.burn_out()
 	radius = 2000.0
-	embers.emitting = true
-	smoke.emitting = true
+	_upload()
 
 
-## Потушить за time секунд: пламя опадает, вместо дыма валит пар.
+## Потушить за time секунд: пена наступает от учёного (справа), огонь опадает, валит пар.
 func extinguish(time: float) -> void:
 	if not active:
 		return
+	_foam_t = 0.0
+	_foam_time = time
 	steam.emitting = true
 	var tw := create_tween()
 	tw.tween_property(self, "strength", 0.0, time).set_ease(Tween.EASE_IN)
@@ -62,20 +271,31 @@ func extinguish(time: float) -> void:
 	tw.tween_callback(func() -> void: steam.emitting = false)
 
 
+## Эта точка в огне (змея сгорает, если голова здесь).
 func covers(p: Vector2) -> bool:
-	return active and strength > 0.5 and p.distance_to(origin) < radius - 25.0
+	return active and strength > 0.5 and sim.temp_at(p) > 380.0
 
 
-## Доля арены, охваченная огнём (для громкости треска).
+## Доля ящика, охваченная огнём (для громкости треска).
 func coverage() -> float:
-	return clampf(radius / 900.0, 0.0, 1.0) * strength
+	if not active:
+		return 0.0
+	return clampf(sim.burning_fraction() * 2.2, 0.0, 1.0) * strength
+
+
+## Сколько осталось золы и угля (для тестов и яйца «в пепле»).
+func ash_amount() -> float:
+	var s := 0.0
+	for a in sim.ash:
+		s += a
+	return s / sim.ash.size()
 
 
 func _particles(amount: int, life: float, gravity_vec: Vector2, size: Vector2, colors: Array,
 		center: Vector2, extents: Vector2) -> CPUParticles2D:
 	var p := CPUParticles2D.new()
 	p.position = center
-	p.amount = amount
+	p.amount = maxi(amount, 4)
 	p.lifetime = life
 	p.emitting = false
 	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
@@ -105,61 +325,99 @@ func _process(delta: float) -> void:
 	if not active:
 		return
 	t += delta
-	speed += delta * 120.0
-	radius += speed * delta
-	if radius > 350.0 and not embers.emitting and strength > 0.5:
+	if _foam_t >= 0.0 and _foam_t <= _foam_time + 0.6:  # пена наступает справа налево и держится за фронтом
+		_foam_t += delta
+		var k := clampf(_foam_t / _foam_time, 0.0, 1.0)
+		var front := lerpf(1400.0, -200.0, k)
+		sim.add_foam(Vector2(front, 360.0 + sin(t * 5.0) * 200.0), 260.0, delta * 3.0)
+		sim.add_foam_rect(Rect2(front + 120.0, -20.0, 1400.0, 760.0), delta * 1.6)
+	_acc += delta
+	if _acc >= 1.0 / SIM_RATE:
+		sim.step(minf(_acc, 0.25))
+		_acc = 0.0
+		_update_radius()
+		_upload()
+		debris.queue_redraw()
+	var hot := coverage()
+	if hot > 0.25 and strength > 0.5 and not embers.emitting:
 		embers.emitting = true
 		smoke.emitting = true
-	queue_redraw()
 
 
-func _draw() -> void:
-	if not active:
-		return
-	# выжженный пол с тлеющими прожилками
-	var cell := 20
-	for x in range(0, 1280, cell):
-		for y in range(0, 720, cell):
-			var c := Vector2(x + cell / 2.0, y + cell / 2.0)
-			var d := c.distance_to(origin)
-			if d < radius:
-				var k := clampf((radius - d) / 260.0, 0.0, 0.85)
-				draw_rect(Rect2(x, y, cell, cell), Color(0.1, 0.05, 0.02, k))
-				var glow := sin(x * 0.13 + y * 0.07 + t * 2.0) * 0.5 + 0.5
-				if glow > 0.85 and k > 0.5:
-					draw_rect(Rect2(x + 6, y + 6, 8, 8), Color(1, 0.35, 0.05, (glow - 0.85) * 4.0 * (0.3 + 0.7 * strength)))
-	if strength <= 0.01:
-		return
-	# свечение фронта огня
-	for f in flames:
-		var d := Vector2(f.x, f.y).distance_to(origin)
-		if d < radius:
-			Tex.blob(self, Vector2(f.x, f.y - f.z * 0.6), Vector2.ONE * f.z * 2.6 * strength, Color(1, 0.45, 0.1, 0.16))
-	for i in flames.size():
-		var f := flames[i]
-		var p := Vector2(f.x, f.y)
-		var d := p.distance_to(origin)
-		if d >= radius:
-			continue
-		var grow := clampf((radius - d) / 110.0, 0.0, 1.0)
-		var s := f.z * grow * (1.3 if radius - d < 180.0 else 1.0) * strength
-		if s < 2.0:
-			continue
-		_flame(p, s, i * 1.7)
+## Радиус охвата от точки поджига (для старого кода и отладки).
+func _update_radius() -> void:
+	var r := 0.0
+	var cs := sim.cell_size()
+	for i in sim.w * sim.h:
+		if sim.charred[i] > 0.05 or sim.temp[i] > 380.0:
+			r = maxf(r, sim.cell_center(i).distance_to(origin) + cs.x)
+	radius = maxf(radius, r)
 
 
-func _flame(p: Vector2, s: float, ph: float) -> void:
-	var h := s * 2.3 * (1.0 + 0.22 * sin(t * 10.0 + ph) + 0.1 * sin(t * 23.0 + ph * 2.0))
-	var sway := sin(t * 7.0 + ph) * s * 0.3
-	for layer in [[1.0, 1.0, Color(0.85, 0.18, 0.04, 0.9)], [0.72, 0.78, Color(1, 0.5, 0.08, 0.95)],
-			[0.45, 0.52, Color(1, 0.82, 0.3)], [0.22, 0.28, Color(1, 0.97, 0.75)]]:
-		var w: float = s * 0.5 * layer[0]
-		var hh: float = h * layer[1]
-		var pts := PackedVector2Array()
-		for k in 8:
-			var a := deg_to_rad(-30.0 + 240.0 * k / 7.0)
-			pts.append(p + Vector2(cos(a), sin(a)) * w)
-		pts.append(p + Vector2(-w * 0.6 + sway * 0.5, -hh * 0.55))
-		pts.append(p + Vector2(sway, -hh))
-		pts.append(p + Vector2(w * 0.6 + sway * 0.5, -hh * 0.55))
-		draw_colored_polygon(pts, layer[2])
+## Цвет раскалённого металла по температуре — как blackbody() в шейдере.
+static func glow_color(temp: float) -> Color:
+	var k := clampf((temp - 450.0) / 1000.0, 0.0, 1.0)
+	var c := Color(0.45, 0.02, 0.0).lerp(Color(1.0, 0.3, 0.02), smoothstep(0.0, 0.3, k))
+	c = c.lerp(Color(1.0, 0.72, 0.22), smoothstep(0.3, 0.65, k))
+	return c.lerp(Color(1.0, 0.95, 0.82), smoothstep(0.65, 1.0, k))
+
+
+## Обломки битвы на дне ящика. Каждый ведёт себя по своему материалу: бумага желтеет, сворачивается
+## и исчезает, пластик оседает и растекается, клок плюша сгорает, металл краснеет и светится,
+## скорлупа коптится. Уголь, золу и лужи расплава поверх рисует шейдер.
+func _draw_debris() -> void:
+	var ci := debris
+	for d: Array in DEBRIS:
+		var p: Vector2 = d[1]
+		var s: Vector2 = d[2]
+		var rot: float = d[3]
+		var i := sim.index_at(p)
+		var temp := sim.temp[i]
+		var burnt := sim.charred[i]
+		match d[0]:
+			"paper":  # листок протокола: желтеет от жара, сворачивается и сгорает
+				if burnt > 0.95:
+					continue
+				var curl := 1.0 - burnt * 0.7
+				var tan := clampf((temp - 120.0) / 200.0, 0.0, 1.0)
+				ci.draw_set_transform(p, rot + burnt * 0.6, Vector2(curl, curl * (1.0 - burnt * 0.3)))
+				ci.draw_rect(Rect2(-s / 2.0 + Vector2(2, 3), s), Color(0, 0, 0, 0.25 * curl))
+				ci.draw_rect(Rect2(-s / 2.0, s), Color(0.95, 0.91, 0.8).lerp(Color(0.62, 0.42, 0.18), tan))
+				for k in 4:
+					var y := -s.y / 2.0 + 10.0 + k * 9.0
+					ci.draw_line(Vector2(-s.x / 2.0 + 6, y), Vector2(s.x / 2.0 - 6, y), Color(0.4, 0.45, 0.6, 0.5 * curl), 1.0)
+				if burnt > 0.05:  # тлеющий край
+					ci.draw_rect(Rect2(-s / 2.0, s), glow_color(maxf(temp, 700.0)), false, 2.5)
+				ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			"plastic":  # половинка капсулы: оседает и растекается при плавлении
+				var m := sim.melt[i]
+				var sq := Vector2(1.0 + m * 0.8, 1.0 - m * 0.6)
+				ci.draw_set_transform(p + Vector2(0, m * 6.0), 0.0, sq)
+				ci.draw_circle(Vector2(2, 3), s.x, Color(0, 0, 0, 0.25))
+				ci.draw_circle(Vector2.ZERO, s.x, Color(0.9, 0.22, 0.25).lerp(Color(0.25, 0.08, 0.1), burnt))
+				ci.draw_circle(Vector2(-s.x * 0.3, -s.x * 0.3), s.x * 0.35, Color(1, 1, 1, 0.4 * (1.0 - m)))
+				ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			"metal":  # обломок вилки: окалина и накал по температуре
+				var dir := Vector2.from_angle(rot) * s.x / 2.0
+				var hot := smoothstep(480.0, 760.0, temp)
+				var base := Color(0.72, 0.5, 0.32).lerp(Color(0.2, 0.17, 0.17), clampf((temp - 200.0) / 300.0, 0.0, 1.0))
+				ci.draw_line(p - dir + Vector2(2, 3), p + dir + Vector2(2, 3), Color(0, 0, 0, 0.3), 9.0)
+				ci.draw_line(p - dir, p + dir, Color(0.3, 0.26, 0.25).lerp(glow_color(temp), hot * 0.8), 8.0)
+				ci.draw_line(p - dir, p + dir, base.lerp(glow_color(temp), hot), 4.0)
+				if hot > 0.1:
+					ci.draw_line(p - dir, p + dir, Color(glow_color(temp), 0.25 * hot), 16.0)
+			"fabric":  # клок плюша с набивкой — сгорает быстро
+				if burnt > 0.9:
+					continue
+				var k2 := 1.0 - burnt
+				ci.draw_circle(p, s.x * k2, Color(0.66, 0.44, 0.24).lerp(Color(0.1, 0.07, 0.05), burnt))
+				for k in 5:
+					ci.draw_circle(p + Vector2.from_angle(k * 1.3) * s.x * 0.5 * k2, s.x * 0.35 * k2,
+						Color(0.96, 0.94, 0.9).lerp(Color(0.2, 0.18, 0.16), burnt))
+			"shell":  # скорлупа — не горит, только коптится
+				var soot := clampf((temp - 150.0) / 500.0, 0.0, 0.85)
+				ci.draw_set_transform(p, rot, Vector2.ONE)
+				ci.draw_colored_polygon(PackedVector2Array([Vector2(-s.x, 0), Vector2(-s.x * 0.4, -s.x * 0.7),
+					Vector2(s.x * 0.6, -s.x * 0.5), Vector2(s.x, 0.2 * s.x), Vector2(0, s.x * 0.4)]),
+					Color(0.98, 0.96, 0.9).lerp(Color(0.18, 0.16, 0.14), soot))
+				ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

@@ -9,6 +9,9 @@ const TeddyBear = preload("res://scripts/entities/teddy_bear.gd")
 const Fork = preload("res://scripts/entities/fork.gd")
 const Pill = preload("res://scripts/entities/pill.gd")
 const FriedEggBoss = preload("res://scripts/entities/fried_egg_boss.gd")
+const OilDrop = preload("res://scripts/entities/oil_drop.gd")
+const Tips = preload("res://scripts/core/tips.gd")
+const Squad = preload("res://scripts/game/squad.gd")
 
 const SPECIAL_BEARS := [TeddyBear.Type.BOXER, TeddyBear.Type.THROWER, TeddyBear.Type.KARATE, TeddyBear.Type.SEAMSTRESS,
 	TeddyBear.Type.NINJA, TeddyBear.Type.BOMBER, TeddyBear.Type.MEDIC]
@@ -19,14 +22,23 @@ var forks: Array[Fork] = []
 var pills: Array[Pill] = []
 var friendly_hits := 0
 var fork_hinted := false
+var fork_atk_hinted := {}
 var helper_t := 5.0
 var reinforce_t := 6.0
 var reinforce_kind := 0
 var reinforce_hinted := false
+var squad: Squad
 
 
 func _init(game) -> void:
 	g = game
+	squad = Squad.new()
+
+
+## Кооператив врагов (только Сложная и Ультра — см. squad.gd).
+func update_squad(delta: float, snake: Snake) -> void:
+	squad.level = int(g.cfg.get("coop", 0))
+	squad.update(delta, snake, self)
 
 
 func count() -> int:
@@ -50,6 +62,7 @@ func clear(with_fx := true) -> void:
 			g.fx.burst(p.position, p.cols[0], 10)
 		p.queue_free()
 	pills.clear()
+	squad.reset()
 
 
 func spawn_for_stage(stage: int, goal_total: int) -> void:
@@ -115,6 +128,7 @@ func spawn_bear(type: int, at := Vector2.INF) -> TeddyBear:
 	bear.allies = bears
 	g.world.add_child(bear)
 	bears.append(bear)
+	g.seen("bear_%d" % type)
 	return bear
 
 
@@ -218,14 +232,60 @@ func update_reinforcements(delta: float) -> void:
 
 # ---------------------------------------------------------------- вилки
 
-func spawn_fork(at := Vector2.INF) -> Fork:
+## Вид следующей вилки: сначала в основном столовые, к концу этапа — больше десертных и вил.
+func pick_fork_kind() -> int:
+	var progress := float(g.goal_done) / maxf(g.goal_total, 1.0)
+	var a: float = g.cfg["bear_aggr"]
+	var r := randf()
+	if r < (0.12 + 0.2 * progress) * a:
+		return Fork.Kind.DESSERT
+	if r < (0.22 + 0.35 * progress) * a:
+		return Fork.Kind.PITCH
+	return Fork.Kind.TABLE
+
+
+func spawn_fork(at := Vector2.INF, kind := -1) -> Fork:
 	var f := Fork.new()
 	f.z_index = 1
-	f.setup(spawn_pos(60.0) if at == Vector2.INF else at, g.bounds, g.cfg["bear_speed"], g.cfg["bear_aggr"], g.cfg["tempo"])
+	f.setup(spawn_pos(60.0) if at == Vector2.INF else at, g.bounds, g.cfg["bear_speed"], g.cfg["bear_aggr"], g.cfg["tempo"],
+		pick_fork_kind() if kind < 0 else kind)
 	f.sound.connect(g.sfx.play)
+	f.attack.connect(_on_fork_attack.bind(f))
 	g.world.add_child(f)
 	forks.append(f)
+	g.seen("fork_%d" % f.kind)
 	return f
+
+
+func _on_fork_attack(kind: String, data: Dictionary, f: Fork) -> void:
+	if not is_instance_valid(f):
+		return
+	match kind:
+		"start":
+			var atk: int = data["atk"]
+			g.seen("fork_atk_%d" % atk)
+			if not fork_atk_hinted.has(atk) and atk != Fork.Atk.LUNGE:
+				fork_atk_hinted[atk] = true
+				g.hint(Tips.FORK_ATTACK_HINTS[atk], 3.5)
+		"tines":
+			for d: Vector2 in data["dirs"]:
+				var drop: OilDrop = g.shots.spawn_drop(data["from"], d * 430.0 * float(g.cfg["proj_speed"]), OilDrop.Kind.TINE)
+				drop.thrower = f
+		"pogo":
+			var at: Vector2 = data["at"]
+			var r: float = data["radius"]
+			var snake: Snake = g.snake
+			g.add_shake(8.0)
+			g.fx.burst(at, Color(0.55, 0.36, 0.2), 14, 0.9)
+			g.vibrate(30)
+			if snake.alive and snake.head_pos.distance_to(at) < r + Snake.HEAD_RADIUS * 0.5:
+				if snake.take_damage(1, "fork_pogo"):
+					g.fx.popup(snake.head_pos + Vector2(0, -30), "НАКОЛОЛА!", Color(1, 0.5, 0.4))
+					g.sfx.play("punch")
+				snake.push((snake.head_pos - at).normalized() * 460.0)
+			for b: TeddyBear in bears:
+				if b.position.distance_to(at) < r + TeddyBear.RADIUS:
+					friendly_hit(b, null, (b.position - at).normalized() * 300.0)
 
 
 func update_forks(delta: float, snake: Snake) -> void:
@@ -235,22 +295,39 @@ func update_forks(delta: float, snake: Snake) -> void:
 			continue
 		if snake.alive and f.touches(snake.head_pos, Snake.HEAD_RADIUS):
 			if snake.is_dashing():
-				break_fork(f, "ТАРАН! ")
+				if f.is_whirling():  # рывок сбивает вертушку, но не ломает
+					f.st = Fork.St.DIZZY
+					f.st_t = 1.8
+					f.vel = (f.position - snake.head_pos).normalized() * 200.0
+					g.sfx.play("clang", 0.8)
+					g.fx.popup(f.position + Vector2(0, -30), "СБИЛА!", Color(0.7, 0.9, 1))
+				else:
+					break_fork(f, "ТАРАН! ")
 				continue
-			if f.hits_tines(snake.head_pos):
-				if snake.take_damage():
+			if f.hurts(snake.head_pos):
+				if snake.take_damage(1, "fork_whirl" if f.is_whirling() else "fork_tines"):
 					g.sfx.play("punch")
-					g.fx.popup(snake.head_pos + Vector2(0, -30), "ЗУБЦЫ! Бей сбоку!", Color(1, 0.5, 0.4))
+					g.fx.popup(snake.head_pos + Vector2(0, -30), "ВЕРТУШКА!" if f.is_whirling() else "ЗУБЦЫ! Бей сбоку!",
+						Color(1, 0.5, 0.4))
 					g.fx.burst(snake.head_pos, Color(1, 0.3, 0.2), 10)
 				snake.push((snake.head_pos - f.position).normalized() * 520.0)
-				f.bounce()
+				if not f.is_whirling():
+					f.bounce()
 				if not fork_hinted:
 					fork_hinted = true
 					g.hint("Вилку нельзя атаковать в лоб — заходи сбоку или сзади!", 3.0)
 			else:
-				break_fork(f, "СБОКУ! " if f.st != Fork.St.STUCK else "ЗАСТРЯЛА! ")
+				var prefix := "СБОКУ! "
+				match f.st:
+					Fork.St.STUCK, Fork.St.POGO_STUCK:
+						prefix = "ЗАСТРЯЛА! "
+					Fork.St.DIZZY:
+						prefix = "ГОЛОВОКРУЖЕНИЕ! "
+					Fork.St.BALD:
+						prefix = "БЕЗЗУБАЯ! "
+				break_fork(f, prefix)
 				continue
-		if not f.is_sprinting():
+		if not (f.is_sprinting() or f.is_whirling()):
 			continue
 		for b: TeddyBear in bears:  # вилка в спринте сбивает медведей
 			if f.touches(b.position, TeddyBear.RADIUS):
@@ -293,6 +370,7 @@ func spawn_pill(at := Vector2.INF) -> Pill:
 	p.landed.connect(_on_pill_landed.bind(p))
 	g.world.add_child(p)
 	pills.append(p)
+	g.seen("pill")
 	return p
 
 
@@ -330,7 +408,7 @@ func _on_pill_landed(pos: Vector2, p: Pill) -> void:
 	g.fx.burst(pos, Color(0.9, 0.9, 0.95), 14, 0.8)
 	g.vibrate(40)
 	if snake.alive and snake.head_pos.distance_to(pos) < Pill.CRUSH_RADIUS + Snake.HEAD_RADIUS * 0.5:
-		if snake.take_damage():
+		if snake.take_damage(1, "pill"):
 			g.fx.popup(snake.head_pos + Vector2(0, -30), "РАЗДАВИЛО!", Color(1, 0.5, 0.4))
 			g.sfx.play("hurt")
 		snake.push((snake.head_pos - pos).normalized() * 450.0)

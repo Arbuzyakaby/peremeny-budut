@@ -1,13 +1,17 @@
 extends Control
 ## Экран загрузки при первом запуске: пока в фоне синтезируются звуки (на телефоне это заметно).
+## Внизу — случайный совет (core/tips.gd), меняется каждые 4 секунды.
 
 const Design = preload("res://scripts/ui/design.gd")
 const Icons = preload("res://scripts/ui/icons.gd")
+const Tips = preload("res://scripts/core/tips.gd")
 
 var progress := 0.0
 var shown := 0.0
 var t := 0.0
 var status := "Синтезируем звуки"
+var tip := Tips.random_tip()
+var tip_t := 4.0
 
 
 func _init() -> void:
@@ -17,6 +21,10 @@ func _init() -> void:
 
 func _process(delta: float) -> void:
 	t += delta
+	tip_t -= delta
+	if tip_t <= 0.0:
+		tip_t = 4.0
+		tip = Tips.random_tip()
 	shown = move_toward(shown, progress, delta * 2.5)
 	queue_redraw()
 
@@ -39,3 +47,7 @@ func _draw() -> void:
 	for i in 3:  # три иконки врагов «подпрыгивают» по очереди
 		var k := maxf(sin(t * 5.0 - i * 0.9), 0.0)
 		Icons.stage(self, c + Vector2(-40 + i * 40, 110 - k * 8.0), i, 0.9)
+	var line := "СОВЕТ: " + tip
+	var lw := minf(body.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x, size.x - 48.0)
+	draw_string(body, Vector2((size.x - lw) / 2.0, size.y - 40.0), line, HORIZONTAL_ALIGNMENT_LEFT, size.x - 48.0, 16,
+		Color(Design.CREAM, 0.8))

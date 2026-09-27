@@ -74,7 +74,7 @@ func explode(pos: Vector2, from_snake: bool) -> void:
 	g.fx.burst(pos, Color(1, 0.95, 0.8), 18, 1.4)
 	var r := OilDrop.BLAST_RADIUS
 	if not from_snake and snake.alive and snake.head_pos.distance_to(pos) < r:
-		if snake.take_damage():
+		if snake.take_damage(1, "blast"):
 			g.fx.popup(snake.head_pos + Vector2(0, -30), "БАБАХ!", Color(1, 0.6, 0.3))
 		snake.push((snake.head_pos - pos).normalized() * 520.0)
 	for b: TeddyBear in g.enemies.bears.duplicate():
@@ -101,6 +101,15 @@ func explode(pos: Vector2, from_snake: bool) -> void:
 			g.sfx.play("splat", 1.1)
 
 
+static func _cause_of(d: OilDrop) -> String:
+	match d.kind:
+		OilDrop.Kind.OIL, OilDrop.Kind.PEPPER:
+			return "oil"
+		OilDrop.Kind.TINE:
+			return "tine"
+	return "shot"
+
+
 ## Выстрел змеи во что-то попал? true — снаряд израсходован.
 func _snake_shot_hits(d: OilDrop) -> bool:
 	for bear: TeddyBear in g.enemies.bears:
@@ -112,7 +121,7 @@ func _snake_shot_hits(d: OilDrop) -> bool:
 		if f.touches(d.position, OilDrop.RADIUS):
 			if d.kind == OilDrop.Kind.CRACKER:
 				return true
-			if f.hits_tines(d.position):  # в лоб — отскакивает от зубцов
+			if f.hurts(d.position):  # в лоб — отскакивает от зубцов (и от вертушки)
 				g.fx.burst(d.position, Color(0.8, 0.8, 0.85), 5)
 				g.sfx.play("clang", 1.6, -8.0)
 			else:
@@ -160,10 +169,10 @@ func update_drops(delta: float) -> void:
 			if d.kind == OilDrop.Kind.WHITE:
 				snake.slow(2.5)
 				g.sfx.play("splat", 0.8)
-			elif snake.take_damage() and d.kind == OilDrop.Kind.NEEDLE:
+			elif snake.take_damage(1, _cause_of(d)) and d.kind == OilDrop.Kind.NEEDLE:
 				snake.slow(1.2)  # иголка пришивает
 			g.fx.burst(d.position, Color(1, 0.85, 0.3) if d.kind != OilDrop.Kind.WHITE else Color.WHITE, 6)
-		elif d.kind in [OilDrop.Kind.BUTTON, OilDrop.Kind.NEEDLE, OilDrop.Kind.SHURIKEN]:  # френдли фаер
+		elif d.kind in [OilDrop.Kind.BUTTON, OilDrop.Kind.NEEDLE, OilDrop.Kind.SHURIKEN, OilDrop.Kind.TINE]:  # френдли фаер
 			for bear: TeddyBear in g.enemies.bears:
 				if bear != d.thrower and bear.position.distance_to(d.position) < OilDrop.RADIUS + TeddyBear.RADIUS:
 					var thrower: Node2D = d.thrower if is_instance_valid(d.thrower) else null
@@ -188,7 +197,7 @@ func update_waves(delta: float) -> void:
 					if not stun_hinted:
 						stun_hinted = true
 						g.hint("Волну таблетки можно пережить в рывке или просто держаться подальше", 3.0)
-			elif snake.take_damage():
+			elif snake.take_damage(1, "wave"):
 				snake.push((snake.head_pos - w.position).normalized() * 500.0)
 		if w.finished():
 			waves.erase(w)

@@ -14,6 +14,14 @@ static func setup() -> void:
 	_add_action("pause", [KEY_ESCAPE, KEY_P])
 	_add_action("mute", [KEY_M])
 	_add_action("dev_panel", [KEY_F1, KEY_QUOTELEFT])
+	# На ноутбуках F1 часто занят яркостью/звуком, а ` — это «ё» на русской раскладке (физическая клавиша
+	# та же, поэтому всё равно срабатывает). Запасной вариант, который есть на любой клавиатуре:
+	if InputMap.action_get_events("dev_panel").size() == 2:
+		var combo := InputEventKey.new()
+		combo.physical_keycode = KEY_D
+		combo.ctrl_pressed = true
+		combo.shift_pressed = true
+		InputMap.action_add_event("dev_panel", combo)
 
 
 static func _add_action(action: String, keys: Array) -> void:

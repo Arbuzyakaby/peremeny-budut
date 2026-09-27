@@ -215,23 +215,30 @@ func _draw() -> void:
 	var s := _scale()
 	# пауза
 	var pc := pause_rect.get_center()
-	draw_circle(pc, pause_rect.size.x / 2.0, Color(Design.SURFACE_1, 0.85 * a))
-	draw_arc(pc, pause_rect.size.x / 2.0, 0, TAU, 32, Color(Design.LINE_STRONG, a), 2.0)
+	_arcade(pc, pause_rect.size.x / 2.0 - 3.0, Color(0.22, 0.15, 0.1), false, a)
 	Icons.pause(self, pc, Color(Design.CREAM, a), 0.9)
 	# стик
 	if Settings.choice("touch_scheme") == 0:
 		var shown := _stick_index >= 0 or not Settings.flag("stick_floating")
 		var c := _stick_center if _stick_index >= 0 else _fixed_center()
 		var ka := a if _stick_index >= 0 else a * 0.45
-		if shown:
-			draw_circle(c, STICK_R + 6.0, Color(Design.SURFACE_0, 0.35 * ka))
-			draw_arc(c, STICK_R + 6.0, 0, TAU, 48, Color(Design.CREAM, 0.35 * ka), 2.0)
+		if shown:  # аркадный стик: латунная шайба-ограничитель, шток и шарик
+			draw_circle(c, STICK_R + 8.0, Color(0, 0, 0, 0.35 * ka))
+			draw_arc(c, STICK_R + 6.0, 0, TAU, 48, Color(Design.BRASS, 0.55 * ka), 4.0)
+			draw_arc(c, STICK_R + 3.0, 0, TAU, 48, Color(0.05, 0.03, 0.02, 0.5 * ka), 2.0)
+			draw_circle(c, 16.0, Color(0.1, 0.07, 0.05, 0.8 * ka))
 			var knob := c
 			if _stick_index >= 0:
 				knob = c + (_stick_pos - c).limit_length(STICK_R)
 			var edge := sprint_held and _sprint_index < 0
-			draw_circle(knob, 34.0, Color(Design.YOLK if edge else Design.CREAM, 0.85 * ka))
-			draw_circle(knob, 26.0, Color(Design.YOLK_DEEP if edge else Design.MUTED, 0.5 * ka))
+			draw_line(c, knob, Color(0.2, 0.21, 0.24, 0.9 * ka), 12.0)
+			draw_line(c, knob, Color(0.75, 0.77, 0.8, 0.7 * ka), 4.0)
+			var ball := Design.YOLK if edge else Design.TOMATO
+			draw_circle(knob + Vector2(3, 6), 32.0, Color(0, 0, 0, 0.3 * ka))
+			draw_circle(knob, 32.0, Color(ball.darkened(0.45), 0.95 * ka))
+			draw_circle(knob + Vector2(-2, -2), 28.0, Color(ball, 0.95 * ka))
+			draw_circle(knob + Vector2(-9, -10), 11.0, Color(1, 1, 1, 0.35 * ka))
+			draw_circle(knob + Vector2(-11, -12), 4.0, Color(1, 1, 1, 0.7 * ka))
 		elif _stick_index < 0:  # подсказка, где стик
 			var hint := _fixed_center()
 			draw_arc(hint, STICK_R * 0.6, 0, TAU, 40, Color(Design.CREAM, 0.12 * a), 2.0)
@@ -241,16 +248,16 @@ func _draw() -> void:
 	var sc := sprint_center()
 	var sr := _sprint_r()
 	var held := _sprint_index >= 0
-	draw_circle(sc, sr, Color(Design.YOLK_DEEP if held else Design.SURFACE_1, 0.9 * a))
-	draw_arc(sc, sr + 4.0, -PI / 2, -PI / 2 + TAU * stamina, 40, Color(Design.MINT, a), 4.0)
+	_arcade(sc, sr, Design.YOLK_DEEP, held, a)
+	draw_arc(sc, sr + 6.0, 0, TAU, 40, Color(0, 0, 0, 0.4 * a), 5.0)
+	draw_arc(sc, sr + 6.0, -PI / 2, -PI / 2 + TAU * stamina, 40, Color(Design.MINT, a), 4.0)
 	Icons.bolt(self, sc, Color(Design.INK if held else Design.CREAM, a), s * 1.1)
 	# атака
 	var ac := attack_center()
 	var ar := _attack_r()
 	var ready := ability_type >= 0 and ability_charges > 0
-	var base := Design.SURFACE_1.lerp(Design.MINT.darkened(0.5), 0.6 if ready else 0.0)
-	draw_circle(ac, ar, Color(base.lerp(Color.WHITE, _attack_flash * 0.5), 0.9 * a))
-	draw_arc(ac, ar, 0, TAU, 48, Color(Design.MINT if ready else Design.LINE_STRONG, a), 3.0)
+	var base := Color(0.22, 0.15, 0.1).lerp(Design.MINT.darkened(0.35), 0.8 if ready else 0.0)
+	_arcade(ac, ar, base.lerp(Color.WHITE, _attack_flash * 0.4), _attack_flash > 0.5, a)
 	if ready:
 		Icons.ability(self, ac + Vector2(-4, -6) * s, ability_type, _time, s * 1.5)
 		var f := Design.font("heavy")
@@ -262,3 +269,18 @@ func _draw() -> void:
 		var txt := "АТАКА"
 		var w := f2.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
 		draw_string(f2, ac + Vector2(-w / 2.0, 6), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(Design.FAINT, a))
+
+
+## Аркадная кнопка: латунный ободок, боковина колпачка и выпуклый колпачок с бликом.
+## Нажатая опускается — боковина прячется, блик тускнеет.
+func _arcade(c: Vector2, r: float, col: Color, pressed: bool, a: float) -> void:
+	var travel := 1.5 if pressed else 6.0
+	draw_circle(c + Vector2(0, 4), r + 7.0, Color(0, 0, 0, 0.35 * a))
+	draw_circle(c, r + 6.0, Color(0.42, 0.27, 0.08, 0.95 * a))
+	draw_circle(c + Vector2(-1, -1), r + 4.5, Color(Design.BRASS, 0.95 * a))
+	draw_circle(c, r + 1.5, Color(0.05, 0.03, 0.02, 0.9 * a))
+	var face := c - Vector2(0, travel - 1.5)
+	draw_circle(c + Vector2(0, 1), r, Color(col.darkened(0.55), 0.95 * a))  # боковина
+	draw_circle(face, r - 1.0, Color(col.darkened(0.12), 0.95 * a))
+	draw_circle(face + Vector2(-r * 0.12, -r * 0.14), r * 0.72, Color(col.lightened(0.12), 0.9 * a))
+	draw_circle(face + Vector2(-r * 0.35, -r * 0.4), r * 0.22, Color(1, 1, 1, (0.18 if pressed else 0.4) * a))

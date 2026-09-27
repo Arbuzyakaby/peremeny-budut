@@ -1,5 +1,5 @@
 extends CanvasLayer
-## Панель разработчика (F1 / `; на телефоне — кнопка </> после 7 нажатий на версию в настройках).
+## Панель разработчика (F1, ` или Ctrl+Shift+D; на телефоне — кнопка </> после 7 нажатий на версию в настройках).
 ## Вкладки: ИНФО (производительность и состояние), ЧИТЫ, МИР (этапы, спавн, время), ОТЛАДКА
 ## (хитбоксы, безопасная зона, звуки), UI-КИТ (витрина дизайн-языка), ТЕСТЫ (юнит-тесты в игре).
 ## Любой чит помечает забег отладочным — рекорды и чешуйки не сохраняются.
@@ -14,6 +14,8 @@ const Segmented = preload("res://scripts/ui/widgets/segmented.gd")
 const ToggleSwitch = preload("res://scripts/ui/widgets/toggle_switch.gd")
 const DevOverlay = preload("res://scripts/ui/dev_overlay.gd")
 const UiKit = preload("res://scripts/ui/ui_kit.gd")
+const Fader = preload("res://scripts/ui/widgets/fader.gd")
+const Fork = preload("res://scripts/entities/fork.gd")
 
 const WIDTH := 460.0
 const TABS := ["ИНФО", "ЧИТЫ", "МИР", "ДЕБАГ", "UI", "ТЕСТЫ"]
@@ -95,6 +97,15 @@ func _ready() -> void:
 	overlay.z_index = 50
 	game.world.add_child.call_deferred(overlay)
 	panel.visible = false
+
+
+## Горячие клавиши ловим здесь, а не в game.gd: панель работает всегда (PROCESS_MODE_ALWAYS), в том числе
+## на паузе и на выборе улучшений, когда главный узел ввод не получает. _input, а не _unhandled_input —
+## чтобы клавишу не перехватил элемент интерфейса в фокусе.
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.is_action_pressed("dev_panel"):
+		toggle()
+		get_viewport().set_input_as_handled()
 
 
 func toggle() -> void:
@@ -270,8 +281,13 @@ func _build_world(p: VBoxContainer) -> void:
 	var sp := _grid(p, 2)
 	for i in BEAR_NAMES.size():
 		sp.add_child(_btn("Медведь: " + BEAR_NAMES[i], _spawn.bind("bear", i)))
-	sp.add_child(_btn("Ржавая вилка", _spawn.bind("fork", 0)))
+	for k in Fork.KINDS:
+		sp.add_child(_btn("Вилка: " + String(Fork.KINDS[k]["name"]), _spawn.bind("fork", k)))
 	sp.add_child(_btn("Таблетка", _spawn.bind("pill", 0)))
+	p.add_child(Design.label("ПРИЁМЫ ВИЛОК (ближайшая к змее)", "overline", Design.YOLK))
+	var atk := _grid(p, 2)
+	for a in Fork.ATTACK_NAMES.size():
+		atk.add_child(_btn(Fork.ATTACK_NAMES[a], _fork_attack.bind(a)))
 	var g := _grid(p, 2)
 	g.add_child(_btn("ОЧИСТИТЬ ПОЛЕ", func() -> void:
 		if _in_run():
@@ -293,7 +309,7 @@ func _build_world(p: VBoxContainer) -> void:
 		game.autopilot = on
 		if game.snake and not on:
 			game.snake.autopilot = false)
-	var speed := HSlider.new()
+	var speed := Fader.new()
 	speed.min_value = 0.25
 	speed.max_value = 3.0
 	speed.step = 0.25
@@ -336,9 +352,25 @@ func _spawn(kind: String, type: int) -> void:
 		"bear":
 			game.enemies.spawn_bear(type)
 		"fork":
-			game.enemies.spawn_fork()
+			game.enemies.spawn_fork(Vector2.INF, type)
 		"pill":
 			game.enemies.spawn_pill()
+
+
+## Заставить вилку провести приём (если вилок нет — создать столовую).
+func _fork_attack(a: int) -> void:
+	if not _in_run():
+		return
+	_cheat()
+	var forks: Array = game.enemies.forks
+	if forks.is_empty():
+		game.enemies.spawn_fork()
+	var head: Vector2 = game.snake.head_pos
+	var best: Fork = forks[0]
+	for f: Fork in forks:
+		if f.position.distance_to(head) < best.position.distance_to(head):
+			best = f
+	best.begin_attack(a, head)
 
 
 # ---------------------------------------------------------------- ОТЛАДКА

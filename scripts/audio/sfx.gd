@@ -12,8 +12,9 @@ const Settings = preload("res://scripts/core/settings.gd")
 const VOICES := 20
 const COOLDOWN_MS := 40
 ## Мелодичные звуки проигрываются без случайного сдвига высоты — иначе фальшивят.
+## Мелкие механические щелчки (детент, фейдер) оставлены с разбросом — так живее, как у настоящего прибора.
 const NO_JITTER := ["win", "lose", "power", "ui_move", "ui_select", "ui_toggle", "ui_back", "ui_error", "yolk",
-	"heal", "perk", "stage_clear", "scale", "tick"]
+	"heal", "perk", "stage_clear", "scale", "tick", "ui_key_down", "ui_lever", "ui_rotary", "ui_cover"]
 
 static var sounds: Dictionary = {}
 static var music: Dictionary = {}

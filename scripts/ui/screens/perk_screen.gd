@@ -55,9 +55,8 @@ func show_perks(list: Array, next_stage: String, touch: bool) -> void:
 		names[i].label_settings.font_color = col.lightened(0.3)
 		descs[i].text = (c["desc"] as String).replace("\n", " ")
 		var b := cards[i]
-		b.add_theme_stylebox_override("normal", Design.elevated(col.darkened(0.78), col.darkened(0.35), Design.RADIUS_LG, 1))
-		b.add_theme_stylebox_override("hover", Design.elevated(col.darkened(0.62), col, Design.RADIUS_LG, 2))
-		b.add_theme_stylebox_override("pressed", Design.elevated(col.darkened(0.7), Color.WHITE, Design.RADIUS_LG, 1))
+		for st in ["normal", "hover", "pressed", "hover_pressed"]:  # карточка-клавиша с лампой цвета улучшения
+			b.add_theme_stylebox_override(st, Design.card_style(col, st, Design.RADIUS_LG))
 		Design.appear(b, 0.1 + i * Design.STAGGER * 2.0)
 	open()
 	Design.play("perk")

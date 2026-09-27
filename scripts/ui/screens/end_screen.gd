@@ -1,12 +1,16 @@
 extends "res://scripts/ui/screens/screen.gd"
 ## Итоги забега: заголовок (победа / поражение / «КОНЕЦ»), строки статистики, чешуйки, кнопки.
+## После гибели — совет по причине удара и клавиша «ПОВТОР» (запись последних секунд, replay_screen.gd).
 
 signal retry_requested
 signal menu_requested
+signal replay_requested
 
 var head: Label
 var headline: Label
 var stats: VBoxContainer
+var tip_label: Label
+var replay_button: Button
 
 
 func build() -> void:
@@ -23,10 +27,19 @@ func build() -> void:
 	first_focus = Design.button("ЕЩЁ РАЗ", retry_requested.emit, "Primary", Vector2(230, Design.TOUCH_MIN + 4))
 	row.add_child(first_focus)
 	row.add_child(Design.button("В МЕНЮ", menu_requested.emit, "", Vector2(230, Design.TOUCH_MIN + 4)))
+	replay_button = Design.button("ПОВТОР", replay_requested.emit, "Ghost", Vector2(160, Design.TOUCH_MIN + 4))
+	row.add_child(replay_button)
+	tip_label = Design.label("", "small", Design.STEEL.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER)
+	tip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tip_label.custom_minimum_size = Vector2(560, 0)
+	content.add_child(tip_label)
 
 
 ## rows — пары [подпись, значение]; highlight — строки, которые подсвечиваются золотом.
-func show_end(win: bool, custom_title: String, line: String, rows: Array) -> void:
+func show_end(win: bool, custom_title: String, line: String, rows: Array, can_replay := false, tip := "") -> void:
+	replay_button.visible = can_replay
+	tip_label.visible = tip != ""
+	tip_label.text = "СОВЕТ: " + tip
 	head.text = custom_title if custom_title != "" else ("ПОБЕДА!" if win else "ЗМЕЯ ПОВЕРЖЕНА")
 	var col := Design.MINT if win else Design.TOMATO
 	if custom_title != "":

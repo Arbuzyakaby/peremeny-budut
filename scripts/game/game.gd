@@ -30,12 +30,18 @@ const Abilities = preload("res://scripts/game/abilities.gd")
 const BossFight = preload("res://scripts/game/boss_fight.gd")
 const MenuDemo = preload("res://scripts/game/menu_demo.gd")
 const Autopilot = preload("res://scripts/game/autopilot.gd")
+const Bestiary = preload("res://scripts/core/bestiary.gd")
+const Daily = preload("res://scripts/core/daily.gd")
+const Replay = preload("res://scripts/game/replay.gd")
+const Darkness = preload("res://scripts/game/darkness.gd")
 
 enum State { LOADING, MENU, LEVEL, PERK, BOSS_INTRO, BOSS, OUTRO, CUTSCENE, WIN, GAME_OVER }
 
 ## Переживают перезагрузку сцены: выбранная сложность и «сразу начать заново».
 static var difficulty := 1
 static var auto_start := false
+## Забег — ежедневное испытание (переживает «ещё раз», сбрасывается выбором обычной сложности).
+static var daily_mode := false
 
 var state := State.LOADING
 var cfg: Dictionary = Balance.DIFFICULTIES[1]
@@ -73,6 +79,9 @@ var abilities: Abilities
 var boss_fight: BossFight
 var menu_demo: MenuDemo
 var hint_tween: Tween
+var daily: Dictionary = {}   # модификатор испытания дня (пусто — обычный забег)
+var replay := Replay.new()   # последние секунды — для повтора гибели
+var darkness: Darkness
 var args := {"stage": -1, "ending": false, "skills": false, "perks": false, "dev": false}
 var shot_frames: Array[int] = []  # --shots=30,90: снимки экрана на этих кадрах (проверка раскладки)
 
@@ -103,7 +112,11 @@ func _ready() -> void:
 	hud = Hud.new()
 	hud.sfx = sfx
 	add_child(hud)
-	hud.difficulty_chosen.connect(start_game)
+	hud.difficulty_chosen.connect(func(i: int) -> void:
+		daily_mode = false
+		start_game(i))
+	hud.daily_chosen.connect(start_daily)
+	hud.replay = replay
 	hud.retry_pressed.connect(restart.bind(true))
 	hud.menu_pressed.connect(restart.bind(false))
 	hud.records_reset.connect(_reset_records)
@@ -169,6 +182,11 @@ func _open_for_debug(what: String) -> void:
 			hud.open_skills()
 		"settings":
 			hud.push(hud.settings_screen)
+		"bestiary":
+			for k in ["bear_0", "bear_3", "fork_0", "fork_2", "fork_atk_1", "pill"]:
+				Bestiary.unlock(k, false)
+			hud.push(hud.bestiary_screen)
+			hud.bestiary_screen._select(3)
 		"restart":  # проверка перезагрузки сцены: итоги → меню → итоги …
 			_end(false)
 			get_tree().create_timer(0.5).timeout.connect(restart.bind(false))
@@ -193,7 +211,7 @@ func _parse_args() -> void:
 			Platform.force_touch = true
 			Platform.force_mobile = true
 			Input.emulate_touch_from_mouse = true
-		elif a.begins_with("--open="):  # открыть экран для скриншота: pause, end, win, perks, skills, settings
+		elif a.begins_with("--open="):  # экран для скриншота: pause, end, win, perks, skills, settings, bestiary
 			args["open"] = a.get_slice("=", 1)
 		elif a.begins_with("--shots="):
 			for n in a.get_slice("=", 1).split(","):
@@ -210,13 +228,26 @@ func _parse_args() -> void:
 
 func show_menu() -> void:
 	state = State.MENU
+	daily_mode = false
 	menu_demo = MenuDemo.new(self)
 	hud.show_menu(Balance.DIFFICULTIES, SaveData.bests(Balance.DIFFICULTIES.size()), difficulty)
+
+
+## Ежедневное испытание: Нормальная сложность, модификатор и сид дня.
+func start_daily() -> void:
+	daily_mode = true
+	start_game(Daily.BASE_DIFFICULTY)
 
 
 func start_game(diff: int) -> void:
 	difficulty = diff
 	cfg = Balance.difficulty(diff)
+	daily = {}
+	if daily_mode:
+		daily = Daily.today()
+		cfg = Daily.apply(cfg, daily)
+		seed(Daily.seed_for(Daily.day_key()))
+	replay.clear()
 	if menu_demo:
 		menu_demo.clear()
 		menu_demo = null
@@ -227,6 +258,11 @@ func start_game(diff: int) -> void:
 	snake.max_lives = cfg["lives"] + mods["lives"]
 	snake.lives = snake.max_lives
 	snake.apply_mods(mods)
+	for k: String in daily.get("snake", {}):
+		snake.set(k, float(snake.get(k)) * float(daily["snake"][k]))
+	if daily.get("dark", false):
+		darkness = Darkness.new()
+		world.add_child(darkness)
 	snake.reset(Vector2(640, 520))
 	snake.damaged.connect(_on_snake_damaged)
 	snake.died.connect(_on_snake_died)
@@ -284,6 +320,15 @@ func hint(text: String, time: float) -> void:
 	hint_tween = create_tween()
 	hint_tween.tween_interval(time)
 	hint_tween.tween_callback(hud.hide_caption)
+
+
+## Враг впервые на поле — открыть его карточку в картотеке (отладочные забеги не в счёт).
+func seen(key: String) -> void:
+	if debug_run or state == State.MENU:
+		return
+	if Bestiary.unlock(key):
+		var e := Bestiary.entry(key)
+		fx.popup(Vector2(640, 96), "В КАРТОТЕКЕ: " + String(e["title"]).to_upper(), Design.STEEL)
 
 
 func hints_on() -> bool:
@@ -364,6 +409,7 @@ func _clear_field() -> void:
 func _begin_boss() -> void:
 	state = State.BOSS_INTRO
 	_clear_field()
+	seen("boss")
 	boss = boss_fight.begin()
 
 
@@ -410,10 +456,7 @@ func _try_attack() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("dev_panel"):
-		dev_panel.toggle()
-		get_viewport().set_input_as_handled()
-		return
+	# Панель разработчика слушает клавиши сама (dev_panel.gd::_input): этот узел на паузе не получает ввод.
 	if state == State.CUTSCENE and ending:
 		if event.is_action_pressed("pause"):
 			get_viewport().set_input_as_handled()
@@ -439,7 +482,12 @@ func _end(win: bool) -> void:
 		sfx.play("lose")
 		vibrate(300)
 	var best := SaveData.best(difficulty)
-	var record := not debug_run and SaveData.submit_score(difficulty, score)
+	var record := false
+	if daily_mode:  # у испытания дня свой рекорд
+		best = Daily.best(Daily.day_key())
+		record = not debug_run and Daily.submit(Daily.day_key(), score)
+	else:
+		record = not debug_run and SaveData.submit_score(difficulty, score)
 	if record:
 		best = score
 	scales_gained = Skills.scales_for_run(run_scales, difficulty)
@@ -466,6 +514,10 @@ func _process(delta: float) -> void:
 		snake.touch_sprint = hud.touch.active and hud.touch.sprint_held
 	if state in [State.LEVEL, State.BOSS_INTRO, State.BOSS]:
 		play_time += delta
+		if snake and snake.alive:
+			replay.record(self, delta)
+	if darkness and snake:
+		darkness.follow(snake.head_pos)
 	if autopilot and snake and fighting:
 		Autopilot.drive(self)
 
@@ -489,6 +541,7 @@ func _process(delta: float) -> void:
 			enemies.update_bears(delta, snake, true)
 			enemies.update_forks(delta, snake)
 			enemies.update_pills(delta, snake)
+			enemies.update_squad(delta, snake)
 			shots.update_drops(delta)
 			shots.update_waves(delta)
 
@@ -538,6 +591,8 @@ func _on_snake_damaged(lives_left: int) -> void:
 
 
 func _on_snake_died() -> void:
+	replay.push(Replay.snapshot(self))
+	replay.finish(snake.last_cause)
 	fx.burst(snake.head_pos, Color(0.4, 0.85, 0.35), 30)
 	_end(false)
 

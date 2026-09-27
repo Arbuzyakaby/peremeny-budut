@@ -160,3 +160,65 @@ static func star(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
 		var rr := r if i % 2 == 0 else r * 0.45
 		pts.append(c + Vector2.from_angle(-PI / 2 + TAU * i / 10.0) * rr)
 	ci.draw_colored_polygon(pts, col)
+
+
+## Вилка своего вида: 0 столовая (сталь с ржавчиной), 1 десертная (латунь), 2 вилы (бронза, дерево).
+const FORK_COLORS := [Color(0.74, 0.72, 0.7), Color(0.93, 0.74, 0.36), Color(0.58, 0.42, 0.28)]
+
+
+static func fork_kind(ci: CanvasItem, c: Vector2, kind: int, s := 1.0, a := 1.0) -> void:
+	var col: Color = FORK_COLORS[clampi(kind, 0, 2)]
+	col.a = a
+	var handle := Color(0.45, 0.26, 0.12, a) if kind == 2 else col
+	ci.draw_line(c + Vector2(-12, 10) * s, c + Vector2(4, -4) * s, Color(0.2, 0.13, 0.08, a), 6.0 * s)
+	ci.draw_line(c + Vector2(-12, 10) * s, c + Vector2(4, -4) * s, handle, 3.5 * s)
+	var n: int = [4, 3, 2][clampi(kind, 0, 2)]
+	for i in n:
+		var o := Vector2(-4 + i * 8.0 / maxf(n - 1, 1), -4 + i * 8.0 / maxf(n - 1, 1)) * 0.7
+		var tip := 12.0 if kind != 2 else 15.0
+		ci.draw_line(c + (Vector2(2, -2) + o) * s, c + (Vector2(tip, -tip) + o) * s, col, 2.2 * s)
+	if kind == 0:
+		ci.draw_circle(c + Vector2(-4, 2) * s, 2.2 * s, Color(0.85, 0.42, 0.16, a))
+	elif kind == 2:
+		ci.draw_circle(c + Vector2(3, -3) * s, 2.0 * s, Color(0.38, 0.78, 0.62, a))
+
+
+## Пиктограмма приёма вилки: 0 выпад, 1 залп, 2 вертушка, 3 прыжок-укол.
+static func fork_attack(ci: CanvasItem, c: Vector2, atk: int, col: Color, s := 1.0) -> void:
+	match atk:
+		0:  # стрела выпада
+			ci.draw_line(c + Vector2(-10, 0) * s, c + Vector2(8, 0) * s, col, STROKE * s)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(11, 0) * s, c + Vector2(4, -5) * s, c + Vector2(4, 5) * s]), col)
+			for i in 2:
+				ci.draw_line(c + Vector2(-10 - i * 4, -6 + i * 12) * s, c + Vector2(-4 - i * 4, -6 + i * 12) * s, Color(col, 0.5), 1.5 * s)
+		1:  # веер зубцов
+			for i in 3:
+				var d := Vector2.from_angle(-0.45 + i * 0.45)
+				ci.draw_line(c + Vector2(-9, 0) * s + d * 6.0 * s, c + Vector2(-9, 0) * s + d * 20.0 * s, col, 2.2 * s)
+			ci.draw_circle(c + Vector2(-9, 0) * s, 3.0 * s, col)
+		2:  # вертушка
+			ci.draw_arc(c, 9.0 * s, 0.3, PI - 0.3, 12, col, STROKE * s)
+			ci.draw_arc(c, 9.0 * s, PI + 0.3, TAU - 0.3, 12, col, STROKE * s)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-9, -4) * s, c + Vector2(-13, 1) * s, c + Vector2(-5, 1) * s]), col)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(9, 4) * s, c + Vector2(13, -1) * s, c + Vector2(5, -1) * s]), col)
+		_:  # прыжок и круг на полу
+			ci.draw_arc(c + Vector2(0, 7) * s, 10.0 * s, 0, TAU, 16, Color(col, 0.6), 1.8 * s)
+			ci.draw_line(c + Vector2(0, -11) * s, c + Vector2(0, 4) * s, col, STROKE * s)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, 8) * s, c + Vector2(-5, 1) * s, c + Vector2(5, 1) * s]), col)
+
+
+## Картотека: карточка-папка.
+static func folder(ci: CanvasItem, c: Vector2, col: Color, s := 1.0) -> void:
+	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-10, -7) * s, c + Vector2(-3, -7) * s, c + Vector2(-1, -4) * s,
+		c + Vector2(10, -4) * s, c + Vector2(10, 8) * s, c + Vector2(-10, 8) * s]), col)
+	ci.draw_line(c + Vector2(-7, 1) * s, c + Vector2(7, 1) * s, Color(0, 0, 0, 0.35), 1.5 * s)
+	ci.draw_line(c + Vector2(-7, 4.5) * s, c + Vector2(3, 4.5) * s, Color(0, 0, 0, 0.35), 1.5 * s)
+
+
+## Календарь с отмеченным днём — ежедневное испытание.
+static func calendar(ci: CanvasItem, c: Vector2, col: Color, s := 1.0) -> void:
+	ci.draw_rect(Rect2(c + Vector2(-9, -7) * s, Vector2(18, 16) * s), col, false, STROKE * s)
+	ci.draw_line(c + Vector2(-9, -2) * s, c + Vector2(9, -2) * s, col, STROKE * s)
+	for k in [-5.0, 5.0]:
+		ci.draw_line(c + Vector2(k, -10) * s, c + Vector2(k, -5) * s, col, STROKE * s)
+	ci.draw_rect(Rect2(c + Vector2(1, 1) * s, Vector2(5, 5) * s), col)

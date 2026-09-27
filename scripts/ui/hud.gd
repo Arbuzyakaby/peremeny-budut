@@ -4,6 +4,7 @@ extends CanvasLayer
 ## возвращает на предыдущий. Масштаб интерфейса и безопасная зона применяются здесь.
 
 signal difficulty_chosen(index: int)
+signal daily_chosen
 signal retry_pressed
 signal menu_pressed
 signal records_reset
@@ -19,6 +20,7 @@ const Design = preload("res://scripts/ui/design.gd")
 const Settings = preload("res://scripts/core/settings.gd")
 const Skills = preload("res://scripts/core/skills.gd")
 const Platform = preload("res://scripts/core/platform.gd")
+const Tips = preload("res://scripts/core/tips.gd")
 const HudOverlay = preload("res://scripts/ui/hud_overlay.gd")
 const Captions = preload("res://scripts/ui/captions.gd")
 const TouchControls = preload("res://scripts/ui/touch_controls.gd")
@@ -29,6 +31,8 @@ const PerkScreen = preload("res://scripts/ui/screens/perk_screen.gd")
 const SettingsScreen = preload("res://scripts/ui/screens/settings_screen.gd")
 const SkillTreeScreen = preload("res://scripts/ui/screens/skill_tree_screen.gd")
 const LoadingScreen = preload("res://scripts/ui/screens/loading_screen.gd")
+const BestiaryScreen = preload("res://scripts/ui/screens/bestiary_screen.gd")
+const ReplayScreen = preload("res://scripts/ui/screens/replay_screen.gd")
 
 var sfx: Node  # проигрыватель звуков (sfx.gd), назначается игрой
 
@@ -42,6 +46,9 @@ var end_screen: EndScreen
 var perks: PerkScreen
 var settings_screen: SettingsScreen
 var skills_screen: SkillTreeScreen
+var bestiary_screen: BestiaryScreen
+var replay_screen: ReplayScreen
+var replay: RefCounted  # replay.gd — назначается игрой
 var loading: LoadingScreen
 var dev_button: Button
 var stack: Array = []  # открытые экраны, последний — сверху
@@ -80,6 +87,8 @@ func _ready() -> void:
 	menu.skills_requested.connect(func() -> void: push(skills_screen))
 	menu.settings_requested.connect(func() -> void: push(settings_screen))
 	menu.quit_requested.connect(quit)
+	menu.daily_requested.connect(daily_chosen.emit)
+	menu.bestiary_requested.connect(func() -> void: push(bestiary_screen))
 	pause_screen = _screen(PauseScreen.new())
 	pause_screen.resume_requested.connect(set_paused.bind(false))
 	pause_screen.settings_requested.connect(func() -> void: push(settings_screen))
@@ -87,6 +96,9 @@ func _ready() -> void:
 	end_screen = _screen(EndScreen.new())
 	end_screen.retry_requested.connect(retry_pressed.emit)
 	end_screen.menu_requested.connect(menu_pressed.emit)
+	end_screen.replay_requested.connect(func() -> void:
+		push(replay_screen)
+		replay_screen.show_replay(replay))
 	perks = _screen(PerkScreen.new())
 	perks.perk_chosen.connect(func(id: String) -> void:
 		stack.clear()
@@ -98,6 +110,8 @@ func _ready() -> void:
 		_update_dev_button()
 		show_banner("Режим разработчика включён", Design.PLUM, 1.4))
 	skills_screen = _screen(SkillTreeScreen.new())
+	bestiary_screen = _screen(BestiaryScreen.new())
+	replay_screen = _screen(ReplayScreen.new())
 
 	dev_button = Design.button("", func() -> void: dev_toggled.emit(), "Ghost", Vector2(56, 44))
 	dev_button.focus_mode = Control.FOCUS_NONE
@@ -128,7 +142,7 @@ func layout() -> void:
 	overlay.safe = safe
 	touch.safe = safe
 	dev_button.position = Vector2(12, root.size.y - 56)
-	for s in [menu, pause_screen, end_screen, perks, settings_screen, skills_screen]:
+	for s in [menu, pause_screen, end_screen, perks, settings_screen, skills_screen, bestiary_screen, replay_screen]:
 		s.fit()
 
 
@@ -221,7 +235,8 @@ func show_end(win: bool, title: String, line: String, rows: Array) -> void:
 	touch.set_active(false)
 	close_all()
 	stack.append(end_screen)
-	end_screen.show_end(win, title, line, rows)
+	end_screen.show_end(win, title, line, rows, replay != null and not win and replay.has_data(),
+		"" if win or replay == null else Tips.for_cause(replay.cause))
 
 
 func show_perks(cards: Array, next_stage: String) -> void:

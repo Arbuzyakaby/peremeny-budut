@@ -170,7 +170,8 @@ func _draw() -> void:
 		_text(Vector2(size.x / 2.0 - 30, 20 + safe.y), fps, "mono", 14, Design.MINT)
 	if not in_game:
 		return
-	var panel := Design.box(Color(Design.SURFACE_1, 0.88), Design.LINE, Design.RADIUS_LG - 6, 2)
+	var panel := Design.cached("hud_plank", func() -> StyleBox:  # табло — доска на винтах
+		return Design.plank(Color(0, 0, 0, 0), Design.RADIUS_LG - 6, Vector2(Design.SPACE[5], Design.SPACE[3])))
 	_draw_left(panel)
 	_draw_right(panel)
 	if ability_type >= 0:
@@ -187,11 +188,11 @@ func _draw_left(panel: StyleBox) -> void:
 	_text(o + Vector2(18, 62), str(int(score_shown)), "heavy", 32, Design.CREAM, 6)
 	var chip_w := Design.font("heavy").get_string_size(diff_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 20
 	var chip := Rect2(o + Vector2(r.size.x - chip_w - 16, 12), Vector2(chip_w, 22))
-	draw_style_box(Design.box(Color(diff_color, 0.16), Color(diff_color, 0.7), Design.RADIUS_PILL, 1, Vector2.ZERO), chip)
+	draw_style_box(Design.cached("hud_chip_" + diff_name, func() -> StyleBox: return Design.plate(diff_color, Vector2.ZERO)), chip)
 	_text(chip.position + Vector2(10, 16), diff_name, "heavy", 12, diff_color.lightened(0.3))
 	if dev_run:
 		var dev := Rect2(chip.position - Vector2(52, 0), Vector2(44, 22))
-		draw_style_box(Design.box(Color(Design.PLUM, 0.2), Design.PLUM, Design.RADIUS_PILL, 1, Vector2.ZERO), dev)
+		draw_style_box(Design.cached("hud_dev", func() -> StyleBox: return Design.plate(Design.PLUM, Vector2.ZERO)), dev)
 		_text(dev.position + Vector2(9, 16), "DEV", "heavy", 12, Design.PLUM)
 	if Settings.flag("show_timer"):
 		var secs := int(play_time)
@@ -249,8 +250,10 @@ func _draw_right(panel: StyleBox) -> void:
 
 func _draw_ability() -> void:
 	var r := _ability_rect()
-	var border := Design.LINE.lerp(Design.MINT, ability_flash)
-	draw_style_box(Design.box(Color(Design.SURFACE_1, 0.88), border, Design.RADIUS_MD, 2), r)
+	draw_style_box(Design.cached("hud_ability", func() -> StyleBox:
+		return Design.plank(Color(0, 0, 0, 0), Design.RADIUS_MD, Vector2.ZERO, false)), r)
+	if ability_flash > 0.01:
+		draw_style_box(Design.box(Color.TRANSPARENT, Color(Design.MINT, ability_flash), Design.RADIUS_MD, 2, Vector2.ZERO), r)
 	Icons.ability(self, r.position + Vector2(32, 30), ability_type, t)
 	_text(r.position + Vector2(60, 26), ability_name, "heavy", 16, Design.MINT, 4)
 	_text(r.position + Vector2(60, 47), "кнопка АТАКА" if touch else "Пробел / ЛКМ", "body", 13, Design.MUTED)
@@ -263,7 +266,9 @@ func _draw_ability() -> void:
 func _draw_boss_bar() -> void:
 	var frame := _boss_rect()
 	var col: Color = Design.PHASE_COLORS[boss_phase - 1]
-	draw_style_box(Design.box(Color(Design.SURFACE_1, 0.9), col, Design.RADIUS_MD, 2), frame)
+	draw_style_box(Design.cached("hud_boss", func() -> StyleBox:
+		return Design.plank(Color(0, 0, 0, 0), Design.RADIUS_MD, Vector2.ZERO, true)), frame)
+	draw_style_box(Design.box(Color.TRANSPARENT, Color(col, 0.8), Design.RADIUS_MD, 2, Vector2.ZERO), frame)
 	_text(frame.position + Vector2(22, 26), "ГИГАНТСКАЯ ЯИЧНИЦА", "heavy", 18, Design.CREAM, 4)
 	var f := Design.font("heavy")
 	draw_string(f, frame.position + Vector2(frame.size.x - 222, 26), "ФАЗА %d" % boss_phase, HORIZONTAL_ALIGNMENT_RIGHT,

@@ -8,7 +8,7 @@ enum W { SINE, SQUARE, SAW, TRI, NOISE }
 const SR := 22050
 
 ## Сколько звуков в build_sounds() — для полосы загрузки (тест сверяет с фактом).
-const SOUND_COUNT := 58
+const SOUND_COUNT := 69
 const LOOP_GUARD := 8
 
 ## Сколько звуков уже построено (читает экран загрузки из главного потока).
@@ -260,8 +260,9 @@ func build_sounds() -> Dictionary:
 	_bank["splat"] = to_stream(mix(noise(0.12, 0.45, 3.0, 1500), tone(0.1, 180, 90, W.SINE, 0.3)))
 	_bank["win"] = to_stream(_notes([523, 659, 784, 1047, 784, 1047], 0.12, W.TRI, 0.4, 0.6))
 	_bank["lose"] = to_stream(_notes([440, 370, 311, 262], 0.18, W.SQUARE, 0.18, 0.6))
-	_bank["ui_move"] = to_stream(tone(0.04, 1200, 1200, W.SQUARE, 0.07, 0.0, 1.0))
-	_bank["ui_select"] = to_stream(seq([tone(0.05, 700, 700, W.SQUARE, 0.13, 0.0, 0.5), tone(0.09, 1050, 1400, W.SQUARE, 0.13)]))
+	# интерфейс 2.0 — механика: фокус — лёгкий тик, отпускание клавиши — сухой щелчок
+	_bank["ui_move"] = to_stream(mix(_pop(0.012, 0.12, 3000, 7000), tone(0.02, 2600, 2400, W.SINE, 0.04, 0.0, 5.0)))
+	_bank["ui_select"] = to_stream(mix(_pop(0.016, 0.34, 1800, 6500), tone(0.05, 1900, 1700, W.SINE, 0.1, 0.0, 5.0)))
 	_bank["boss_down"] = to_stream(mix(noise(1.3, 0.6, 1.5, 1400), tone(1.3, 200, 20, W.SINE, 0.7, 0.0, 1.2)))
 	_bank["bonk"] = to_stream(mix(noise(0.07, 0.35, 3.0, 2500), tone(0.22, 620, 180, W.TRI, 0.45)))
 	# спичка: чирк по коробку + вспышка серы
@@ -342,10 +343,50 @@ func build_sounds() -> Dictionary:
 	hatch = mix_at(hatch, tone(0.12, 1300, 1900, W.SINE, 0.25, 0.0, 1.5), 0.75)
 	_bank["hatch"] = to_stream(hatch)
 
-	# ----- звуки интерфейса дизайн-языка v6.0
-	_bank["ui_toggle"] = to_stream(seq([tone(0.03, 900, 900, W.SQUARE, 0.09, 0.0, 1.0), tone(0.05, 1350, 1350, W.SQUARE, 0.09)]))
-	_bank["ui_back"] = to_stream(seq([tone(0.05, 1050, 1050, W.SQUARE, 0.11, 0.0, 0.5), tone(0.08, 700, 560, W.SQUARE, 0.11)]))
-	_bank["ui_error"] = to_stream(mix(tone(0.16, 190, 150, W.SQUARE, 0.12, 0.0, 1.2), tone(0.16, 197, 156, W.SQUARE, 0.1, 0.0, 1.2)))
+	# ----- звуки интерфейса: дизайн-язык 2.0, всё — механика прибора
+	# защёлка клавиши-вкладки: металлический язычок и щелчок
+	_bank["ui_toggle"] = to_stream(mix(seq([_pop(0.012, 0.3, 2000, 7000), silence(0.025), _pop(0.01, 0.22, 2500, 7000)]),
+		_metal([2400, 3650], 0.09, 0.07)))
+	# отпускание с понижением — «назад»
+	_bank["ui_back"] = to_stream(mix(_pop(0.016, 0.3, 1400, 5000), tone(0.07, 700, 420, W.SINE, 0.14, 0.0, 2.5)))
+	# нельзя: дребезг реле
+	_bank["ui_error"] = to_stream(mix(am(tone(0.16, 120, 110, W.SQUARE, 0.1, 0.0, 1.2), 50.0, 0.8), _pop(0.02, 0.25, 600, 2500)))
+	# нажатие бакелитовой клавиши: глухое «тук»
+	_bank["ui_key_down"] = to_stream(mix(lowpass(noise(0.04, 0.5, 3.5), 1800), tone(0.06, 150, 85, W.SINE, 0.35, 0.0, 3.0)))
+	# рычажный тумблер: резкий щелчок, звон пружины, толчок в корпус
+	_bank["ui_lever"] = to_stream(mix(mix(_pop(0.01, 0.5, 1500, 8000), _metal([1850, 2930, 4100], 0.14, 0.09)),
+		tone(0.05, 110, 70, W.SINE, 0.3, 0.0, 3.0)))
+	# детент крутилки: крошечный щелчок храповика
+	_bank["ui_detent"] = to_stream(mix(_pop(0.008, 0.22, 2500, 7000), tone(0.015, 3300, 3000, W.SINE, 0.05, 0.0, 6.0)))
+	# галетник: два контакта и глухой упор
+	_bank["ui_rotary"] = to_stream(mix(seq([_pop(0.01, 0.35, 1500, 6000), silence(0.018), _pop(0.012, 0.3, 1200, 5000)]),
+		tone(0.08, 220, 140, W.SINE, 0.28, 0.0, 3.0)))
+	# шаг фейдера: мягкий шорох ползунка
+	_bank["ui_fader"] = to_stream(bandpass(noise(0.025, 0.25, 2.0), 700, 3200))
+	# откидная крышка: шорох петли и стук пластика
+	_bank["ui_cover"] = to_stream(seq([_whoosh(0.08, 0.18, 1200, 4000), mix(_pop(0.02, 0.35, 900, 4000), tone(0.05, 420, 300, W.TRI, 0.12))]))
+
+	# ----- вилки v7.0
+	var volley := _whoosh(0.3, 0.3, 1200, 6000)
+	for i in 3:
+		volley = mix_at(volley, _metal([1320 + i * 190, 2210 + i * 260], 0.18, 0.18), i * 0.045)
+	_bank["fork_volley"] = to_stream(volley)
+	_bank["fork_whirl"] = to_stream(mix(am(_whoosh(0.75, 0.5, 500, 3200), 22.0, 0.75), tone(0.75, 180, 520, W.TRI, 0.12, 0.0, 0.6)))
+	var spring := PackedFloat32Array()
+	spring.resize(int(0.35 * SR))
+	ph = 0.0
+	for i in spring.size():
+		var k := float(i) / spring.size()
+		ph += (220.0 + 700.0 * k + 60.0 * sin(k * 80.0)) / SR
+		spring[i] = sin(ph * TAU) * 0.32 * pow(1.0 - k, 1.3) * minf(i / 80.0, 1.0)
+	_bank["fork_pogo"] = to_stream(mix(spring, _whoosh(0.35, 0.2, 400, 2000)))
+	_bank["fork_thud"] = to_stream(mix(mix(tone(0.3, 95, 40, W.SINE, 0.8, 0.0, 2.2), lowpass(noise(0.12, 0.5, 3.0), 1200)),
+		_metal([740, 1460], 0.45, 0.12)))
+	# плавление: шипение с каплями
+	var melt := noise(1.1, 0.25, 0.8, 6000, 1800, 0.15)
+	for i in 7:
+		melt = mix_at(melt, tone(0.06, randf_range(500, 900), randf_range(250, 400), W.SINE, 0.25, 0.0, 3.0), randf_range(0.05, 0.95))
+	_bank["melt"] = to_stream(melt)
 	return _bank
 
 

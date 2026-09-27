@@ -6,6 +6,9 @@ extends RefCounted
 const SaveData = preload("res://scripts/core/save_data.gd")
 const Settings = preload("res://scripts/core/settings.gd")
 const Skills = preload("res://scripts/core/skills.gd")
+const Controls = preload("res://scripts/core/controls.gd")
+const Bestiary = preload("res://scripts/core/bestiary.gd")
+const Daily = preload("res://scripts/core/daily.gd")
 
 const TMP := "user://test"
 
@@ -69,6 +72,40 @@ func assert_between(v: float, lo: float, hi: float, msg := "") -> void:
 		fail("%s значение %s вне [%s, %s]" % [msg, str(v), str(lo), str(hi)])
 
 
+func assert_ne(actual: Variant, unexpected: Variant, msg := "") -> void:
+	checks += 1
+	if typeof(actual) == typeof(unexpected) and actual == unexpected:
+		fail("%s не ожидалось %s" % [msg, str(unexpected)])
+
+
+## Коллекция (массив, словарь, строка) содержит элемент.
+func assert_has(container: Variant, item: Variant, msg := "") -> void:
+	checks += 1
+	var ok := false
+	match typeof(container):
+		TYPE_DICTIONARY:
+			ok = (container as Dictionary).has(item)
+		TYPE_STRING:
+			ok = String(item) in String(container)
+		_:
+			ok = item in container
+	if not ok:
+		fail("%s нет %s" % [msg, str(item)])
+
+
+func assert_len(container: Variant, n: int, msg := "") -> void:
+	checks += 1
+	var size: int = container.size() if typeof(container) != TYPE_STRING else String(container).length()
+	if size != n:
+		fail("%s длина %d, ожидалось %d" % [msg, size, n])
+
+
+func assert_gt(v: float, lo: float, msg := "") -> void:
+	checks += 1
+	if not v > lo:
+		fail("%s %s не больше %s" % [msg, str(v), str(lo)])
+
+
 func _is_num(v: Variant) -> bool:
 	return typeof(v) in [TYPE_INT, TYPE_FLOAT]
 
@@ -78,6 +115,41 @@ func _is_num(v: Variant) -> bool:
 func frames(n: int) -> void:
 	for i in n:
 		await tree.process_frame
+
+
+## Нажать и отпустить клавишу по физическому коду (как настоящая клавиатура, в т.ч. на русской раскладке).
+func press_key(physical: Key, ctrl := false, shift := false) -> void:
+	for pressed in [true, false]:
+		var ev := InputEventKey.new()
+		ev.physical_keycode = physical
+		ev.ctrl_pressed = ctrl
+		ev.shift_pressed = shift
+		ev.pressed = pressed
+		tree.root.push_input(ev)
+		await tree.process_frame
+
+
+## Кликнуть/протащить мышью по контролу (события в его локальных координатах, через _gui_input).
+func mouse_button(c: Control, pos: Vector2, pressed: bool, button := MOUSE_BUTTON_LEFT) -> void:
+	var ev := InputEventMouseButton.new()
+	ev.button_index = button
+	ev.pressed = pressed
+	ev.position = pos
+	c._gui_input(ev)
+
+
+func mouse_move(c: Control, pos: Vector2) -> void:
+	var ev := InputEventMouseMotion.new()
+	ev.position = pos
+	ev.button_mask = MOUSE_BUTTON_MASK_LEFT
+	c._gui_input(ev)
+
+
+func action_event(action: String) -> InputEventAction:
+	var ev := InputEventAction.new()
+	ev.action = action
+	ev.pressed = true
+	return ev
 
 
 ## Добавить узел в дерево (удалится после теста).
@@ -96,6 +168,8 @@ static func use_temp_storage() -> void:
 			DirAccess.remove_absolute(TMP + "/" + f)
 	Skills.load_progress()
 	Settings.load_from_disk()
+	Bestiary.load_progress()
+	Daily.load_progress()
 
 
 static func restore_storage() -> void:
@@ -103,10 +177,10 @@ static func restore_storage() -> void:
 	Settings.path = Settings.DEFAULT_PATH
 	Skills.load_progress()
 	Settings.load_from_disk()
+	Bestiary.load_progress()
+	Daily.load_progress()
 
 
-## Убедиться, что есть игровые действия (в тестах game.gd может не запускаться).
+## Убедиться, что есть игровые действия с настоящими клавишами (в тестах game.gd может не запускаться).
 static func ensure_actions() -> void:
-	for a in ["turn_left", "turn_right", "sprint", "ability", "pause", "mute", "dev_panel"]:
-		if not InputMap.has_action(a):
-			InputMap.add_action(a)
+	Controls.setup()

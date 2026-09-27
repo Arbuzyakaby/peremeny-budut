@@ -34,6 +34,17 @@ func test_autopilot_plays_stage_without_errors() -> void:
 	assert_true(game.snake.alive)
 
 
+func test_ultra_fork_stage_with_coop_runs() -> void:
+	await boot_stage(1, 3)
+	game.autopilot = true
+	await step(1500)
+	assert_eq(game.enemies.squad.level, 2, "на Ультра кооператив включён")
+	assert_true(game.forks_broken > 0 or game.enemies.forks.size() > 0)
+	assert_true(game.snake.alive, "автопилот неуязвим — ошибок нет")
+	for f in game.enemies.forks:
+		assert_true(game.bounds.grow(4.0).has_point(f.position), "вилки не вылетают из ящика")
+
+
 func test_clearing_stage_offers_perks_then_next_stage() -> void:
 	await boot_stage(0)
 	game.goal_done = game.goal_total - 1
@@ -112,6 +123,9 @@ func test_full_ending_plays_to_results() -> void:
 	assert_eq(game.state, Game.State.WIN, "финал доигран до конца")
 	assert_eq(game.ending.choice, "thunder", "без действия игрока спичку роняет гром")
 	assert_true(game.ending.hatch_node.egg_crack >= 1.0, "яйцо раскрылось")
+	assert_true(game.snake.material is ShaderMaterial, "змея горела шейдером")
+	assert_gt(float(game.snake.material.get_shader_parameter("burn")), 1.0, "обуглилась и покрылась золой")
+	assert_gt(game.ending.fire.ash_amount(), 0.0, "в ящике осталась зола")
 	assert_true(game.hud.end_screen.visible)
 
 

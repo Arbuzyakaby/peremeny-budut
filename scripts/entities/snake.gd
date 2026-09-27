@@ -46,6 +46,7 @@ var alive := true
 var anim_t := 0.0
 var bite_t := 0.0
 var shield_flash := 0.0
+var last_cause := ""  # откуда пришёл последний удар
 ## Катсцена: змея ползает сама, без урона.
 var autopilot := false
 var auto_speed := 90.0
@@ -198,14 +199,14 @@ func _check_walls() -> void:
 	if hit:
 		head_pos = head_pos.clamp(inner.position, inner.end)
 		knockback = Vector2.ZERO
-		take_damage()
+		take_damage(1, "wall")
 
 
 func _check_self_bite() -> void:
 	var segs := get_segments()
 	for i in range(SELF_HIT_SKIP, segs.size()):
 		if head_pos.distance_to(segs[i]) < BODY_RADIUS * 1.2:
-			take_damage()
+			take_damage(1, "self")
 			return
 
 
@@ -273,9 +274,11 @@ func heal(amount := 1) -> bool:
 
 
 ## Возвращает true, если урон действительно прошёл (не было неуязвимости).
-func take_damage(amount := 1) -> bool:
+## cause — откуда пришёл удар (для повтора гибели и совета на экране итогов, см. core/tips.gd).
+func take_damage(amount := 1, cause := "") -> bool:
 	if invuln > 0.0 or not alive or god:
 		return false
+	last_cause = cause
 	if shield > 0:
 		shield -= 1
 		shield_flash = 1.0

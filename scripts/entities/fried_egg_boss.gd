@@ -146,7 +146,7 @@ func update(delta: float, snake: Snake) -> void:
 				vel.y = -vel.y
 			position = position.clamp(inner.position, inner.end)
 			if head.distance_to(position) < WHITE_RADIUS * 0.8:
-				if snake.take_damage():
+				if snake.take_damage(1, "boss"):
 					snake.push((head - position).normalized() * 750.0)
 			if act_t <= 0.0:
 				vel = Vector2.ZERO
@@ -171,7 +171,7 @@ func update(delta: float, snake: Snake) -> void:
 				shockwave.emit(position, 4 - p)
 				sound.emit("slam")
 				if head.distance_to(position) < WHITE_RADIUS * 0.9:
-					snake.take_damage()
+					snake.take_damage(1, "boss")
 					snake.push((head - position).normalized() * 750.0)
 				count_left -= 1
 				if count_left > 0:
@@ -192,7 +192,7 @@ func update(delta: float, snake: Snake) -> void:
 		if act == Act.YOLK_OPEN:
 			_take_bite(snake, away)
 		else:
-			snake.take_damage()
+			snake.take_damage(1, "boss")
 			snake.push(away * 600.0)
 
 

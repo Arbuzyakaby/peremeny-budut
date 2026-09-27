@@ -1,10 +1,10 @@
 extends RefCounted
 ## Процедурные текстуры: шейдеры пола для каждого этапа, шейдер «материала» (мех, ржавчина,
-## белок, пластик) для объектов, нарисованных через draw_*, и мягкие круглые спрайты для теней,
+## белок, пластик, ткань, латунь с патиной; плюс обугливание и зола в финале) для объектов, нарисованных через draw_*, и мягкие круглые спрайты для теней,
 ## свечения и частиц. Всё кэшируется в static-переменных и живёт между перезагрузками сцены.
 
-enum Floor { WOOD, TRAY, TILES, PAN }
-enum Mat { FUR, RUST, EGG, PLASTIC, CLOTH }
+enum Floor { WOOD, TRAY, TILES, PAN, DRAWER }
+enum Mat { FUR, RUST, EGG, PLASTIC, CLOTH, PATINA }
 
 const NOISE := """
 float hash(vec2 p) {
@@ -30,6 +30,22 @@ const FLOOR_SHADER := """
 shader_type canvas_item;
 uniform int kind = 0;
 %s
+float seg(vec2 p, vec2 a, vec2 b) {
+	vec2 pa = p - a;
+	vec2 ba = b - a;
+	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+	return length(pa - ba * h);
+}
+// вмятина от вилки в бархате: ручка, шейка и зубцы
+float fork_sdf(vec2 q) {
+	float d = seg(q, vec2(-120.0, 0.0), vec2(0.0, 0.0)) - 9.0;
+	d = min(d, seg(q, vec2(0.0, 0.0), vec2(26.0, 0.0)) - 13.0);
+	for (int i = 0; i < 4; i++) {
+		float y = -13.5 + float(i) * 9.0;
+		d = min(d, seg(q, vec2(26.0, y), vec2(92.0, y)) - 2.8);
+	}
+	return d;
+}
 void fragment() {
 	vec2 px = UV * vec2(1280.0, 720.0);
 	vec3 c;
@@ -84,6 +100,33 @@ void fragment() {
 		tile -= 0.05 * smoothstep(60.0, 80.0, max(t.x, t.y));
 		c = mix(vec3(0.55, 0.62, 0.65), tile, smoothstep(1.5, 3.5, grout));
 		c = mix(c, vec3(0.62, 0.7, 0.72), smoothstep(0.62, 0.8, fbm(px * 0.004 + 2.0)) * 0.35);
+	} else if (kind == 4) {
+		// ящик для столовых приборов: бархат в деревянных ячейках, вмятины от вилок, тёплая лампа
+		vec2 cs = vec2(320.0, 360.0);
+		vec2 cid = floor(px / cs);
+		vec2 cp = mod(px, cs);
+		float wall = min(min(cp.x, cs.x - cp.x), min(cp.y, cs.y - cp.y));
+		float green = step(0.72, hash(cid + 3.0));
+		vec3 velvet = mix(vec3(0.38, 0.075, 0.09), vec3(0.08, 0.25, 0.19), green);
+		float pile = fbm(px * vec2(0.012, 0.016) + cid * 5.0);
+		velvet *= 0.72 + 0.5 * pile;                        // ворс ложится пятнами — «перелив» бархата
+		velvet += (vnoise(px * 1.4) - 0.5) * 0.04;          // мелкий ворс
+		float ang = (hash(cid) - 0.5) * 0.9 + (mod(cid.x, 2.0) < 1.0 ? 0.0 : 3.14159);
+		vec2 q = cp - cs * 0.5;
+		q = vec2(q.x * cos(ang) + q.y * sin(ang), -q.x * sin(ang) + q.y * cos(ang));
+		float fd = fork_sdf(q * 1.25);
+		float recess = smoothstep(2.0, -2.0, fd);
+		c = velvet * (1.0 - 0.45 * recess);
+		c += (velvet * 0.35 + vec3(0.03, 0.025, 0.02)) * smoothstep(0.0, 3.0, fd) * smoothstep(7.0, 3.0, fd) * step(0.0, q.y); // освещённый край вмятины
+		c *= 1.0 - 0.45 * smoothstep(30.0, 9.0, wall);      // тень от перегородки
+		// перегородки: тёплое дерево с волокнами и светлой кромкой
+		float grain = sin((cp.x + cp.y) * 0.35 + fbm(px * 0.03) * 9.0) * 0.5 + 0.5;
+		vec3 wood = mix(vec3(0.6, 0.37, 0.18), vec3(0.42, 0.23, 0.1), grain * 0.7);
+		wood += 0.12 * smoothstep(3.0, 0.0, abs(wall - 7.0));
+		c = mix(c, wood, smoothstep(10.0, 8.5, wall));
+		// лампа над столом: тёплое пятно света сверху слева
+		vec2 lv = (UV - vec2(0.32, 0.22)) * vec2(1.6, 1.0);
+		c *= vec3(1.08, 0.98, 0.86) * (0.72 + 0.55 * exp(-dot(lv, lv) * 2.2));
 	} else {
 		// чугунная сковорода: концентрические следы, масляные разводы, блик
 		vec2 cen = vec2(640.0, 360.0);
@@ -107,6 +150,7 @@ const MAT_SHADER := """
 shader_type canvas_item;
 uniform int mode = 0;
 uniform float seed = 0.0;
+uniform float burn = 0.0;  // финал: 0 — целый, 1 — обуглился, 2 — рассыпался в золу
 varying vec2 lp;
 %s
 void vertex() { lp = VERTEX + vec2(seed * 37.0, seed * 91.0); }
@@ -121,10 +165,10 @@ void fragment() {
 		float lumps = fbm(lp * 0.12);
 		c.rgb *= 0.86 + 0.2 * strands + 0.1 * (lumps - 0.5);
 	} else if (mode == 1) {
-		// ржавый металл: пятна ржавчины на серых частях и царапины
+		// ржавый металл: рыже-медные пятна ржавчины на серых частях, сколы и царапины
 		float r = smoothstep(0.45, 0.7, fbm(lp * 0.09));
 		float pits = smoothstep(0.75, 0.9, vnoise(lp * 0.8));
-		vec3 rust = mix(vec3(0.62, 0.3, 0.12), vec3(0.38, 0.17, 0.07), vnoise(lp * 0.5));
+		vec3 rust = mix(vec3(0.82, 0.4, 0.13), vec3(0.46, 0.19, 0.07), vnoise(lp * 0.5));
 		float grey = 1.0 - smoothstep(0.08, 0.25, sat);
 		c.rgb = mix(c.rgb, rust, (r * 0.85 + pits * 0.5) * grey);
 		c.rgb += grey * pow(abs(sin(lp.x * 0.9 + fbm(lp * 0.2) * 5.0)), 40.0) * 0.12 * (1.0 - r);
@@ -136,10 +180,31 @@ void fragment() {
 	} else if (mode == 3) {
 		// глянцевый пластик / лак: мелкая крапинка
 		c.rgb *= 0.97 + 0.06 * vnoise(lp * 1.3);
-	} else {
+	} else if (mode == 4) {
 		// ткань: переплетение нитей
 		float weave = sin(lp.x * 2.2) * sin(lp.y * 2.2);
 		c.rgb *= 0.95 + 0.05 * weave + 0.04 * vnoise(lp * 0.4);
+	} else {
+		// латунь и бронза: полировка, ярь-медянка в углублениях, штрихи
+		float pat = smoothstep(0.5, 0.75, fbm(lp * 0.11));
+		vec3 verd = vec3(0.3, 0.62, 0.5) * (0.8 + 0.3 * vnoise(lp * 0.6));
+		c.rgb = mix(c.rgb, verd, pat * 0.55 * smoothstep(0.1, 0.3, sat));
+		c.rgb += pow(abs(sin(lp.x * 0.7 + lp.y * 0.3 + fbm(lp * 0.15) * 4.0)), 30.0) * 0.18;
+		c.rgb *= 0.93 + 0.1 * vnoise(lp * 1.1);
+	}
+	if (burn > 0.0) {
+		// обугливание неровным фронтом, тлеющая кромка и трещины, потом седая зола и осыпание
+		float n = fbm(lp * 0.07);
+		float front = burn - n * 0.6;
+		float charred = smoothstep(0.0, 0.35, front);
+		c.rgb = mix(c.rgb, vec3(0.07, 0.05, 0.04) + 0.04 * vnoise(lp * 0.9), charred);
+		float edge = smoothstep(0.12, 0.0, abs(front - 0.1));
+		float cracks = smoothstep(0.9, 1.0, 1.0 - abs(vnoise(lp * 0.25) * 2.0 - 1.0));
+		float flicker = 0.5 + 0.5 * sin(TIME * 3.0 + n * 12.0);
+		c.rgb += vec3(1.0, 0.42, 0.08) * (edge * 0.9 + cracks * charred * smoothstep(1.6, 0.9, burn) * flicker);
+		float ash = smoothstep(1.0, 1.8, burn - n * 0.4);
+		c.rgb = mix(c.rgb, vec3(0.55, 0.53, 0.5) * (0.8 + 0.3 * vnoise(lp * 1.7)), ash);
+		c.a *= 1.0 - smoothstep(1.7, 2.0, burn - n * 0.5 + vnoise(lp * 0.5) * 0.3);
 	}
 	COLOR = c;
 }

@@ -1,12 +1,12 @@
 extends Node2D
 ## Снаряд: капля масла (урон), капля белка (замедляет), перчинка (самонаводится, урон),
 ## пуговица медведя-метателя (урон), иголка с пуговицей медведя-швеи (урон + пришивает — замедляет),
-## сюрикен ниндзя (урон) и хлопушка (катится, тормозит и взрывается, когда догорит фитиль).
+## сюрикен ниндзя (урон), зубец из залпа вилки (урон) и хлопушка (катится, тормозит и взрывается, когда догорит фитиль).
 ## Эти же снаряды может выпускать змея, съевшая такого медведя (from_snake).
 
 const Tex = preload("res://scripts/gfx/tex.gd")
 
-enum Kind { OIL, WHITE, PEPPER, BUTTON, NEEDLE, SHURIKEN, CRACKER }
+enum Kind { OIL, WHITE, PEPPER, BUTTON, NEEDLE, SHURIKEN, CRACKER, TINE }
 
 const RADIUS := 9.0
 const PEPPER_TURN := 2.2
@@ -29,6 +29,8 @@ func setup(pos: Vector2, velocity: Vector2, drop_kind: int) -> void:
 	rotation = vel.angle()
 	if kind == Kind.PEPPER:
 		life = 4.5
+	elif kind == Kind.TINE:
+		life = 2.2
 	elif kind == Kind.BUTTON or kind == Kind.NEEDLE or kind == Kind.SHURIKEN:
 		life = 3.5
 		button_color = [Color(0.3, 0.55, 0.95), Color(0.9, 0.3, 0.35), Color(0.95, 0.8, 0.2)].pick_random()
@@ -78,6 +80,8 @@ func _draw() -> void:
 			glow = Color(1, 0.2, 0.1, 0.35)
 		Kind.NEEDLE, Kind.SHURIKEN:
 			glow = Color(0.85, 0.9, 1, 0.25)
+		Kind.TINE:
+			glow = Color(1, 0.5, 0.2, 0.3)
 		Kind.BUTTON:
 			glow = Color(button_color, 0.25)
 	if from_snake:  # снаряды змеи подсвечены зелёным
@@ -144,6 +148,15 @@ func _draw() -> void:
 				inner.append(p * 0.75 + Vector2(-0.8, -0.8))
 			draw_colored_polygon(inner, Color(0.7, 0.73, 0.8))
 			draw_circle(Vector2.ZERO, 2.2, Color(0.15, 0.15, 0.18))
+		Kind.TINE:  # отломанный ржавый зубец с раскалённым кончиком
+			draw_line(Vector2(-18, 0), Vector2(-26, 0), Color(1, 0.6, 0.3, 0.35), 3.0)
+			var tine := PackedVector2Array([Vector2(-12, -2.4), Vector2(9, -1.6), Vector2(15, 0), Vector2(9, 1.6), Vector2(-12, 2.4)])
+			draw_colored_polygon(tine, Color(0.24, 0.16, 0.12))
+			draw_colored_polygon(PackedVector2Array([Vector2(-11, -1.5), Vector2(9, -1.0), Vector2(13.5, 0), Vector2(9, 1.0), Vector2(-11, 1.5)]),
+				Color(0.78, 0.5, 0.3))
+			draw_line(Vector2(-9, -0.7), Vector2(8, -0.5), Color(1, 1, 1, 0.45), 0.8)
+			draw_circle(Vector2(13, 0), 1.8, Color(1, 0.55, 0.2))
+			draw_rect(Rect2(-13, -2.6, 2.5, 5.2), Color(0.5, 0.26, 0.1))  # место излома
 		Kind.CRACKER:
 			var blink := fuse < 0.5 and int(fuse * 16.0) % 2 == 0
 			var body := Rect2(-11, -6, 22, 12)

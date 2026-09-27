@@ -1,37 +1,26 @@
 extends "res://scripts/ui/screens/screen.gd"
-## Главное меню: анимированный заголовок, карточки сложностей 2×2, древо навыков, настройки, выход.
-## Панель слева — справа видна живая демо-арена. Сверху справа сменяются советы.
+## Главное меню: анимированный заголовок, карточки сложностей 2×2, испытание дня и картотека,
+## древо навыков, настройки, выход. Панель слева — справа видна живая демо-арена.
+## Сверху справа сменяются советы (core/tips.gd).
 
 signal difficulty_chosen(index: int)
 signal skills_requested
 signal settings_requested
 signal quit_requested
+signal daily_requested
+signal bestiary_requested
 
 const Icons = preload("res://scripts/ui/icons.gd")
 
-const TIPS := [
-	"Shift или кнопка СПРИНТ — рывок, но следи за стаминой!",
-	"Съешь медведя-боксёра — получишь удар с разбега.",
-	"Каратист даёт вертушку: она сбивает даже снаряды.",
-	"Пуговицы и иглы можно метать прямо в яичницу!",
-	"Стравливай медведей — пусть попадают друг в друга.",
-	"Оглушённый медведь приносит двойные очки.",
-	"Каратисты бьют больно — держи дистанцию.",
-	"Иглы швей пришивают змею — она замедляется.",
-	"Вилку не бей в лоб — зубцы! Заходи сбоку или сзади.",
-	"Вилка, врезавшаяся в бортик, застревает — кусай!",
-	"Таблетку можно съесть, только пока она на земле.",
-	"Ударная волна таблетки оглушает — уходи рывком.",
-	"Ниндзя появляется сбоку — не подставляй бок.",
-	"Хлопушка взрывается и по медведям — стравливай!",
-	"Медведя в пузыре не съесть — сначала лопни щит.",
-	"Чешуйки из забегов тратятся в Древе навыков.",
-	"Вилку в спринте можно направить в яичницу!",
-]
+const Tips = preload("res://scripts/core/tips.gd")
+const Bestiary = preload("res://scripts/core/bestiary.gd")
+const Daily = preload("res://scripts/core/daily.gd")
 
 var diff_buttons: Array[Button] = []
 var desc_label: Label
 var tree_button: Button
+var daily_button: Button
+var bestiary_button: Button
 var quit_button: Button
 var controls_label: Label
 var tip_label: Label
@@ -85,6 +74,19 @@ func build() -> void:
 	desc_label.custom_minimum_size = Vector2(0, 50)
 	desc_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	content.add_child(desc_label)
+	var extra := Design.hbox(Design.SPACE[3])  # испытание дня и картотека
+	content.add_child(extra)
+	daily_button = Design.button("", daily_requested.emit, "", Vector2(290, Design.TOUCH_MIN))
+	daily_button.add_theme_font_size_override("font_size", 15)
+	daily_button.focus_entered.connect(func() -> void: _show_daily_desc())
+	daily_button.mouse_entered.connect(func() -> void: _show_daily_desc())
+	extra.add_child(daily_button)
+	bestiary_button = Design.button("", bestiary_requested.emit, "", Vector2(150, Design.TOUCH_MIN))
+	bestiary_button.add_theme_font_size_override("font_size", 15)
+	extra.add_child(bestiary_button)
+	for b in [daily_button, bestiary_button]:
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		fade_items.append(b)
 	var row := Design.hbox(Design.SPACE[3])  # навыки, настройки и выход — одним рядом
 	content.add_child(row)
 	tree_button = Design.button("НАВЫКИ", skills_requested.emit, "Primary", Vector2(214, Design.TOUCH_MIN))
@@ -126,7 +128,7 @@ func show_menu(diffs: Array, best_scores: Array, selected: int, scales: int, tou
 	set_data(diffs, best_scores, selected, scales, touch)
 	open()
 	_play_intro()
-	tip_index = randi() % TIPS.size()
+	tip_index = randi() % Tips.count()
 	_next_tip()
 
 
@@ -139,19 +141,22 @@ func set_data(diffs: Array, best_scores: Array, selected: int, scales: int, touc
 		var b := diff_buttons[i]
 		var col: Color = d["color"]
 		b.text = "%s\nрекорд %d" % [d["name"], best_scores[i]] if best_scores[i] > 0 else d["name"]
-		b.add_theme_stylebox_override("normal", Design.box(col.darkened(0.72), col.darkened(0.25), Design.RADIUS_MD))
-		b.add_theme_stylebox_override("hover", Design.box(col.darkened(0.55), col, Design.RADIUS_MD))
-		b.add_theme_stylebox_override("pressed", Design.box(col.darkened(0.8), col, Design.RADIUS_MD))
+		for st in ["normal", "hover", "pressed", "hover_pressed"]:  # клавиша сложности: кромка и лампа её цвета
+			b.add_theme_stylebox_override(st, Design.card_style(col, st))
 		b.add_theme_color_override("font_color", col.lightened(0.35))
 		b.add_theme_color_override("font_hover_color", Color.WHITE)
 		b.add_theme_color_override("font_focus_color", Color.WHITE)
 	first_focus = diff_buttons[selected]
 	update_scales(scales)
+	var mod := Daily.today()
+	var best_today := Daily.best(Daily.day_key())
+	daily_button.text = "ИСПЫТАНИЕ ДНЯ: %s%s" % [mod["name"], "  •  %d" % best_today if best_today > 0 else ""]
+	bestiary_button.text = "КАРТОТЕКА %d/%d" % [Bestiary.known_count(), Bestiary.total()]
 	quit_button.visible = not touch or not OS.has_feature("mobile")
 	if touch:
 		controls_label.text = "Джойстик слева — поворот  •  кнопки справа — спринт и атака"
 	else:
-		controls_label.text = "← → / A D / мышь — поворот  •  Shift — спринт\nПробел / ЛКМ — атака медведя  •  Esc — пауза  •  F1 — разработчик"
+		controls_label.text = "← → / A D / мышь — поворот  •  Shift — спринт\nПробел / ЛКМ — атака медведя  •  Esc — пауза  •  F1 / Ctrl+Shift+D — разработчик"
 	_show_desc(selected)
 
 
@@ -174,9 +179,9 @@ func _play_intro() -> void:
 
 
 func _next_tip() -> void:
-	tip_index = (tip_index + 1) % TIPS.size()
-	tip_t = 4.5
-	tip_label.text = "СОВЕТ: " + TIPS[tip_index]
+	tip_index = (tip_index + 1) % Tips.count()
+	tip_t = 5.0
+	tip_label.text = "СОВЕТ: " + Tips.GENERAL[tip_index]
 	tip_label.modulate.a = 0.0
 	create_tween().tween_property(tip_label, "modulate:a", 1.0, 0.4)
 
@@ -187,6 +192,13 @@ func _show_desc(i: int) -> void:
 	var d: Dictionary = difficulties[i]
 	desc_label.text = d["desc"]
 	desc_label.label_settings.font_color = (d["color"] as Color).lightened(0.45)
+
+
+func _show_daily_desc() -> void:
+	var mod := Daily.today()
+	desc_label.text = "Испытание дня %s — одно на всех, Нормальная сложность.
+%s" % [Daily.day_key(), mod["desc"]]
+	desc_label.label_settings.font_color = Design.STEEL.lightened(0.3)
 
 
 func handle_back() -> bool:

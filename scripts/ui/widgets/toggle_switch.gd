@@ -1,12 +1,15 @@
 extends Button
-## Тумблер дизайн-языка: «таблетка» с бегунком. Включённый — золотой. Мышь, тач, Enter/Пробел.
+## Рычажный тумблер дизайн-языка 2.0: хромированный рычажок с шариком на конце в латунной шайбе,
+## на бакелитовой пластине с гравировкой «0 / I»; рядом лампочка — горит желтком, когда включено.
+## Рычажок перекидывается с упругим «перелётом», звук — сухой щелчок. Мышь, тач, Enter/Пробел.
 
 const Design = preload("res://scripts/ui/design.gd")
+const Materials = preload("res://scripts/ui/materials.gd")
 
-const W := 64.0
-const H := 34.0
+const W := 84.0
+const H := 40.0
 
-var knob := 0.0  # 0 — выкл, 1 — вкл (анимируется)
+var knob := 0.0  # 0 — выкл, 1 — вкл (анимируется, может «перелетать» за 1)
 
 
 func _init() -> void:
@@ -30,7 +33,7 @@ func set_on(on: bool) -> void:
 
 
 func _on_toggled(on: bool) -> void:
-	Design.play("ui_toggle")
+	Design.play("ui_lever")
 	if Design.Settings.flag("reduced_motion"):
 		knob = 1.0 if on else 0.0
 		queue_redraw()
@@ -38,19 +41,52 @@ func _on_toggled(on: bool) -> void:
 	var tw := create_tween()
 	tw.tween_method(func(k: float) -> void:
 		knob = k
-		queue_redraw(), knob, 1.0 if on else 0.0, Design.BASE).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		queue_redraw(), knob, 1.0 if on else 0.0, Design.BASE * 0.8).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## Угол рычажка: -1 — влево (выкл), +1 — вправо (вкл).
+func lever_angle() -> float:
+	return lerpf(-0.9, 0.9, knob)
 
 
 func _draw() -> void:
 	var r := Rect2((size - Vector2(W, H)) / 2.0, Vector2(W, H))
-	var track := Design.SURFACE_0.lerp(Design.YOLK_DEEP, knob)
-	var border := Design.LINE.lerp(Design.YOLK, knob)
 	if has_focus():
-		draw_style_box(Design.focus_ring(Design.RADIUS_PILL), r)
-	draw_style_box(Design.box(track, border, Design.RADIUS_PILL, 2, Vector2.ZERO), r)
-	var kc := r.position + Vector2(H / 2.0 + (W - H) * knob, H / 2.0)
-	draw_circle(kc + Vector2(0, 2), H / 2.0 - 4.0, Color(0, 0, 0, 0.3))
-	draw_circle(kc, H / 2.0 - 4.0, Design.CREAM.lerp(Color.WHITE, knob))
-	if knob > 0.5:
-		draw_polyline(PackedVector2Array([kc + Vector2(-4, 0), kc + Vector2(-1, 3), kc + Vector2(4, -3)]),
-			Design.YOLK_DEEP, 2.0)
+		draw_style_box(Design.focus_ring(Design.RADIUS_SM + 3), r)
+	# пластина с гравировкой
+	draw_style_box(Design.cached("toggle_plate", func() -> StyleBox:
+		var s := Design.key(Materials.Kind.BAKELITE, Color(0, 0, 0, 0), "normal", Design.RADIUS_SM, 2.0, Vector2.ZERO)
+		return s), r)
+	var font := Design.font("heavy")
+	var eng := Color(0, 0, 0, 0.55)
+	draw_string(font, r.position + Vector2(8, H * 0.62 + 1), "0", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.12))
+	draw_string(font, r.position + Vector2(8, H * 0.62), "0", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, eng.lerp(Design.FAINT, 0.6))
+	draw_string(font, r.position + Vector2(W - 30, H * 0.62), "I", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, eng.lerp(Design.FAINT, 0.6))
+	# лампочка
+	var lp := r.position + Vector2(W - 12, H / 2.0 - 1)
+	var on_k := clampf(knob, 0.0, 1.0)
+	draw_circle(lp, 6.0, Color(0, 0, 0, 0.5))
+	draw_circle(lp, 4.6, Color(0.25, 0.15, 0.05).lerp(Design.YOLK, on_k))
+	if on_k > 0.05:
+		draw_circle(lp, 9.0, Color(Design.YOLK, 0.25 * on_k))
+	draw_circle(lp + Vector2(-1.3, -1.3), 1.4, Color(1, 1, 1, 0.3 + 0.5 * on_k))
+	# латунная шайба
+	var pivot := r.position + Vector2(W / 2.0 - 6, H / 2.0 + 2)
+	draw_circle(pivot + Vector2(0, 1.5), 10.5, Color(0, 0, 0, 0.45))
+	draw_circle(pivot, 10.0, Color(0.42, 0.27, 0.08))
+	draw_circle(pivot + Vector2(-1, -1), 8.5, Color(0.86, 0.64, 0.25))
+	draw_circle(pivot + Vector2(-2.5, -2.5), 4.0, Color(1, 0.9, 0.58, 0.8))
+	draw_circle(pivot, 4.2, Color(0.2, 0.14, 0.08))
+	# рычажок: сужающийся хромированный стержень с шариком, тень падает вниз-вправо
+	var dir := Vector2.from_angle(-PI / 2.0 + lever_angle())
+	var tip := pivot + dir * 19.0
+	var side := dir.orthogonal()
+	var shadow := PackedVector2Array([pivot + side * 3.2 + Vector2(3, 4), tip + side * 1.8 + Vector2(5, 6),
+		tip - side * 1.8 + Vector2(5, 6), pivot - side * 3.2 + Vector2(3, 4)])
+	draw_colored_polygon(shadow, Color(0, 0, 0, 0.3))
+	var rod := PackedVector2Array([pivot + side * 3.2, tip + side * 2.0, tip - side * 2.0, pivot - side * 3.2])
+	draw_colored_polygon(rod, Color(0.4, 0.42, 0.46))
+	draw_line(pivot + side * 1.2, tip + side * 0.8, Color(0.95, 0.96, 1.0), 1.6)
+	draw_circle(tip, 5.2, Color(0.28, 0.29, 0.32))
+	draw_circle(tip + Vector2(-0.6, -0.6), 4.3, Color(0.75, 0.77, 0.8))
+	draw_circle(tip + Vector2(-1.8, -1.8), 1.7, Color(1, 1, 1, 0.9))

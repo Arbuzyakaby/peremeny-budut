@@ -35,6 +35,7 @@ var cols: Array = COLORS[0]
 var t := 0.0
 var squash := 0.0
 var spawn_k := 0.0
+var aim_offset := Vector2.ZERO  # кооператив (squad.gd): прыгнуть так, чтобы загнать змею к вилкам
 
 
 func setup(pos: Vector2, area: Rect2, idle_tempo: float, aggression: float) -> void:
@@ -73,7 +74,7 @@ func update(delta: float, head: Vector2, head_vel: Vector2, snake_alive: bool) -
 				air_time = 0.85 * clampf(tempo, 0.7, 1.2)
 				st_t = air_time
 				jump_from = position
-				var lead := head + head_vel * air_time * clampf(0.35 * aggr, 0.2, 0.8)
+				var lead := head + head_vel * air_time * clampf(0.35 * aggr, 0.2, 0.8) + aim_offset
 				var inner := bounds.grow(-RADIUS - 10.0)
 				var hop := lead - position
 				if hop.length() > 420.0:  # за один прыжок не дальше 420

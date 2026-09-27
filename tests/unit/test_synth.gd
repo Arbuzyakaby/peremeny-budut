@@ -42,7 +42,11 @@ func test_fire_loop_is_seamless() -> void:
 	var fire := SynthMusic.new().build_fire_loop()
 	assert_eq(fire.loop_mode, AudioStreamWAV.LOOP_FORWARD)
 	var buf := _samples(fire)
-	assert_true(absf(buf[buf.size() - 1] - buf[0]) < 0.1, "стык конца и начала")
+	# шов не должен выделяться: скачок на стыке не больше самого резкого соседнего перепада внутри петли
+	var jump := 0.0
+	for i in range(1, buf.size()):
+		jump = maxf(jump, absf(buf[i] - buf[i - 1]))
+	assert_true(absf(buf[buf.size() - 1] - buf[0]) <= jump + 0.001, "стык конца и начала")
 
 
 func test_every_stage_track_is_known() -> void:

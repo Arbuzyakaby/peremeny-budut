@@ -1,6 +1,7 @@
 extends PanelContainer
-## Сегментированный переключатель: вкладки настроек и значения-варианты («НИЗКО / СРЕДНЕ / ВЫСОКО»).
-## Выбранный сегмент — золотая «таблетка». Стрелки ←/→ переключают соседей.
+## Ряд клавиш «как у радиолы» (дизайн-язык 2.0): вкладки настроек и панели разработчика, выбор
+## варианта. Клавиши сидят в утопленной бакелитовой рамке; нажатая остаётся утопленной, на ней горит
+## лампа, при нажатии соседней она со щелчком выскакивает. Стрелки ←/→ переключают соседей.
 
 signal changed(index: int)
 
@@ -12,9 +13,9 @@ var _group := ButtonGroup.new()
 
 
 func setup(options: Array, current: int, min_seg_width := 0.0) -> void:
-	add_theme_stylebox_override("panel", Design.box(Design.SURFACE_0, Design.LINE, Design.RADIUS_PILL, 1, Vector2(4, 4)))
+	add_theme_stylebox_override("panel", Design.well(Design.RADIUS_SM + 4, Vector2(5, 5)))
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 2)
+	row.add_theme_constant_override("separation", 4)
 	add_child(row)
 	for i in options.size():
 		var b := Button.new()
@@ -24,6 +25,7 @@ func setup(options: Array, current: int, min_seg_width := 0.0) -> void:
 		b.theme_type_variation = "SegmentButton"
 		b.custom_minimum_size = Vector2(min_seg_width, Design.TOUCH_MIN - 12)
 		b.pressed.connect(_on_pressed.bind(i))
+		b.button_down.connect(Design.play.bind("ui_key_down"))
 		b.focus_entered.connect(Design.play.bind("ui_move"))
 		b.mouse_entered.connect(b.grab_focus)
 		row.add_child(b)

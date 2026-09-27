@@ -56,8 +56,7 @@ func build() -> void:
 			var n: Dictionary = Skills.TREE[branch * 4 + row]
 			grid.add_child(_build_node(n))
 	var card := PanelContainer.new()
-	card.add_theme_stylebox_override("panel", Design.box(Design.SURFACE_2, Design.LINE, Design.RADIUS_MD, 1,
-		Vector2(Design.SPACE[4], Design.SPACE[3])))
+	card.add_theme_stylebox_override("panel", Design.well(Design.RADIUS_MD, Vector2(Design.SPACE[4], Design.SPACE[3])))
 	var desc_box := Design.vbox(Design.SPACE[1])
 	card.add_child(desc_box)
 	desc_title = Design.label("", "h3", Design.YOLK)
@@ -209,20 +208,20 @@ func refresh() -> void:
 		else:
 			state_label.text = "%d ч." % Skills.cost(id)
 			state_label.label_settings.font_color = Design.MINT if Skills.can_buy(id) else Design.MUTED
-		var bg := Design.SURFACE_2
 		var border := Design.LINE
 		if Skills.maxed(id):
-			bg = branch_col.darkened(0.6)
 			border = Design.YOLK
 		elif Skills.rank(id) > 0:
-			bg = branch_col.darkened(0.7)
 			border = branch_col
 		elif Skills.can_buy(id):
 			border = branch_col.darkened(0.25)
 		btn.modulate = Color(1, 1, 1, 1.0 if Skills.unlocked(id) else 0.55)
-		btn.add_theme_stylebox_override("normal", Design.box(bg, border, Design.RADIUS_MD, 2, Vector2(0, 0)))
-		btn.add_theme_stylebox_override("hover", Design.box(bg.lightened(0.08), Design.CREAM, Design.RADIUS_MD, 2, Vector2(0, 0)))
-		btn.add_theme_stylebox_override("pressed", Design.box(bg.darkened(0.2), Design.YOLK, Design.RADIUS_MD, 2, Vector2(0, 0)))
+		for st in ["normal", "hover", "pressed", "hover_pressed"]:  # клавиша узла: кромка и лампа ветки
+			var sb := Design.card_style(border if st == "normal" else (Design.CREAM if st == "hover" else Design.YOLK), st,
+				Design.RADIUS_MD, Vector2.ZERO)
+			if Skills.rank(id) == 0:
+				sb.lamp = Color(0, 0, 0, 0)
+			btn.add_theme_stylebox_override(st, sb)
 		node_medallions[id].queue_redraw()
 		for pip in node_pips[id]:
 			pip.queue_redraw()
