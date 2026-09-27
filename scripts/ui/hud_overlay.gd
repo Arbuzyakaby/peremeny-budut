@@ -3,6 +3,8 @@ extends Control
 ## стамина и текущая атака; полоса HP яичницы (снизу, а на сенсорном экране — сверху, чтобы не
 ## мешать кнопкам). Плюс вспышка урона, виньетка, киношные полосы, таймер, FPS и бейдж DEV.
 ## Панели становятся полупрозрачными, когда под ними ползёт змея.
+## Пожар финала: белая вспышка первого возгорания (flash) и паника (Design.panic) — полосы и табло
+## подрагивают на 1–2 px, снизу идёт тёплый отблеск огня; с «меньше анимации» — только ровный отблеск.
 
 const Design = preload("res://scripts/ui/design.gd")
 const Icons = preload("res://scripts/ui/icons.gd")
@@ -38,6 +40,7 @@ var boss_hp_shown := 0.0
 var boss_hp_ghost := 0.0
 var boss_flash := 0.0
 var hurt_flash := 0.0
+var white_flash := 0.0
 var cine := 0.0
 var play_time := 0.0
 var dev_run := false
@@ -72,6 +75,22 @@ func set_lives(value: int) -> void:
 	lives = value
 
 
+## Белая вспышка экрана (первое возгорание в финале). С «меньше анимации» или без вспышек урона —
+## приглушённая: засветка, а не удар по глазам.
+func flash(amount := 1.0) -> void:
+	var calm := Settings.flag("reduced_motion") or not Settings.flag("hurt_flash")
+	white_flash = maxf(white_flash, amount * (0.35 if calm else 0.85))
+
+
+## Сдвиг «дрожи» от паники: 1–2 px, меняется ~20 раз в секунду; при «меньше анимации» — ноль.
+func panic_jitter() -> Vector2:
+	var p := Design.panic
+	if p < 0.05 or Settings.flag("reduced_motion"):
+		return Vector2.ZERO
+	var k := floorf(t * 20.0)
+	return Vector2(sin(k * 12.9898), sin(k * 78.233)).sign() * roundf(1.0 + p) * float(fmod(k, 3.0) < 2.0)
+
+
 func set_ability(type: int, title_text: String, count: int) -> void:
 	if type != ability_type or count > ability_charges:
 		ability_flash = 1.0
@@ -96,6 +115,7 @@ func _process(delta: float) -> void:
 	t += delta
 	heart_anim = maxf(heart_anim - delta * 2.0, 0.0)
 	hurt_flash = maxf(hurt_flash - delta * 3.0, 0.0)
+	white_flash = maxf(white_flash - delta * 2.2, 0.0)
 	boss_flash = maxf(boss_flash - delta * 3.0, 0.0)
 	ability_flash = maxf(ability_flash - delta * 2.0, 0.0)
 	score_shown = move_toward(score_shown, score_target, maxf(delta * 600.0, absf(score_target - score_shown) * delta * 6.0))
@@ -162,22 +182,44 @@ func _draw() -> void:
 		draw_texture_rect(Tex.vignette(), full, false, Color(1, 1, 1, 0.55))
 	if hurt_flash > 0.0:
 		draw_rect(full, Color(0.9, 0.05, 0.05, 0.2 * hurt_flash))
-	if cine > 0.0:  # киношные полосы
-		draw_rect(Rect2(0, 0, size.x, 84 * cine), Color.BLACK)
-		draw_rect(Rect2(0, size.y - 84 * cine, size.x, 84 * cine), Color.BLACK)
+	var jit := panic_jitter()
+	if cine > 0.0:  # киношные полосы (в панике подрагивают)
+		draw_rect(Rect2(jit.x - 2, jit.y - 2, size.x + 4, 84 * cine + 2), Color.BLACK)
+		draw_rect(Rect2(jit.x - 2, size.y - 84 * cine + jit.y, size.x + 4, 84 * cine + 2), Color.BLACK)
+	if Design.panic > 0.01:
+		_draw_fire_glow(full)
 	if Settings.flag("show_fps"):
 		var fps := "FPS %d" % Engine.get_frames_per_second()
 		_text(Vector2(size.x / 2.0 - 30, 20 + safe.y), fps, "mono", 14, Design.MINT)
-	if not in_game:
-		return
-	var panel := Design.cached("hud_plank", func() -> StyleBox:  # табло — доска на винтах
-		return Design.plank(Color(0, 0, 0, 0), Design.RADIUS_LG - 6, Vector2(Design.SPACE[5], Design.SPACE[3])))
-	_draw_left(panel)
-	_draw_right(panel)
-	if ability_type >= 0:
-		_draw_ability()
-	if boss_visible:
-		_draw_boss_bar()
+	if in_game:
+		var panel := Design.cached("hud_plank", func() -> StyleBox:  # табло — доска на винтах
+			return Design.plank(Color(0, 0, 0, 0), Design.RADIUS_LG - 6, Vector2(Design.SPACE[5], Design.SPACE[3])))
+		draw_set_transform(jit)
+		_draw_left(panel)
+		_draw_right(panel)
+		if ability_type >= 0:
+			_draw_ability()
+		if boss_visible:
+			_draw_boss_bar()
+		draw_set_transform(Vector2.ZERO)
+	if white_flash > 0.0:
+		draw_rect(full, Color(1, 0.98, 0.92, white_flash))
+
+
+## Тёплый отблеск огня снизу экрана: сила — Design.panic, мерцает как пламя (ровный при «меньше анимации»).
+func _draw_fire_glow(full: Rect2) -> void:
+	var p := Design.panic
+	var fl := 1.0
+	if not Settings.flag("reduced_motion"):
+		fl = 0.75 + 0.25 * sin(t * 13.0) * sin(t * 5.7 + 1.3)
+	var bottom := full.size.y - 84.0 * cine  # отблеск встаёт над нижней полосой, полоса лишь чуть теплеет
+	var h := full.size.y * (0.28 + 0.12 * p)
+	var hot := Color(1.0, 0.42, 0.1, 0.34 * p * fl)
+	var clear := Color(1.0, 0.55, 0.15, 0.0)
+	draw_polygon(PackedVector2Array([Vector2(0, bottom - h), Vector2(full.size.x, bottom - h),
+		Vector2(full.size.x, bottom), Vector2(0, bottom)]), PackedColorArray([clear, clear, hot, hot]))
+	if cine > 0.0:
+		draw_rect(Rect2(0, bottom, full.size.x, full.size.y - bottom), Color(hot, hot.a * 0.25))
 
 
 func _draw_left(panel: StyleBox) -> void:

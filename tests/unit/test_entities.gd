@@ -172,3 +172,66 @@ func test_boss_phases_and_defeat() -> void:
 	e.dev_set_hp(0)
 	assert_true(defeated[0], "побеждена")
 	assert_false(e.take_chip(1.0), "мёртвую не ранить")
+
+
+# ---------------------------------------------------------------- v7.2: промахи и телеграфы
+
+const OilDrop = preload("res://scripts/entities/oil_drop.gd")
+
+
+func test_which_drops_stay_after_miss() -> void:
+	for k in [OilDrop.Kind.BUTTON, OilDrop.Kind.TINE, OilDrop.Kind.NEEDLE, OilDrop.Kind.SHURIKEN]:
+		assert_true(OilDrop.misses_visibly(k), "промах виден: %d" % k)
+	for k in [OilDrop.Kind.OIL, OilDrop.Kind.WHITE, OilDrop.Kind.PEPPER, OilDrop.Kind.CRACKER]:
+		assert_false(OilDrop.misses_visibly(k), "исчезает сразу: %d" % k)
+
+
+func test_tine_miss_sticks_and_quivers() -> void:
+	var d: OilDrop = add(OilDrop.new())
+	d.setup(Vector2(1270, 300), Vector2(430, 0), OilDrop.Kind.TINE)
+	d.begin_miss(AREA)
+	assert_true(d.is_missed())
+	assert_eq(d.vel, Vector2.ZERO)
+	assert_true(AREA.has_point(d.position), "воткнулся в бортик изнутри")
+	var p := d.position
+	await frames(2)
+	for i in 20:
+		d.update(DT, Vector2.ZERO)
+	assert_eq(d.position, p, "не двигается")
+	assert_false(d.miss_done())
+	for i in 15:
+		d.update(DT, Vector2.ZERO)
+	assert_true(d.miss_done(), "через ~0,5 с убрать")
+
+
+func test_button_miss_rolls_back_inside() -> void:
+	var d: OilDrop = add(OilDrop.new())
+	d.setup(Vector2(20, 300), Vector2(-300, 40), OilDrop.Kind.BUTTON)
+	d.begin_miss(AREA)
+	assert_true(d.vel.x > 0.0, "отскочила от бортика внутрь")
+	assert_between(d.vel.length(), 60.0, 150.0, "катится медленно")
+	var p := d.position
+	await frames(2)
+	for i in 30:
+		d.update(DT, Vector2.ZERO)
+	assert_true(d.position.x > p.x, "катится")
+	for i in 60:
+		d.update(DT, Vector2.ZERO)
+	assert_true(d.miss_done(), "потом исчезает")
+
+
+func test_herding_pill_tint_and_feint_bear_draw() -> void:
+	var p: Pill = add(Pill.new())
+	p.setup(Vector2(400, 400), AREA, 1.0, 1.0, Pill.Kind.TABLET)
+	p.herd = true
+	for i in 30:
+		p.update(DT, Vector2(900, 400), Vector2.ZERO, false)
+	assert_near(p.herd_k, 1.0, 0.01)
+	assert_ne(p.tint(Color.WHITE), Color.WHITE)
+	var b := _bear(TeddyBear.Type.NORMAL)
+	b.order = "decoy"
+	b.feint = true
+	var r := _bear(TeddyBear.Type.BOXER)
+	r.order = "rescue"
+	await frames(2)  # картонные звёзды, поднятая лапа, оттенок — рисуются без ошибок
+	assert_false(b.is_dizzy(), "обманщик не оглушён по-настоящему")

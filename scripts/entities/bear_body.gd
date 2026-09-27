@@ -40,11 +40,14 @@ var heal_target = null     # медведь, к которому бежит ме
 var heal_glow := 0.0
 var fade := 1.0            # ниндзя растворяется
 ## Кооператив (squad.gd): "" — сам по себе, "guard" — встать в точку order_pos (прикрыть союзника),
-## "rescue" — добежать до order_target (выдернуть застрявшую вилку).
+## "rescue" — добежать до order_target (выдернуть застрявшую вилку), "decoy" — обманщик (только
+## Ультра): сесть в order_pos на линии чужой атаки и изображать оглушение.
 var order := ""
 var order_pos := Vector2.INF
 var order_target: Node2D = null
 var lead_hint := Vector2.INF  # куда целиться метателю (перекрёстный огонь)
+var feint := false            # обманщик сидит на месте и притворяется оглушённым
+var tease_t := 0.0            # обманщик раскрылся: дразнится и удирает
 
 
 func is_edible() -> bool:
@@ -96,6 +99,10 @@ func _draw() -> void:
 				arm = Vector2(s * 15, -4 if s > 0 else 8)
 			elif type == Type.MEDIC and heal_glow > 0.0:
 				arm = Vector2(s * 15, -2)
+			elif order == "rescue" and s > 0:  # спасатель бежит с поднятой лапой
+				arm = Vector2(13, -19 + sin(t * 14.0) * 2.5)
+			elif tease_t > 0.0:  # обманщик дразнится: лапы к ушам
+				arm = Vector2(s * 15, -14 + sin(t * 20.0) * 2.0)
 			draw_circle(arm, 5.5, dark)
 			draw_circle(arm, 4.5, _arm_col())
 	# тело
@@ -164,7 +171,7 @@ func _draw() -> void:
 		draw_arc(Vector2(1.4, -0.8), 1.4, 0.2, PI - 0.2, 5, Color(0.15, 0.08, 0.05), 1.0)
 	for s in [-1.0, 1.0]:
 		var e := Vector2(s * 4.5, -10)
-		if st == St.DIZZY:
+		if st == St.DIZZY or (feint and s < 0):  # обманщик подглядывает одним глазом
 			draw_line(e - Vector2(2, 2), e + Vector2(2, 2), Color.BLACK, 1.5)
 			draw_line(e - Vector2(2, -2), e + Vector2(2, -2), Color.BLACK, 1.5)
 		else:  # глаза-пуговки
@@ -192,6 +199,8 @@ func _draw() -> void:
 				var g := Vector2(s * 13, 4)
 				if st == St.WINDUP:
 					g = Vector2(s * 9, -3)
+				elif order == "rescue" and s > 0:
+					g = Vector2(11, -22 + sin(t * 14.0) * 2.5)
 				elif st == St.DASH:
 					g = Vector2(s * 6, -16)
 				draw_circle(g, 7.5, Color(0.55, 0.05, 0.05))
@@ -265,6 +274,15 @@ func _draw() -> void:
 		for i in 3:
 			var a := t * 5.0 + TAU * i / 3.0
 			_draw_star(Vector2(0, -28) + Vector2(cos(a) * 14.0, sin(a) * 5.0), 4.5, Color(1, 0.9, 0.2))
+	elif feint:  # картонные звёзды обманщика: вертятся медленно и качаются на проволочке
+		for i in 3:
+			var a := t * 2.0 + TAU * i / 3.0
+			var p := Vector2(0, -28) + Vector2(cos(a) * 14.0, sin(a) * 5.0)
+			draw_line(Vector2(0, -20), p, Color(0.35, 0.3, 0.25, 0.7), 1.0)
+			_draw_star(p, 4.8, Color(0.62, 0.48, 0.3))
+			_draw_star(p, 3.0, Color(0.8, 0.66, 0.42))
+	if tease_t > 0.0:  # показывает язык
+		draw_circle(Vector2(0, 1.5), 2.6, Color(0.95, 0.4, 0.5))
 	if is_shielded():  # щит-пузырь
 		var k := minf(shield_t / 1.5, 1.0)
 		var blink := shield_t > 1.5 or int(shield_t * 10.0) % 2 == 0

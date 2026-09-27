@@ -126,3 +126,15 @@ func test_menu_tips_rotate_and_loading_tip() -> void:
 	assert_true(menu.tip_note.is_ancestor_of(menu.tip_label), "совет — на приколотой записке")
 	var ls: LoadingScreen = add(LoadingScreen.new())
 	assert_has(Tips.GENERAL, ls.tip, "на загрузке — совет")
+
+
+func test_settings_fit_without_scroll() -> void:
+	await boot()
+	var scr = game.hud.settings_screen
+	game.hud.push(scr)
+	for i in Settings.TABS.size():
+		scr._show_tab(i)
+		await frames(2)
+		var need: float = scr.content.get_combined_minimum_size().y
+		assert_true(need <= 640.0, "вкладка %d влезает в 720 без прокрутки (%.0f)" % [i, need])
+	assert_true(scr.panel.size.x <= 1100.0, "пульт компактный")

@@ -58,6 +58,8 @@ var shot_frame := 0
 var pause_allowed := false
 var pause_summary := ""
 var cinematic := false
+const SHADE := Color(0.4, 0.38, 0.42)  # табло в тени: золото гаснет почти до бронзы
+var shade_tween: Tween
 
 
 func _ready() -> void:
@@ -344,6 +346,17 @@ func track_snake(stamina: float, exhausted: bool, shield: int, head_screen: Vect
 
 func set_dev_run(on: bool) -> void:
 	overlay.dev_run = on
+
+
+## Табло уходят в тень на time секунд: лампы и золото желтка на них гаснут, потому что
+## главный акцент теперь на арене (открытый желток яичницы). Подсказки и тач-кнопки не гаснут.
+func shade_accent(time := 1.0) -> void:
+	if shade_tween:
+		shade_tween.kill()
+	shade_tween = create_tween()
+	shade_tween.tween_property(overlay, "modulate", SHADE, Design.FAST * 2.0)
+	shade_tween.tween_interval(time)
+	shade_tween.tween_property(overlay, "modulate", Color.WHITE, Design.SLOW)
 
 
 func show_banner(text: String, color := Design.YOLK, duration := 2.0) -> void:

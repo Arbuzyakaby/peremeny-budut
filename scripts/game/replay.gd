@@ -58,6 +58,8 @@ static func snapshot(g) -> Dictionary:
 		enemies.append(["pill", p.position, p.height, p.st])
 	var drops: Array = []
 	for d in g.shots.drops:
+		if d.is_missed():  # промах уже безвреден — на «камере наблюдения» только то, что может ударить
+			continue
 		drops.append([d.position, d.kind, d.from_snake])
 	var waves: Array = []
 	for w in g.shots.waves:

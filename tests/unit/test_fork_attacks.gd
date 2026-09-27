@@ -157,3 +157,60 @@ func test_start_signal_reports_attack() -> void:
 	for a in 4:
 		f.begin_attack(a, HEAD)
 	assert_eq(started, [0, 1, 2, 3])
+
+
+# ---------------------------------------------------------------- v7.2: клещи
+
+func test_pincer_look_turns_and_nods() -> void:
+	var f := _fork()
+	f.pincer_id = 1
+	var mate := f.position + Vector2(0, -300)
+	f.look_at_mate(mate, 0.3)
+	f.slot = f.position
+	for i in 9:
+		f.update(DT, HEAD, true)
+	assert_true(absf(angle_difference(f.rotation, -PI / 2)) < 0.3, "повернулась к напарнику, а не к змее")
+	assert_gt(f.height, 0.0, "подпрыгивает, кивая")
+	assert_true(f.is_pincer_windup(), "замах клещей — можно прорвать")
+	await frames(2)  # рисунок кольца и кивка без ошибок
+	for i in 20:
+		f.update(DT, HEAD, true)
+	assert_near(f.height, 0.0, 0.001, "кивок кончился")
+
+
+func test_pincer_lunge_barely_tracks() -> void:
+	var solo := _fork()
+	var pair := _fork()
+	pair.pincer_id = 1
+	solo.begin_attack(Fork.Atk.LUNGE, HEAD)
+	pair.begin_attack(Fork.Atk.LUNGE, HEAD)
+	var side := Vector2(900, 700)  # змея ушла вбок
+	for i in 20:
+		solo.update(DT, side, true)
+		pair.update(DT, side, true)
+	assert_true(absf(pair.rotation) < absf(solo.rotation) * 0.5, "в клещах прицел почти не доводится — просвет честный")
+
+
+func test_pincer_ends_when_lunge_starts() -> void:
+	var f := _fork()
+	f.pincer_id = 3
+	f.begin_attack(Fork.Atk.LUNGE, HEAD)
+	assert_true(f.is_pincer_windup())
+	assert_true(_run_until(f, Fork.St.SPRINT, 120), "рванула")
+	assert_eq(f.pincer_id, 0, "в спринте прорыв уже невозможен")
+	assert_false(f.is_pincer_windup())
+
+
+func test_collapse_and_knock_back() -> void:
+	var a := _fork()
+	var b := _fork()
+	a.pincer_id = 2
+	b.pincer_id = 2
+	a.begin_attack(Fork.Atk.LUNGE, HEAD)
+	b.begin_attack(Fork.Atk.LUNGE, HEAD)
+	a.knock_back(a.position + Vector2(30, 0))
+	assert_eq(a.st, Fork.St.DIZZY, "прорванную вилку оглушило")
+	assert_true(a.vel.x < 0.0, "и отбросило от змеи")
+	b.collapse()
+	assert_eq(b.st, Fork.St.RECOVER, "напарница сбита с замаха")
+	assert_eq(b.pincer_id, 0)

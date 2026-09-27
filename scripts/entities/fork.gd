@@ -63,8 +63,17 @@ var pogo_from := Vector2.ZERO
 var last_atk := Atk.LUNGE
 ## Кооператив (squad.gd): куда встать перед совместной атакой; INF — свободная охота.
 var slot := Vector2.INF
-var coop_tag := 0.0         # >0 — над вилкой рисуется «!!» (атака в паре)
+var coop_tag := 0.0         # >0 — над вилкой рисуется «!!» (атака в паре; отряд ставит только на Ультра)
 var rescued := 0.0          # медведь выдёргивает вилку из бортика
+## Клещи (squad.gd): номер группы (0 — вне клещей), ведущая рисует просвет, дуга кольца вокруг головы.
+var pincer_id := 0
+var pincer_lead := false
+var pincer_half := 0.0      # полуширина дуги кольца, которую перекрывает вилка (рад)
+var pincer_gap_dir := Vector2.ZERO  # куда смотрит просвет — выход из клещей
+var look_pos := Vector2.INF # телеграф клещей: смотрит на напарника и кивает
+var look_t := 0.0
+var look_total := 0.3
+var last_head := Vector2.ZERO
 
 
 func setup(pos: Vector2, area: Rect2, spd: float, aggression: float, idle_tempo: float, fork_kind := Kind.TABLE) -> void:
@@ -106,6 +115,47 @@ func is_vulnerable() -> bool:
 ## Сейчас готовит или проводит атаку (для очереди атак отряда).
 func is_attacking() -> bool:
 	return st in [St.AIM, St.SPRINT, St.VOLLEY_AIM, St.WHIRL_UP, St.WHIRL, St.POGO_UP]
+
+
+## Вилка в клещах замахивается (переглядывается с напарником или целится): её можно прорвать спринтом.
+func is_pincer_windup() -> bool:
+	return pincer_id != 0 and (look_t > 0.0 or st == St.AIM)
+
+
+## Телеграф клещей: повернуться к напарнику и кивнуть.
+func look_at_mate(pos: Vector2, time: float) -> void:
+	look_pos = pos
+	look_t = time
+	look_total = time
+
+
+func leave_pincer() -> void:
+	pincer_id = 0
+	pincer_lead = false
+	look_t = 0.0
+	look_pos = Vector2.INF
+
+
+## Змея прорвалась сквозь вилку: отлетает и оглушена — теперь беззащитна.
+func knock_back(from: Vector2) -> void:
+	leave_pincer()
+	slot = Vector2.INF
+	st = St.DIZZY
+	st_t = 1.2
+	vel = (position - from).normalized() * 320.0
+	shake = 1.0
+	sound.emit("clang")
+
+
+## Клещи развалились (напарника прорвали): замах сбит, вилка теряет синхрон.
+func collapse() -> void:
+	leave_pincer()
+	slot = Vector2.INF
+	if st in [St.ROAM, St.AIM]:
+		st = St.RECOVER
+		st_t = 0.5
+		shake = 0.8
+		attack_cd = maxf(attack_cd, 1.0)
 
 
 ## Ближайшая к точке позиция на оси вилки: (продольная координата, расстояние до оси).
@@ -192,6 +242,12 @@ func update(delta: float, head: Vector2, snake_alive: bool) -> void:
 	st_t -= delta
 	attack_cd -= delta
 	coop_tag = maxf(coop_tag - delta, 0.0)
+	look_t = maxf(look_t - delta, 0.0)
+	last_head = head
+	if look_t > 0.0 and st == St.ROAM:  # клещи: подпрыгивает, кивая напарнику
+		height = sin((1.0 - look_t / look_total) * PI) * 10.0
+	elif st != St.POGO_UP:
+		height = 0.0
 	shake = maxf(shake - delta * 3.0, 0.0)
 	if st != St.BALD:
 		tines_k = minf(tines_k + delta * 0.8, 1.0)
@@ -199,7 +255,10 @@ func update(delta: float, head: Vector2, snake_alive: bool) -> void:
 	match st:
 		St.ROAM:
 			var want := to_head.angle()
-			rotation = rotate_toward(rotation, want, 1.6 * delta * speed_mult)
+			if look_t > 0.0 and look_pos != Vector2.INF:  # клещи: смотрит на напарника
+				rotation = rotate_toward(rotation, (look_pos - position).angle(), 14.0 * delta)
+			else:
+				rotation = rotate_toward(rotation, want, 1.6 * delta * speed_mult)
 			if slot != Vector2.INF:  # отряд велел занять позицию для атаки в паре
 				var to_slot := slot - position
 				vel = vel.lerp(to_slot.limit_length(1.0) * minf(to_slot.length() * 2.0, 220.0 * speed_mult), 3.0 * delta)
@@ -213,7 +272,8 @@ func update(delta: float, head: Vector2, snake_alive: bool) -> void:
 				next_atk = roll_attack() as Atk
 		St.AIM:
 			vel = vel.move_toward(Vector2.ZERO, 300.0 * delta)
-			rotation = rotate_toward(rotation, to_head.angle(), 0.9 * delta)  # доводит прицел
+			# доводит прицел; в клещах — почти не доводит, чтобы просвет оставался выходом
+			rotation = rotate_toward(rotation, to_head.angle(), (0.3 if pincer_id != 0 else 0.9) * delta)
 			if st_t <= 0.0:
 				st = St.SPRINT
 				st_t = 1.0
@@ -287,6 +347,8 @@ func update(delta: float, head: Vector2, snake_alive: bool) -> void:
 				attack_cd = randf_range(1.4, 2.6) * tempo / clampf(aggr, 0.6, 2.0)
 
 	rescued = maxf(rescued - delta, 0.0)
+	if pincer_id != 0 and not st in [St.ROAM, St.AIM]:  # выпад пошёл — клещи закончились
+		leave_pincer()
 	if st != St.POGO_UP:
 		position += vel * delta
 	var inner := bounds.grow(-26.0)
@@ -364,6 +426,8 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, POGO_RADIUS, 0, TAU, 40, Color(Design.danger(), 0.35 + 0.5 * kp), Design.telegraph_width(3.0))
 		draw_circle(Vector2.ZERO, POGO_RADIUS * kp, Color(Design.danger(), 0.12))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if pincer_id != 0 and pincer_half > 0.0:
+		_draw_pincer_ring()
 	# тень: в прыжке уменьшается и отстаёт
 	var sh_k := 1.0 - height / 260.0
 	Tex.blob(self, (Vector2(7, 12) + Vector2(0, height * 0.35)).rotated(-rotation) + Vector2(-3, 0),
@@ -377,7 +441,11 @@ func _draw() -> void:
 			draw_arc(Vector2.ZERO, rr * (0.55 + i * 0.18), -spin * 0.3 + i, -spin * 0.3 + i + 1.4, 12, Color(1, 1, 1, 0.25 * kw), 2.0)
 	var lift := Vector2(0, -height)
 	var persp := 1.0 + height / 300.0
-	draw_set_transform(jitter + lift.rotated(-rotation), 0.0, Vector2.ONE * s * persp)
+	var body_scale := Vector2.ONE * s * persp
+	if look_t > 0.0:  # кивок напарнику: зубцы дважды клюют вниз
+		var nod := absf(sin((1.0 - look_t / look_total) * TAU))
+		body_scale *= Vector2(1.0 - 0.22 * nod, 1.0 + 0.06 * nod)
+	draw_set_transform(jitter + lift.rotated(-rotation), 0.0, body_scale)
 	if st == St.POGO_STUCK:  # воткнута в пол: видна ручка сверху, зубцы ушли в доски
 		_draw_stuck_top(k)
 	else:
@@ -394,6 +462,25 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, Vector2(-11, 6), "!!", HORIZONTAL_ALIGNMENT_LEFT, -1, 22,
 			Color(Design.danger(), clampf(coop_tag * 3.0, 0.0, 1.0)))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Кольцо клещей вокруг головы змеи: каждая вилка рисует свою дугу, просвет между дугами — выход.
+## Ведущая вилка отмечает главный просвет по курсу змеи шевронами.
+func _draw_pincer_ring() -> void:
+	var strong := look_t > 0.0 or st == St.AIM
+	var alpha := 0.55 if strong else 0.22
+	var r := 64.0
+	draw_set_transform((last_head - position).rotated(-rotation), -rotation, Vector2.ONE)
+	var mid := (position - last_head).angle()
+	draw_arc(Vector2.ZERO, r, mid - pincer_half, mid + pincer_half, 18, Color(Design.danger(), alpha), Design.telegraph_width(3.0))
+	if pincer_lead and pincer_gap_dir != Vector2.ZERO:
+		var g := pincer_gap_dir.normalized()
+		var side := g.orthogonal()
+		for i in 2:
+			var c := g * (r + 6.0 + i * 16.0)
+			draw_polyline(PackedVector2Array([c - g * 7.0 + side * 8.0, c, c - g * 7.0 - side * 8.0]),
+				Color(Design.safe(), alpha * (1.0 - i * 0.3)), Design.telegraph_width(2.5))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _draw_body(k: Dictionary) -> void:

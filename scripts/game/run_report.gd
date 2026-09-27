@@ -1,8 +1,9 @@
 extends RefCounted
-## Строки экрана итогов: сложность, этап, враги, время, счёт, рекорд, чешуйки.
+## Строки экрана итогов: сложность, этап, враги, спичка и сожжённое в финале, время, счёт, рекорд, чешуйки.
 
 const Balance = preload("res://scripts/core/balance.gd")
 const Skills = preload("res://scripts/core/skills.gd")
+const Credits = preload("res://scripts/ending/credits.gd")
 
 
 static func rows(g, win: bool, record: bool, best: int) -> Array:
@@ -16,6 +17,9 @@ static func rows(g, win: bool, record: bool, best: int) -> Array:
 		rows.append(["Враги подрались", "%d раз" % g.enemies.friendly_hits])
 	if win and g.ending:
 		rows.append(["Спичка", g.ending.choice_text()])
+		var burnt: int = g.ending.fire.burnt_cells() if is_instance_valid(g.ending.fire) else 0
+		if burnt > 0:  # зола остаётся навсегда — и в итогах тоже, даже если финал пропустили
+			rows.append(["Ящик", Credits.burnt_line(burnt)])
 	rows.append(["Время", "%d:%02d" % [secs / 60, secs % 60]])
 	rows.append(["Счёт", "%d%s" % [g.score, "  — НОВЫЙ РЕКОРД!" if record else ""], record])
 	rows.append(["Рекорд", str(best)])

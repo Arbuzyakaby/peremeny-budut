@@ -153,6 +153,15 @@ func test_back_button_maps_to_pause() -> void:
 
 func test_ui_scale_changes_root() -> void:
 	await boot()
-	Settings.set_value("ui_scale", 3)
+	Settings.set_value("ui_scale", 4)
 	game.hud.apply_setting("ui_scale")
 	assert_near(game.hud.root.scale.x, 1.3)
+
+
+func test_yolk_open_shades_hud_accent() -> void:
+	await boot_stage(3)
+	game.boss.yolk_opened.emit()
+	await tree.create_timer(0.3).timeout
+	assert_true(game.hud.overlay.modulate.v < 0.6, "желток открыт — табло ушли в тень")
+	await tree.create_timer(1.3).timeout
+	assert_near(game.hud.overlay.modulate.v, 1.0, 0.02, "через секунду акцент вернулся")

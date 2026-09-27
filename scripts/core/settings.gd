@@ -6,6 +6,9 @@ extends RefCounted
 const Platform = preload("res://scripts/core/platform.gd")
 
 const DEFAULT_PATH := "user://settings.cfg"
+## Версия формата файла. 2 (v7.2): у масштаба интерфейса появилось положение 80%, индексы сдвинулись.
+const FORMAT := 2
+const UI_SCALES := [0.8, 0.9, 1.0, 1.15, 1.3]
 
 enum Kind { BOOL, FLOAT, ENUM }
 
@@ -35,8 +38,8 @@ const SCHEMA := [
 	{"key": "particles", "tab": "screen", "kind": Kind.ENUM, "default": 2, "mobile": 1,
 		"options": ["НИЗКО", "СРЕДНЕ", "ВЫСОКО"], "label": "Частицы"},
 	{"key": "antialias", "tab": "screen", "kind": Kind.BOOL, "default": false, "label": "Сглаживание (MSAA)"},
-	{"key": "ui_scale", "tab": "screen", "kind": Kind.ENUM, "default": 1, "mobile": 2,
-		"options": ["90%", "100%", "115%", "130%"], "label": "Масштаб интерфейса"},
+	{"key": "ui_scale", "tab": "screen", "kind": Kind.ENUM, "default": 2, "mobile": 3,
+		"options": ["80%", "90%", "100%", "115%", "130%"], "label": "Масштаб интерфейса"},
 	{"key": "vignette", "tab": "screen", "kind": Kind.BOOL, "default": true, "label": "Виньетка по краям"},
 
 	{"key": "hints", "tab": "game", "kind": Kind.BOOL, "default": true, "label": "Подсказки и обучение"},
@@ -95,7 +98,10 @@ static func load_from_disk() -> void:
 		var key: String = s["key"]
 		for section in cf.get_sections():  # ищем во всех секциях — так читаются и старые файлы (v5)
 			if cf.has_section_key(section, key):
-				values[key] = sanitize(key, cf.get_value(section, key))
+				var v: Variant = cf.get_value(section, key)
+				if key == "ui_scale" and int(cf.get_value("meta", "format", 1)) < 2 and (v is int or v is float):
+					v = int(v) + 1  # файл до v7.2: 0 было 90%, теперь 0 — это 80%
+				values[key] = sanitize(key, v)
 				break
 
 
@@ -104,6 +110,7 @@ static func save() -> void:
 	for s: Dictionary in SCHEMA:
 		var section: String = s["tab"] if s["tab"] != "" else "dev"
 		cf.set_value(section, s["key"], values[s["key"]])
+	cf.set_value("meta", "format", FORMAT)
 	cf.save(path)
 
 
@@ -189,7 +196,7 @@ static func particle_mult() -> float:
 
 
 static func ui_scale() -> float:
-	return [0.9, 1.0, 1.15, 1.3][choice("ui_scale")]
+	return UI_SCALES[choice("ui_scale")]
 
 
 static func touch_enabled() -> bool:

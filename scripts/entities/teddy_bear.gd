@@ -106,6 +106,9 @@ func update(delta: float, snake: Snake) -> void:
 	hit_flash = maxf(hit_flash - delta * 4.0, 0.0)
 	heal_glow = maxf(heal_glow - delta * 1.5, 0.0)
 	shield_t = maxf(shield_t - delta, 0.0)
+	tease_t = maxf(tease_t - delta, 0.0)
+	if order != "decoy":
+		feint = false
 	grudge_t -= delta
 	if not has_grudge():
 		grudge = null
@@ -342,9 +345,14 @@ func _medic(delta: float, to_head: Vector2, dist: float) -> void:
 		vel = Vector2.from_angle(randf() * TAU) * speed
 
 
-## Приказ отряда: бежать к точке прикрытия или к застрявшей вилке. false — приказ неактуален.
+## Приказ отряда: бежать к точке прикрытия или к застрявшей вилке, обманщику — сесть на линию атаки.
+## false — приказ неактуален.
 func _follow_order(delta: float, dist: float) -> bool:
 	if dist < 110.0:  # змея вплотную — не до приказов
+		if feint:  # обманщик раскрылся: вскакивает, дразнится и удирает
+			feint = false
+			tease_t = 0.8
+			sound.emit("pop")
 		return false
 	var goal := order_pos
 	if order == "rescue":
@@ -355,7 +363,11 @@ func _follow_order(delta: float, dist: float) -> bool:
 	if goal == Vector2.INF:
 		return false
 	var to_goal := goal - position
-	if to_goal.length() < 14.0:
+	if order == "decoy" and to_goal.length() < 40.0:  # сел на линию атаки и «оглушён»
+		feint = true
+	if feint:
+		vel = vel.move_toward(Vector2.ZERO, 600.0 * delta)
+	elif to_goal.length() < 14.0:
 		vel = vel.move_toward(Vector2.ZERO, 600.0 * delta)
 	else:
 		vel = vel.lerp(to_goal.normalized() * speed * 1.6, 4.0 * delta)

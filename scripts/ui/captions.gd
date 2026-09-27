@@ -1,6 +1,8 @@
 extends Control
 ## Текст поверх игры: баннер по центру, субтитры и подсказки внизу, приглашение к действию,
 ## большой титр финала, титры и кнопка «Пропустить».
+## В панике (Design.panic — пожар финала) субтитры дрожат на 1–2 px, а имя говорящего мигает, как
+## лампа на плохом контакте, — тем чаще, чем сильнее огонь. С «меньше анимации» — неподвижно.
 
 signal skip_requested
 
@@ -23,6 +25,7 @@ var credits_tween: Tween
 var skip_button: Button
 var t := 0.0
 var bottom_margin := 0.0
+var _jit := Vector2.ZERO  # текущий сдвиг субтитров от паники
 
 
 func _init() -> void:
@@ -104,6 +107,9 @@ func set_bottom_margin(px: float) -> void:
 	bottom_margin = px
 	caption_box.offset_bottom = -8 - px
 	caption_box.offset_top = -120 - px
+	caption_box.offset_left = 0.0
+	caption_box.offset_right = 0.0
+	_jit = Vector2.ZERO
 
 
 func show_banner(text: String, color := Design.YOLK, duration := 2.0) -> void:
@@ -196,3 +202,21 @@ func _process(delta: float) -> void:
 	t += delta
 	if prompt_label.visible and not Settings.flag("reduced_motion"):
 		prompt_label.scale = Vector2.ONE * (1.0 + 0.05 * sin(t * 6.0))
+	_apply_panic()
+
+
+## Паника: дрожь субтитров и мигание имени говорящего. Частота мигания растёт с паникой (4 → 22 Гц).
+func _apply_panic() -> void:
+	var p := Design.panic
+	var j := Vector2.ZERO
+	var lamp := 1.0
+	if p > 0.05 and not Settings.flag("reduced_motion"):
+		var k := floorf(t * 20.0)
+		j = Vector2(sin(k * 12.9898), sin(k * 78.233)).sign() * roundf(1.0 + p)
+		var hz := lerpf(4.0, 22.0, p)
+		if sin(t * hz * TAU) * sin(t * 3.1) > 0.55 - 0.3 * p:
+			lamp = 1.0 - 0.55 * p
+	caption_box.position += j - _jit
+	_jit = j
+	speaker_label.modulate.a = lamp
+

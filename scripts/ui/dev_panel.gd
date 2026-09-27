@@ -232,7 +232,7 @@ func _update_info() -> void:
 		"Этап / цель    %d  •  %d/%d" % [game.stage + 1, game.goal_done, game.goal_total],
 		"Сложность      %s" % game.cfg["name"],
 		"Враги / снаряды %d / %d" % [game.enemies.count(), game.shots.drops.size()],
-		"Голоса звука   %d / %d" % [game.sfx.busy_voices(), game.sfx.VOICES],
+		"Голоса звука   %d / %d  •  отброшено %d" % [game.sfx.busy_voices(), game.sfx.VOICES, game.sfx.dropped],
 		"Скорость       ×%.2f" % Engine.time_scale,
 		"Платформа      %s" % Platform.describe(),
 		"Экран          %dx%d  •  UI ×%.2f" % [vp.x, vp.y, Settings.ui_scale()],

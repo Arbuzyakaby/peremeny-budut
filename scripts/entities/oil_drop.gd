@@ -3,6 +3,8 @@ extends Node2D
 ## пуговица медведя-метателя (урон), иголка с пуговицей медведя-швеи (урон + пришивает — замедляет),
 ## сюрикен ниндзя (урон), зубец из залпа вилки (урон) и хлопушка (катится, тормозит и взрывается, когда догорит фитиль).
 ## Эти же снаряды может выпускать змея, съевшая такого медведя (from_snake).
+## Промах виден: зубец, иголка и сюрикен, пролетевшие мимо, втыкаются в пол (или бортик) и торчат
+## MISS_STICK секунд, пуговица падает и катится MISS_ROLL секунд — и только потом исчезают. Вреда уже нет.
 
 const Tex = preload("res://scripts/gfx/tex.gd")
 
@@ -11,6 +13,8 @@ enum Kind { OIL, WHITE, PEPPER, BUTTON, NEEDLE, SHURIKEN, CRACKER, TINE }
 const RADIUS := 9.0
 const PEPPER_TURN := 2.2
 const BLAST_RADIUS := 95.0
+const MISS_STICK := 0.5
+const MISS_ROLL := 1.1
 
 var vel := Vector2.ZERO
 var kind := Kind.OIL
@@ -20,6 +24,9 @@ var fuse := 0.0
 var button_color := Color(0.3, 0.55, 0.95)
 var thrower: Node2D = null  # медведь, кинувший снаряд (в него самого он не попадает)
 var from_snake := false
+var miss_t := 0.0       # сколько ещё лежать/торчать после промаха
+var miss_total := 0.0   # >0 — снаряд промахнулся и безвреден
+var miss_area := Rect2(24, 24, 1232, 672)
 
 
 func setup(pos: Vector2, velocity: Vector2, drop_kind: int) -> void:
@@ -40,12 +47,54 @@ func setup(pos: Vector2, velocity: Vector2, drop_kind: int) -> void:
 		button_color = [Color(0.95, 0.3, 0.5), Color(0.3, 0.7, 0.95), Color(0.6, 0.9, 0.3)].pick_random()
 
 
+## Снаряды, промах которых остаётся на поле (иначе исчезают сразу).
+static func misses_visibly(drop_kind: int) -> bool:
+	return drop_kind in [Kind.BUTTON, Kind.TINE, Kind.NEEDLE, Kind.SHURIKEN]
+
+
+func rolls_on_miss() -> bool:
+	return kind == Kind.BUTTON
+
+
+## Промахнулся: воткнуться в пол/бортик или упасть и покатиться внутри area.
+func begin_miss(area: Rect2) -> void:
+	miss_area = area.grow(-RADIUS * 0.5)
+	var inside := position.clamp(miss_area.position, miss_area.end)
+	var hit_x := not is_equal_approx(inside.x, position.x)
+	var hit_y := not is_equal_approx(inside.y, position.y)
+	position = inside
+	if rolls_on_miss():  # ударилась о бортик или выдохлась — падает на ребро и катится
+		miss_total = MISS_ROLL
+		if hit_x:
+			vel.x = -vel.x
+		if hit_y:
+			vel.y = -vel.y
+		vel = vel.normalized() * clampf(vel.length() * 0.45, 60.0, 150.0)
+	else:  # втыкается кончиком и дрожит
+		miss_total = MISS_STICK
+		rotation = vel.angle()
+		vel = Vector2.ZERO
+	miss_t = miss_total
+
+
+func is_missed() -> bool:
+	return miss_total > 0.0
+
+
+## Отлежал своё после промаха — убрать.
+func miss_done() -> bool:
+	return miss_total > 0.0 and miss_t <= 0.0
+
+
 ## Хлопушка догорела и должна взорваться.
 func should_explode() -> bool:
 	return kind == Kind.CRACKER and fuse <= 0.0
 
 
 func update(delta: float, target: Vector2) -> void:
+	if is_missed():
+		_update_miss(delta)
+		return
 	if kind == Kind.PEPPER:
 		var ang := rotate_toward(vel.angle(), (target - position).angle(), PEPPER_TURN * delta)
 		vel = Vector2.from_angle(ang) * vel.length()
@@ -71,7 +120,67 @@ func update(delta: float, target: Vector2) -> void:
 	queue_redraw()
 
 
+func _update_miss(delta: float) -> void:
+	miss_t -= delta
+	if rolls_on_miss():
+		vel = vel.move_toward(Vector2.ZERO, 110.0 * delta)
+		position += vel * delta
+		if position.x < miss_area.position.x or position.x > miss_area.end.x:
+			vel.x = -vel.x * 0.5
+		if position.y < miss_area.position.y or position.y > miss_area.end.y:
+			vel.y = -vel.y * 0.5
+		position = position.clamp(miss_area.position, miss_area.end)
+		spin += vel.length() / RADIUS * delta
+		if vel.length() > 5.0:
+			rotation = vel.angle()
+	modulate.a = clampf(miss_t / 0.25, 0.0, 1.0)  # в конце тает
+	queue_redraw()
+
+
+## Промах: зубец/иголка/сюрикен торчит из пола, пуговица катится на ребре.
+func _draw_miss() -> void:
+	var k := 1.0 - clampf(miss_t / maxf(miss_total, 0.001), 0.0, 1.0)
+	if rolls_on_miss():
+		var edge := absf(cos(spin))  # ребро или лицо — пуговица катится
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.25 + 0.75 * edge))
+		draw_circle(Vector2(1, 3), RADIUS + 1.0, Color(0, 0, 0, 0.18))
+		draw_circle(Vector2.ZERO, RADIUS + 1.5, button_color.darkened(0.45))
+		draw_circle(Vector2.ZERO, RADIUS, button_color)
+		for dd in [Vector2(-2.5, -2.5), Vector2(2.5, -2.5), Vector2(-2.5, 2.5), Vector2(2.5, 2.5)]:
+			draw_circle(dd, 1.4, button_color.darkened(0.55))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
+	var quiver := sin(k * 50.0) * 0.12 * (1.0 - k)  # дрожит после удара
+	var tip := Vector2(6, 0)
+	for i in 4:  # трещинки в досках вокруг
+		var a := TAU * i / 4.0 + 0.6
+		draw_line(tip, tip + Vector2.from_angle(a) * (5.0 + 2.0 * (i % 2)), Color(0.1, 0.06, 0.03, 0.7), 1.2)
+	draw_circle(tip, 2.5, Color(0, 0, 0, 0.4))
+	draw_set_transform(tip, quiver, Vector2(0.7, 1.0))  # кончик ушёл в пол — видна только часть
+	match kind:
+		Kind.TINE:
+			draw_colored_polygon(PackedVector2Array([Vector2(-20, -2.4), Vector2(0, -1.6), Vector2(0, 1.6), Vector2(-20, 2.4)]),
+				Color(0.24, 0.16, 0.12))
+			draw_colored_polygon(PackedVector2Array([Vector2(-19, -1.5), Vector2(0, -1.0), Vector2(0, 1.0), Vector2(-19, 1.5)]),
+				Color(0.78, 0.5, 0.3))
+			draw_rect(Rect2(-21, -2.6, 2.5, 5.2), Color(0.5, 0.26, 0.1))
+		Kind.NEEDLE:
+			draw_line(Vector2(-22, 0), Vector2(0, 0), Color(0.45, 0.47, 0.52), 3.5)
+			draw_line(Vector2(-22, -0.5), Vector2(0, -0.5), Color(0.92, 0.94, 0.98), 1.6)
+			draw_circle(Vector2(-22, 0), 4.5, button_color)
+		_:
+			draw_set_transform(tip, quiver, Vector2(0.35, 1.0))  # сюрикен воткнулся ребром
+			var pts := PackedVector2Array()
+			for i in 8:
+				pts.append(Vector2.from_angle(TAU * i / 8.0) * (12.0 if i % 2 == 0 else 4.0) + Vector2(-8, 0))
+			draw_colored_polygon(pts, Color(0.45, 0.47, 0.52))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 func _draw() -> void:
+	if is_missed():
+		_draw_miss()
+		return
 	var glow := Color(1, 0.8, 0.3, 0.3)
 	match kind:
 		Kind.WHITE:

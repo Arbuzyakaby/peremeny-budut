@@ -265,7 +265,7 @@ func _on_node(id: String) -> void:
 	if Skills.buy(id):
 		Design.play("perk")
 	else:
-		Design.play("no_stamina")
+		Design.refuse(node_buttons[id])
 	refresh()
 	_show_desc(id)
 

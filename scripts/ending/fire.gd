@@ -18,19 +18,22 @@ const SIM_RATE := 12.0
 const FIRE_SHADER := """
 shader_type canvas_item;
 uniform sampler2D data_tex : filter_linear;      // R — температура, G — уголь, B — зола, A — расплав
-uniform sampler2D info_tex : filter_linear;      // R — материал ×32 (читается texelFetch), G — пена
+uniform sampler2D info_tex : filter_linear;      // R — материал ×32 (читается texelFetch), G — пена, B — копоть
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
 uniform vec2 cells = vec2(96.0, 54.0);
 uniform float max_t = 1400.0;
 uniform bool haze = true;
 %s
-// цвет раскалённого тела по температуре в °C (приближение кривой абсолютно чёрного тела)
-vec3 blackbody(float t) {
-	float k = clamp((t - 450.0) / 1000.0, 0.0, 1.0);
+// цвет раскалённого тела по температуре в °C (приближение кривой абсолютно чёрного тела):
+// тёмно-красный → оранжевый → жёлтый → бело-жёлтый; к 1350 °C (почти max_t) — уже бело-жёлтый
+vec3 bb_hue(float t) {
+	float k = clamp((t - 450.0) / 900.0, 0.0, 1.0);
 	vec3 c = mix(vec3(0.45, 0.02, 0.0), vec3(1.0, 0.3, 0.02), smoothstep(0.0, 0.3, k));
 	c = mix(c, vec3(1.0, 0.72, 0.22), smoothstep(0.3, 0.65, k));
-	c = mix(c, vec3(1.0, 0.95, 0.82), smoothstep(0.65, 1.0, k));
-	return c * (0.5 + 1.1 * k);
+	return mix(c, vec3(1.0, 0.95, 0.82), smoothstep(0.65, 1.0, k));
+}
+vec3 blackbody(float t) {  // оттенок × яркость свечения
+	return bb_hue(t) * (0.5 + 1.1 * clamp((t - 450.0) / 900.0, 0.0, 1.0));
 }
 void fragment() {
 	vec2 px = UV * vec2(1280.0, 720.0);
@@ -45,25 +48,26 @@ void fragment() {
 	float n = fbm(px * 0.03);
 	float n2 = fbm(px * 0.11 + 7.0);
 	vec4 col = vec4(0.0);
-	// уголь: неровный фронт обугливания
-	float char_a = smoothstep(0.04, 0.55, burnt + (n - 0.5) * 0.4);
-	vec3 charc = vec3(0.055, 0.042, 0.033) * (0.7 + 0.6 * n2);
-	if (mat == 1.0) {  // дерево: трещины «крокодиловой кожи» вдоль волокон
-		vec2 q = px * vec2(0.06, 0.12) + n * 3.0;
-		float cr = min(abs(fract(q.x + vnoise(q * 0.7) * 0.8) - 0.5), abs(fract(q.y * 0.6) - 0.5));
-		charc *= 0.55 + 0.6 * smoothstep(0.02, 0.12, cr);
+	float soot = texture(info_tex, UV).b;
+	// уголь: неровный фронт обугливания, почти чёрный и непрозрачный — ящик после огня выглядит сломанным
+	float char_a = smoothstep(0.04, 0.45, burnt + (n - 0.5) * 0.4);
+	vec3 charc = vec3(0.045, 0.034, 0.026) * (0.6 + 0.6 * n2);
+	// трещины корки: у дерева — «крокодиловая кожа» вдоль волокон, у масляной плёнки — мелкая сетка
+	vec2 q = mat == 1.0 ? px * vec2(0.06, 0.12) + n * 3.0 : px * vec2(0.09, 0.09) + n * 4.0;
+	float cr = min(abs(fract(q.x + vnoise(q * 0.7) * 0.8) - 0.5), abs(fract(q.y * 0.6 + vnoise(q * 0.5) * 0.6) - 0.5));
+	charc *= 0.45 + 0.7 * smoothstep(0.02, 0.12, cr);
+	// копоть: закопчённое, но не сгоревшее (рядом с огнём, металл, скорлупа) — тёмный налёт
+	col = vec4(charc, max(char_a * 0.97, smoothstep(0.2, 1.0, soot) * 0.5));
+	// зола: тёмно-серая с хлопьями светлее — контрастна и к углю, и к полу; у бумаги хлопья светлее
+	float ash_a = smoothstep(0.08, 0.7, ash + (n2 - 0.5) * 0.35);
+	float flake = smoothstep(0.5, 0.72, n2);
+	vec3 ashc = mix(vec3(0.17, 0.16, 0.15), vec3(0.46, 0.44, 0.41), flake);          // дерево, ткань
+	if (mat == 2.0) ashc = mix(vec3(0.26, 0.25, 0.24), vec3(0.7, 0.68, 0.64), flake); // бумага
+	if (mat == 5.0 || mat == 3.0) {                                                  // масло и пластик — сажа
+		ashc = mix(vec3(0.05, 0.045, 0.04), vec3(0.24, 0.22, 0.2), smoothstep(0.6, 0.8, n2));
 	}
-	col = vec4(charc, char_a * 0.93);
-	// зола: пепельно-серая, у бумаги почти белая, лежит хлопьями
-	float ash_a = smoothstep(0.08, 0.8, ash + (n2 - 0.5) * 0.35);
-	vec3 ashc = mix(vec3(0.36, 0.34, 0.32), vec3(0.72, 0.7, 0.66), n2);          // дерево, ткань
-	if (mat == 2.0) ashc = mix(vec3(0.62, 0.6, 0.57), vec3(0.9, 0.88, 0.84), n2); // бумага — почти белая
-	if (mat == 5.0 || mat == 3.0) {                                               // масло и пластик — сажа
-		ashc = mix(vec3(0.08, 0.075, 0.07), vec3(0.3, 0.28, 0.26), smoothstep(0.55, 0.8, n2));
-		ash_a *= 0.9;
-	}
-	col.rgb = mix(col.rgb, ashc, ash_a * 0.85);
-	col.a = max(col.a, ash_a * 0.85);
+	col.rgb = mix(col.rgb, ashc, ash_a * 0.9);
+	col.a = max(col.a, ash_a * 0.95);
 	// тление: раскалённый уголь светится в трещинах
 	float glow = smoothstep(420.0, 850.0, temp) * char_a;
 	float embers = glow * (0.35 + 0.65 * smoothstep(0.5, 0.78, n2 + 0.18 * sin(TIME * 2.3 + n * 11.0)));
@@ -102,6 +106,8 @@ void fragment() {
 	vec3 fc = mix(vec3(0.5, 0.05, 0.02), vec3(1.0, 0.42, 0.05), smoothstep(0.48, 0.82, shape));
 	fc = mix(fc, vec3(1.0, 0.78, 0.3), smoothstep(0.82, 1.0, shape));
 	fc = mix(fc, vec3(1.0, 0.95, 0.8), smoothstep(1.02, 1.25, shape));
+	// пик: у самых горячих клеток сердцевина языка уходит в бело-жёлтый (как blackbody при max_t)
+	fc = mix(fc, bb_hue(ft), smoothstep(1000.0, 1300.0, ft) * smoothstep(0.7, 1.0, shape));
 	fc *= 0.85 + 0.35 * smoothstep(700.0, 1100.0, ft);
 	col.rgb = mix(col.rgb, fc, tongue * 0.9);
 	col.a = max(col.a, tongue * 0.85);
@@ -125,6 +131,9 @@ void fragment() {
 """
 
 ## Обломки битвы на дне ящика: разные материалы горят по-разному. [вид, позиция, размер, поворот]
+## Это «эталонная» раскладка: в каждом ране обломки меняются местами и чуть сдвигаются от сида
+## (build_layout), а под каждой половинкой капсулы лежит затравка — обрывок протокола (вид "scrap",
+## бумага): вспыхивает первым и гарантированно доводит пластик до плавления.
 const DEBRIS := [
 	["paper", Vector2(220, 170), Vector2(70, 50), 0.3], ["paper", Vector2(1010, 560), Vector2(64, 46), -0.5],
 	["paper", Vector2(760, 150), Vector2(56, 40), 0.9],
@@ -136,12 +145,19 @@ const DEBRIS := [
 	["fabric", Vector2(300, 620), Vector2(24, 0), 0.0],
 	["shell", Vector2(700, 420), Vector2(26, 0), 0.4], ["shell", Vector2(420, 120), Vector2(22, 0), 2.0],
 ]
+const DEBRIS_JITTER := 20.0            # сдвиг обломков от сида (после перемешивания мест), px
+const SCRAP_SIZE := Vector2(34, 18)    # затравка под пластиком
+const SCRAP_GAP := 12.0                # зазор между капсулой и затравкой, px
+const MAT_OF := {"paper": FireSim.Mat.PAPER, "scrap": FireSim.Mat.PAPER, "plastic": FireSim.Mat.PLASTIC,
+	"metal": FireSim.Mat.METAL, "fabric": FireSim.Mat.FABRIC, "shell": FireSim.Mat.SHELL}
 
 var origin := Vector2(640, 360)
 var radius := 0.0
 var active := false
 var strength := 1.0   # 1 — горит в полную силу, 0 — потушен
 var t := 0.0
+var seed_value := 0   # сид раскладки и вариаций (ending.gd задаёт случайный до add_child)
+var layout: Array = []  # обломки этого рана (как DEBRIS, но сдвинутые, плюс затравки)
 var sim: FireSim
 var rect: ColorRect
 var data_img: Image
@@ -164,23 +180,52 @@ func _ready() -> void:
 		return
 	var low := Platform.is_mobile()
 	sim = FireSim.new(64 if low else 96, 36 if low else 54, AREA)
-	_build_materials()
+	layout = build_layout(sim, seed_value)
 	debris = Node2D.new()  # обломки лежат под змеёй, огонь — над ней
 	debris.z_index = -5
 	debris.draw.connect(_draw_debris)
 	add_child(debris)
 
 
-## Карта материалов: пол — масляная плёнка на чугунной сковороде, бортики — дерево, обломки битвы.
-func _build_materials() -> void:
+## Карта материалов: пол — масляная плёнка на чугунной сковороде, бортики — дерево, обломки битвы
+## (от сида: места обломков перемешаны между собой и чуть сдвинуты, повороты свои) и затравки под
+## пластиком; затем sim.vary(seed). Возвращает раскладку обломков. Статическая — тесты строят ящик без узла.
+static func build_layout(s_sim: FireSim, seed_value: int) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	var spots: Array[Vector2] = []
+	for d: Array in DEBRIS:
+		spots.append(d[1])
+	for i in range(spots.size() - 1, 0, -1):  # перемешивание Фишера–Йетса от сида (Array.shuffle — от общего ГСЧ)
+		var j := rng.randi_range(0, i)
+		var tmp := spots[i]
+		spots[i] = spots[j]
+		spots[j] = tmp
+	var out: Array = []
+	var scraps: Array = []
+	for k in DEBRIS.size():
+		var d: Array = DEBRIS[k]
+		var p: Vector2 = spots[k] + Vector2(rng.randf_range(-1, 1), rng.randf_range(-1, 1)) * DEBRIS_JITTER
+		p = p.clamp(Vector2(70, 70), Vector2(1210, 620 if d[0] == "plastic" else 650))
+		out.append([d[0], p, d[2], float(d[3]) + rng.randf_range(-0.4, 0.4)])
+		if d[0] == "plastic":  # затравка чуть ниже капсулы: пламя идёт вверх — прямо на пластик
+			var sp := p + Vector2(rng.randf_range(-8, 8), d[2].x + SCRAP_GAP + SCRAP_SIZE.y / 2.0)
+			scraps.append(["scrap", sp, SCRAP_SIZE, rng.randf_range(-0.3, 0.3)])
+	out.append_array(scraps)  # затравки — последними, чтобы их не перекрыл соседний обломок
+	_fill_layout(s_sim, out)
+	s_sim.vary(seed_value)
+	return out
+
+
+static func _fill_layout(sim: FireSim, items: Array) -> void:
 	sim.fill_rect(AREA, FireSim.Mat.OIL)
 	for r in [Rect2(0, 0, 1280, 24), Rect2(0, 696, 1280, 24), Rect2(0, 0, 24, 720), Rect2(1256, 0, 24, 720)]:
 		sim.fill_rect(r, FireSim.Mat.WOOD)
-	for d: Array in DEBRIS:
+	for d: Array in items:
 		var p: Vector2 = d[1]
 		var s: Vector2 = d[2]
 		match d[0]:
-			"paper":
+			"paper", "scrap":
 				sim.fill_rect(Rect2(p - s / 2.0, s), FireSim.Mat.PAPER)
 			"plastic":
 				sim.fill_circle(p, s.x, FireSim.Mat.PLASTIC)
@@ -217,7 +262,7 @@ func _make_render() -> void:
 		return
 	sim.pack(_data, _info)
 	data_img = Image.create_from_data(sim.w, sim.h, false, Image.FORMAT_RGBA8, _data)
-	info_img = Image.create_from_data(sim.w, sim.h, false, Image.FORMAT_RG8, _info)
+	info_img = Image.create_from_data(sim.w, sim.h, false, Image.FORMAT_RGB8, _info)
 	data_tex = ImageTexture.create_from_image(data_img)
 	info_tex = ImageTexture.create_from_image(info_img)
 	var sh := Shader.new()
@@ -241,7 +286,7 @@ func _upload() -> void:
 		return
 	sim.pack(_data, _info)
 	data_img.set_data(sim.w, sim.h, false, Image.FORMAT_RGBA8, _data)
-	info_img.set_data(sim.w, sim.h, false, Image.FORMAT_RG8, _info)
+	info_img.set_data(sim.w, sim.h, false, Image.FORMAT_RGB8, _info)
 	data_tex.update(data_img)
 	info_tex.update(info_img)
 
@@ -281,6 +326,11 @@ func coverage() -> float:
 	if not active:
 		return 0.0
 	return clampf(sim.burning_fraction() * 2.2, 0.0, 1.0) * strength
+
+
+## Сколько клеток сгорело — строка «Сожжено клеток» в протоколе (титрах).
+func burnt_cells() -> int:
+	return sim.burnt_cells() if sim else 0
 
 
 ## Сколько осталось золы и угля (для тестов и яйца «в пепле»).
@@ -356,7 +406,7 @@ func _update_radius() -> void:
 
 ## Цвет раскалённого металла по температуре — как blackbody() в шейдере.
 static func glow_color(temp: float) -> Color:
-	var k := clampf((temp - 450.0) / 1000.0, 0.0, 1.0)
+	var k := clampf((temp - 450.0) / 900.0, 0.0, 1.0)
 	var c := Color(0.45, 0.02, 0.0).lerp(Color(1.0, 0.3, 0.02), smoothstep(0.0, 0.3, k))
 	c = c.lerp(Color(1.0, 0.72, 0.22), smoothstep(0.3, 0.65, k))
 	return c.lerp(Color(1.0, 0.95, 0.82), smoothstep(0.65, 1.0, k))
@@ -364,18 +414,20 @@ static func glow_color(temp: float) -> Color:
 
 ## Обломки битвы на дне ящика. Каждый ведёт себя по своему материалу: бумага желтеет, сворачивается
 ## и исчезает, пластик оседает и растекается, клок плюша сгорает, металл краснеет и светится,
-## скорлупа коптится. Уголь, золу и лужи расплава поверх рисует шейдер.
+## скорлупа коптится. Копоть и окалина (sim.scorch) после огня остаются. Уголь, золу и лужи
+## расплава поверх рисует шейдер.
 func _draw_debris() -> void:
 	var ci := debris
-	for d: Array in DEBRIS:
+	for d: Array in layout:
 		var p: Vector2 = d[1]
 		var s: Vector2 = d[2]
 		var rot: float = d[3]
 		var i := sim.index_at(p)
 		var temp := sim.temp[i]
 		var burnt := sim.charred[i]
+		var scorch := sim.scorch[i]
 		match d[0]:
-			"paper":  # листок протокола: желтеет от жара, сворачивается и сгорает
+			"paper", "scrap":  # листок протокола (или его обрывок): желтеет от жара, сворачивается и сгорает
 				if burnt > 0.95:
 					continue
 				var curl := 1.0 - burnt * 0.7
@@ -385,6 +437,8 @@ func _draw_debris() -> void:
 				ci.draw_rect(Rect2(-s / 2.0, s), Color(0.95, 0.91, 0.8).lerp(Color(0.62, 0.42, 0.18), tan))
 				for k in 4:
 					var y := -s.y / 2.0 + 10.0 + k * 9.0
+					if y > s.y / 2.0 - 4.0:
+						break
 					ci.draw_line(Vector2(-s.x / 2.0 + 6, y), Vector2(s.x / 2.0 - 6, y), Color(0.4, 0.45, 0.6, 0.5 * curl), 1.0)
 				if burnt > 0.05:  # тлеющий край
 					ci.draw_rect(Rect2(-s / 2.0, s), glow_color(maxf(temp, 700.0)), false, 2.5)
@@ -400,7 +454,8 @@ func _draw_debris() -> void:
 			"metal":  # обломок вилки: окалина и накал по температуре
 				var dir := Vector2.from_angle(rot) * s.x / 2.0
 				var hot := smoothstep(480.0, 760.0, temp)
-				var base := Color(0.72, 0.5, 0.32).lerp(Color(0.2, 0.17, 0.17), clampf((temp - 200.0) / 300.0, 0.0, 1.0))
+				var scale_k := maxf(clampf((temp - 200.0) / 300.0, 0.0, 1.0), scorch)  # окалина остаётся
+				var base := Color(0.72, 0.5, 0.32).lerp(Color(0.2, 0.17, 0.17), scale_k)
 				ci.draw_line(p - dir + Vector2(2, 3), p + dir + Vector2(2, 3), Color(0, 0, 0, 0.3), 9.0)
 				ci.draw_line(p - dir, p + dir, Color(0.3, 0.26, 0.25).lerp(glow_color(temp), hot * 0.8), 8.0)
 				ci.draw_line(p - dir, p + dir, base.lerp(glow_color(temp), hot), 4.0)
@@ -415,7 +470,7 @@ func _draw_debris() -> void:
 					ci.draw_circle(p + Vector2.from_angle(k * 1.3) * s.x * 0.5 * k2, s.x * 0.35 * k2,
 						Color(0.96, 0.94, 0.9).lerp(Color(0.2, 0.18, 0.16), burnt))
 			"shell":  # скорлупа — не горит, только коптится
-				var soot := clampf((temp - 150.0) / 500.0, 0.0, 0.85)
+				var soot := clampf(maxf((temp - 150.0) / 500.0, scorch), 0.0, 0.85)  # копоть не отмывается
 				ci.draw_set_transform(p, rot, Vector2.ONE)
 				ci.draw_colored_polygon(PackedVector2Array([Vector2(-s.x, 0), Vector2(-s.x * 0.4, -s.x * 0.7),
 					Vector2(s.x * 0.6, -s.x * 0.5), Vector2(s.x, 0.2 * s.x), Vector2(0, s.x * 0.4)]),

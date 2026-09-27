@@ -59,6 +59,7 @@ const TYPE := {
 	"caption": [14, "bold", 0],
 	"overline": [13, "heavy", 0],  # надписи капсом над группами
 	"number": [30, "heavy", 0],
+	"readout": [16, "mono", 0],    # цифры в окошке счётчика: значения крутилок и фейдеров
 	"hud": [18, "heavy", 5],       # поверх игрового поля — с обводкой
 	"hud_big": [34, "heavy", 7],
 	"banner": [44, "heavy", 10],
@@ -66,7 +67,7 @@ const TYPE := {
 
 # ---------------------------------------------------------------- движение
 
-const FAST := 0.12     # наведение, нажатие
+const FAST := 0.08     # наведение, нажатие (80 мс — на грани восприятия, отклик не «лагает»)
 const BASE := 0.2      # появление элементов, тумблер
 const SLOW := 0.35     # панели и экраны
 const SCENIC := 0.6    # заголовки и сцены
@@ -77,6 +78,9 @@ static var _knobs: Dictionary = {}
 static var _styles: Dictionary = {}
 ## Проигрыватель звуков интерфейса (sfx.gd). Назначается HUD.
 static var sound_player: Node
+## «Паника» интерфейса 0..1: в финале её поднимает пожар (доля горящего). Лампы и нити накала
+## мигают чаще, табло подрагивают, снизу панелей идёт отблеск огня. 0 — спокойный прибор.
+static var panic := 0.0
 
 
 # ---------------------------------------------------------------- шрифты
@@ -87,6 +91,7 @@ static func clear_cache() -> void:
 	_styles.clear()
 	Materials.clear_cache()
 	sound_player = null
+	panic = 0.0
 
 
 static func font(weight: String) -> Font:
@@ -360,6 +365,34 @@ static func press_bounce(c: Control) -> void:
 	var tw := c.create_tween()
 	tw.tween_property(c, "scale", Vector2(0.975, 0.965), FAST * 0.4)
 	tw.tween_property(c, "scale", Vector2.ONE, FAST * 1.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+const REFUSE_TIME := 0.15  # вспышка отказа
+const REFUSE_SHAKE := 3.0  # px
+
+
+## Видимый отказ «нельзя»: дребезг реле, контрол дёргается вбок на 3 px и возвращается, лицо на
+## 150 мс вспыхивает томатным. Без картинки игрок решит, что клик не дошёл, и нажмёт ещё раз.
+## «Меньше анимации» оставляет только вспышку.
+static func refuse(c: CanvasItem) -> void:
+	play("ui_error")
+	if c == null or not c.is_inside_tree():
+		return
+	var base_mod: Color = c.get_meta("refuse_mod", c.modulate)  # повторный отказ — от исходного цвета
+	c.set_meta("refuse_mod", base_mod)
+	var tw := c.create_tween()
+	c.modulate = base_mod * Color(danger().lightened(0.35), 1.0)
+	tw.tween_property(c, "modulate", base_mod, REFUSE_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_callback(func() -> void: c.remove_meta("refuse_mod"))
+	if Settings.flag("reduced_motion") or not (c is Control):
+		return
+	var ctl := c as Control
+	var x: float = ctl.get_meta("refuse_x", ctl.position.x)
+	ctl.set_meta("refuse_x", x)
+	var sh := ctl.create_tween()
+	for dx in [REFUSE_SHAKE, -REFUSE_SHAKE * 0.8, REFUSE_SHAKE * 0.4, 0.0]:
+		sh.tween_property(ctl, "position:x", x + dx, REFUSE_TIME / 4.0)
+	sh.tween_callback(func() -> void: ctl.remove_meta("refuse_x"))
 
 
 ## Откидная прозрачная крышка над опасной клавишей: закрыта — клавиша под стеклом, открыта —

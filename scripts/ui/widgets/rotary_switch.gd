@@ -53,7 +53,7 @@ func position_angle(i: int) -> float:
 func turn(dir: int) -> void:
 	var to := clampi(selected + dir, 0, options.size() - 1)
 	if to == selected:
-		Design.play("ui_error")
+		Design.refuse(self)
 		return
 	_go(to)
 

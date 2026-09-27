@@ -12,6 +12,7 @@ const FriedEggBoss = preload("res://scripts/entities/fried_egg_boss.gd")
 const OilDrop = preload("res://scripts/entities/oil_drop.gd")
 const Shockwave = preload("res://scripts/entities/shockwave.gd")
 
+const INNER := Rect2(24, 24, 1232, 672)  # внутри бортиков: сюда падают промахнувшиеся снаряды
 const CONFETTI := [Color(0.95, 0.3, 0.5), Color(0.3, 0.7, 0.95), Color(0.6, 0.9, 0.3), Color(1, 0.85, 0.3)]
 
 var g  # game.gd
@@ -150,13 +151,19 @@ func update_drops(delta: float) -> void:
 	var snake: Snake = g.snake
 	for d: OilDrop in drops.duplicate():
 		d.update(delta, snake.head_pos)
+		if d.is_missed():  # промах лежит на полу и никого не ранит
+			if d.miss_done():
+				remove_drop(d)
+			continue
 		if d.from_snake:
 			var contact := _snake_shot_hits(d)
 			if d.kind == OilDrop.Kind.CRACKER and (contact or d.should_explode()):
 				explode(d.position, true)
 				remove_drop(d)
-			elif contact or d.life <= 0.0 or not Balance.ARENA.has_point(d.position):
+			elif contact:
 				remove_drop(d)
+			elif _missed(d):
+				_end_flight(d)
 			continue
 		if d.kind == OilDrop.Kind.CRACKER:
 			var touched := snake.alive and d.position.distance_to(snake.head_pos) < OilDrop.RADIUS + Snake.HEAD_RADIUS
@@ -179,8 +186,27 @@ func update_drops(delta: float) -> void:
 					g.enemies.friendly_hit(bear, thrower, d.vel.normalized() * 240.0)
 					hit = true
 					break
-		if hit or d.life <= 0.0 or not Balance.ARENA.has_point(d.position):
+		if hit:
 			remove_drop(d)
+		elif _missed(d):
+			_end_flight(d)
+
+
+## Снаряд пролетел мимо: выдохся или долетел до бортика (тот, что остаётся на полу, — уже у бортика).
+func _missed(d: OilDrop) -> bool:
+	if d.life <= 0.0:
+		return true
+	if OilDrop.misses_visibly(d.kind):
+		return not INNER.has_point(d.position)
+	return not Balance.ARENA.has_point(d.position)
+
+
+## Промах: зубец втыкается, пуговица падает и катится; остальное просто исчезает.
+func _end_flight(d: OilDrop) -> void:
+	if OilDrop.misses_visibly(d.kind):
+		d.begin_miss(INNER)
+	else:
+		remove_drop(d)
 
 
 func update_waves(delta: float) -> void:
@@ -207,7 +233,7 @@ func update_waves(delta: float) -> void:
 ## Вертушка и теневой рывок сбивают вражеские снаряды рядом с головой.
 func cut_enemy_drops(center: Vector2, radius: float, keep_crackers: bool, col: Color) -> void:
 	for d: OilDrop in drops.duplicate():
-		if d.from_snake or (keep_crackers and d.kind == OilDrop.Kind.CRACKER):
+		if d.from_snake or d.is_missed() or (keep_crackers and d.kind == OilDrop.Kind.CRACKER):
 			continue
 		if d.position.distance_to(center) < radius:
 			g.fx.burst(d.position, col, 4)

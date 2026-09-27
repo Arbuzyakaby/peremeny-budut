@@ -5,7 +5,8 @@ extends Node
 ## 2. камера проезжает по полкам с образцами прошлых экспериментов (медведь, вилка, таблетка);
 ## 3. учёный пишет в протоколе, достаёт спичку — выбор игрока:
 ##    ЛКМ — бросить спичку самому; ничего не делать — гром, учёный вздрагивает и роняет спичку;
-## 4. пожар охватывает ящик, змея сгорает;
+## 4. пожар охватывает ящик, змея сгорает (первая вспышка — событие: тишина, белый экран, удар;
+##    треск и паника интерфейса следуют за силой огня);
 ## 5. учёный тушит огнетушителем, ставит штамп «УТИЛИЗИРОВАНО», гасит лампу и уходит;
 ## 6. в темноте в пепле блестит яйцо — из него вылупляется маленькая змейка. «ПЕРЕМЕНЫ БУДУТ».
 ## 7. титры со статистикой забега. Esc — пропустить.
@@ -20,6 +21,20 @@ const Sfx = preload("res://scripts/audio/sfx.gd")
 const Tex = preload("res://scripts/gfx/tex.gd")
 const Hatch = preload("res://scripts/ending/hatch.gd")
 const Credits = preload("res://scripts/ending/credits.gd")
+const Design = preload("res://scripts/ui/design.gd")
+const Settings = preload("res://scripts/core/settings.gd")
+
+## Первое возгорание — событие: HUSH тишины (sfx.hush), затем белая вспышка, «ignite» в полную силу
+## и тряска; музыка молчит ещё MUSIC_GAP после вспышки.
+const HUSH := 0.2
+const HUSH_MARGIN := 0.03  # удар — через кадр-два после конца тишины: атака не попадает под -80 дБ
+const MUSIC_GAP := 0.1
+const IGNITE_DB := 2.0
+const IGNITE_SHAKE := 50.0
+## Треск пожара: частота и громкость растут с долей огня (fire.coverage()) — в обе стороны.
+const CRACKLE_RATE := Vector2(0.7, 14.0)   # щелчков в секунду: огонёк … весь ящик
+const CRACKLE_DB := Vector2(-18.0, 0.0)    # громкость: огонёк … весь ящик
+const PANIC_GAIN := 1.4                    # Design.panic = coverage × PANIC_GAIN (до 1)
 
 const ZOOM_OUT := Vector2(0.25, 0.25)
 const CAM_POS := Vector2(1600, 60)
@@ -75,6 +90,9 @@ var tick_t := 0.0
 var choice := ""  # "throw" — бросил игрок, "thunder" — уронил от грома
 var t := 0.0
 var in_dark := false
+var tw_flare: Tween
+var crackle_t := 0.0
+var crackles := 0  # сколько раз трещало (тесты)
 
 
 func start(g) -> void:
@@ -87,6 +105,7 @@ func start(g) -> void:
 	lab.z_index = -10
 	g.add_child(lab)
 	fire = Fire.new()
+	fire.seed_value = randi()  # каждый пожар свой: раскладка обломков, прогрев углов, запас топлива
 	fire.z_index = 6
 	g.world.add_child(fire)
 	darkness = CanvasModulate.new()
@@ -248,12 +267,38 @@ func _fly_match(k: float, from: Vector2) -> void:
 	lab.match_rot = -PI / 2 + k * TAU * 1.25
 
 
+## Спичка упала: кинопауза тишины, затем вспышка (_flare).
 func _ignite() -> void:
 	lab.match_state = Lab.Match.GONE
+	sfx.hush(HUSH)
+	sfx.music_player.stream_paused = true
+	tw_flare = create_tween()
+	tw_flare.tween_interval(HUSH)
+	tw_flare.tween_callback(_end_hush)
+	tw_flare.tween_interval(HUSH_MARGIN)
+	tw_flare.tween_callback(_flare)
+	tw_flare.tween_interval(MUSIC_GAP)
+	tw_flare.tween_callback(func() -> void: sfx.music_player.stream_paused = false)
+
+
+## Страховка: таймер sfx.hush() может сработать чуть раньше, чем разрешает его проверка по часам, —
+## тогда тишина не снимается. hush(0) снимает её на следующем кадре; если всё уже звучит — ничего.
+func _end_hush() -> void:
+	if sfx.is_hushed():
+		sfx.hush(0.0)
+
+
+## Первая вспышка: белый экран (мягче при «меньше анимации» и без вспышек урона — решает
+## hud_overlay.flash), удар «ignite» в полную силу, тряска.
+func _flare() -> void:
+	if done:
+		return
 	fire.start(impact)
-	sfx.play("ignite")
+	hud.overlay.flash(1.0)
+	sfx.play("ignite", 1.0, IGNITE_DB)
 	sfx.play_ambient("fire", -14.0)
-	game.shake = 50.0
+	game.shake = IGNITE_SHAKE * (0.3 if Settings.flag("reduced_motion") else 1.0)
+	crackle_t = 0.0
 	snake.auto_speed = 330.0
 	create_tween().tween_property(lab, "glow", 1.0, 2.0)
 	var t2 := create_tween()
@@ -291,7 +336,16 @@ func _process(delta: float) -> void:
 		return
 	if fire == null or not fire.active:
 		return
-	sfx.set_ambient_volume(lerpf(-20.0, -3.0, fire.coverage()))
+	var cov := fire.coverage()
+	sfx.set_ambient_volume(lerpf(-20.0, -3.0, cov))
+	# треск: огонёк — редкие тихие щелчки, весь ящик — плотный громкий треск
+	crackle_t -= delta
+	if cov > 0.005 and crackle_t <= 0.0:
+		crackle_t = randf_range(0.6, 1.4) / crackle_rate(cov)
+		sfx.play("crackle", randf_range(0.85, 1.2), crackle_db(cov))
+		crackles += 1
+	# интерфейс паникует вместе с пожаром и успокаивается, когда огонь потушен
+	Design.panic = move_toward(Design.panic, panic_level(cov), delta * 2.5)
 	if not snake_burnt:
 		lab.look = snake.head_pos
 		# змея в панике убегает от огня
@@ -387,7 +441,7 @@ func _burn_snake() -> void:
 	# титры
 	tw_end.tween_callback(func() -> void:
 		blur_rect.visible = true
-		hud.roll_credits(Credits.text(game, choice_text()), 16.0))
+		hud.roll_credits(Credits.text(game, choice_text(), fire.burnt_cells()), 16.0))
 	tw_end.tween_method(_set_blur, 0.0, 0.7, 2.5)
 	tw_end.tween_interval(14.0)
 	tw_end.tween_method(_set_blur, 0.7, 1.0, 1.0)
@@ -398,6 +452,7 @@ func _burn_snake() -> void:
 func _spray() -> void:
 	lab.spraying = true
 	sfx.play("extinguisher")
+	sfx.duck(-4.0, 0.5)  # струя не тонет в треске: шина Ambient (петля огня, треск, горение) — тише
 	foam = CPUParticles2D.new()
 	foam.z_as_relative = false
 	foam.z_index = 41
@@ -448,6 +503,21 @@ func _set_blur(k: float) -> void:
 	blur_mat.set_shader_parameter("dark", k * 0.8)
 
 
+## Щелчков треска в секунду при доле огня cov (0..1).
+static func crackle_rate(cov: float) -> float:
+	return lerpf(CRACKLE_RATE.x, CRACKLE_RATE.y, clampf(cov, 0.0, 1.0))
+
+
+## Громкость щелчка треска (дБ) при доле огня cov.
+static func crackle_db(cov: float) -> float:
+	return lerpf(CRACKLE_DB.x, CRACKLE_DB.y, sqrt(clampf(cov, 0.0, 1.0)))
+
+
+## Уровень паники интерфейса при доле огня cov.
+static func panic_level(cov: float) -> float:
+	return clampf(cov * PANIC_GAIN, 0.0, 1.0)
+
+
 func choice_text() -> String:
 	match choice:
 		"throw":
@@ -464,6 +534,11 @@ func skip() -> void:
 		tw.kill()
 	if tw_end:
 		tw_end.kill()
+	if tw_flare:
+		tw_flare.kill()
+	_end_hush()  # пропуск посреди кинопаузы — звук должен вернуться
+	sfx.music_player.stream_paused = false
+	Design.panic = 0.0
 	waiting_choice = false
 	hud.hide_prompt()
 	hud.stop_credits()
@@ -491,4 +566,11 @@ func _finish() -> void:
 	if done:
 		return
 	done = true
+	Design.panic = 0.0
 	finished.emit()
+
+
+func _exit_tree() -> void:
+	Design.panic = 0.0  # выход в меню посреди пожара — интерфейс не должен остаться в панике
+	if is_instance_valid(sfx) and sfx.music_player:
+		sfx.music_player.stream_paused = false

@@ -52,3 +52,75 @@ func test_fire_loop_is_seamless() -> void:
 func test_every_stage_track_is_known() -> void:
 	for t in ["level", "boss", "forks", "pills", "sad", "fire"]:
 		assert_true(t in SynthMusic.TRACKS, t)
+
+
+# ---------------------------------------------------------------- шина: голоса, разброс, ducking, тишина
+
+func _bus() -> Node:
+	var s: Node = add(Sfx.new())
+	s.last_played.clear()
+	return s
+
+
+func test_same_sound_uses_at_most_two_voices() -> void:
+	var s := _bus()
+	for i in 5:  # пять таблеток приземлились разом
+		s.last_played.clear()  # мимо кулдауна — проверяем именно лимит голосов
+		s.recent.clear()
+		s.play("pill_land")
+	assert_true(s.voices_of("pill_land") <= Sfx.MAX_SAME, "не больше двух приземлений одновременно")
+	assert_true(s.voices_of("pill_land") >= 1)
+
+
+func test_burst_limit_drops_extra_but_not_priority() -> void:
+	var s := _bus()
+	for n in ["bite", "pop", "step", "kick", "shuriken", "clang", "splat", "poof"]:
+		s.play(n)
+	assert_eq(s.recent.size(), Sfx.BURST_MAX, "за 100 мс — не больше четырёх новых звуков")
+	assert_true(s.dropped >= 2, "лишние отброшены")
+	var before: int = s.dropped
+	s.play("ignite")
+	s.play("ui_error")
+	assert_eq(s.dropped, before, "важные и звуки интерфейса проходят всегда")
+
+
+func test_pitch_jitter_ranges() -> void:
+	for i in 40:
+		var j := Sfx.jitter_of("step")
+		assert_true(j >= 1.0 - Sfx.JITTER - 0.0001 and j <= 1.0 + Sfx.JITTER + 0.0001, "шаги ±3%")
+		var d := Sfx.jitter_of("ui_detent")
+		assert_true(d >= 0.95 and d <= 1.05, "детент ±5%")
+	assert_eq(Sfx.jitter_of("win"), 1.0, "мелодичные — без разброса")
+	for n in ["pill_land", "bite", "pop", "step", "shuriken"]:
+		assert_false(n in Sfx.NO_JITTER, n + " — с разбросом")
+
+
+func test_duck_and_hush() -> void:
+	var s := _bus()
+	s.duck(-4.0, 0.05, 0.05)
+	assert_near(s.duck_db(), -4.0, 0.01, "огонь приглушён под огнетушителем")
+	assert_near(AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Ambient")),
+		linear_to_db(maxf(Settings.num("ambient"), 0.0001)), 0.01, "громкость шины из настроек не тронута")
+	await tree.create_timer(0.3).timeout
+	assert_near(s.duck_db(), 0.0, 0.01, "вернулся")
+	s.hush(0.05)
+	assert_true(s.is_hushed(), "тишина перед вспышкой")
+	await tree.create_timer(0.2).timeout
+	assert_false(s.is_hushed(), "тишина кончилась")
+	s.play("crackle")
+	for i in s.players.size():
+		if s.voice_names[i] == "crackle":
+			assert_eq(s.players[i].bus, &"Ambient", "треск идёт через шину огня")
+
+
+func test_hush_always_releases() -> void:
+	var s := _bus()
+	s.hush(0.3)
+	s.hush(0.05)  # повторная пауза: снимает её таймер последнего вызова, а не первого
+	await tree.create_timer(0.15).timeout
+	assert_false(s.is_hushed(), "звук вернулся, даже если таймер сработал раньше часов")
+	s.hush(5.0)
+	s.hush(0.0)
+	assert_false(s.is_hushed(), "hush(0) снимает тишину сразу")
+	await tree.create_timer(0.3).timeout
+	assert_false(s.is_hushed(), "старый таймер не глушит повторно")

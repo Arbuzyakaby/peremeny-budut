@@ -34,7 +34,7 @@ func _on_menu() -> void:
 	if Settings.flag("confirm_quit") and not menu_armed:
 		menu_armed = true
 		menu_button.text = "ЗАБЕГ ПРОПАДЁТ — ЖМИ ЕЩЁ РАЗ"
-		Design.play("ui_error")
+		Design.refuse(menu_button)
 		return
 	menu_requested.emit()
 

@@ -294,6 +294,9 @@ func update_forks(delta: float, snake: Snake) -> void:
 		if not is_instance_valid(f):
 			continue
 		if snake.alive and f.touches(snake.head_pos, Snake.HEAD_RADIUS):
+			if f.is_pincer_windup() and snake.sprinting and not snake.is_dashing():
+				pincer_breakout(f, snake)
+				continue
 			if snake.is_dashing():
 				if f.is_whirling():  # рывок сбивает вертушку, но не ломает
 					f.st = Fork.St.DIZZY
@@ -344,7 +347,25 @@ func update_forks(delta: float, snake: Snake) -> void:
 			f.bounce()
 
 
+## Прорыв из клещей: змея в спринте проходит сквозь вилку, пока та замахивается. Цена — стамина,
+## вилка отлетает оглушённой, остальные вилки клещей теряют синхрон.
+func pincer_breakout(f: Fork, snake: Snake) -> void:
+	var cost := Squad.BREAKOUT_STAMINA / snake.stamina_max
+	snake.stamina = maxf(snake.stamina - cost, 0.0)
+	if snake.stamina <= 0.01:
+		snake.exhausted = true
+	snake.invuln = maxf(snake.invuln, 0.4)  # проскочить сквозь зубцы
+	squad.breakout(f, forks)
+	f.knock_back(snake.head_pos)
+	g.fx.popup(f.position + Vector2(0, -30), "ПРОРЫВ!", Color(0.7, 0.9, 1))
+	g.fx.burst(f.position, Color(0.8, 0.8, 0.85), 10)
+	g.add_shake(5.0)
+	g.vibrate(30)
+
+
 func break_fork(f: Fork, prefix := "") -> void:
+	if f.pincer_id != 0:  # сломали вилку клещей — клещи разваливаются
+		squad.breakout(f, forks)
 	forks.erase(f)
 	g.fx.burst(f.position, Color(0.62, 0.32, 0.14), 16)
 	g.fx.burst(f.position, Color(0.8, 0.8, 0.85), 8)

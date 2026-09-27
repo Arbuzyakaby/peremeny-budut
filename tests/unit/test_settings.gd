@@ -73,9 +73,22 @@ func test_reads_v5_settings_file() -> void:
 func test_derived_values() -> void:
 	Settings.set_value("particles", 0)
 	assert_true(Settings.particle_mult() < 0.5)
-	Settings.set_value("ui_scale", 3)
+	Settings.set_value("ui_scale", 4)
 	assert_near(Settings.ui_scale(), 1.3)
+	Settings.set_value("ui_scale", 0)
+	assert_near(Settings.ui_scale(), 0.8, 0.001, "новое мелкое положение")
 	Settings.set_value("touch_mode", 1)
 	assert_true(Settings.touch_enabled())
 	Settings.set_value("touch_mode", 2)
 	assert_false(Settings.touch_enabled())
+
+
+func test_old_ui_scale_index_migrates() -> void:
+	var cf := ConfigFile.new()
+	cf.set_value("screen", "ui_scale", 1)  # до v7.2 индекс 1 означал 100%
+	cf.save(Settings.path)
+	Settings.load_from_disk()
+	assert_near(Settings.ui_scale(), 1.0, 0.001, "100% осталось 100%")
+	Settings.save()
+	Settings.load_from_disk()
+	assert_near(Settings.ui_scale(), 1.0, 0.001, "новый формат не сдвигается повторно")

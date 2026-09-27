@@ -5,7 +5,7 @@ extends Range
 
 const Design = preload("res://scripts/ui/design.gd")
 
-const D := 64.0
+const D := 52.0
 const SWEEP := PI * 1.5
 const START := PI * 0.75       # угол нуля: «семь часов»
 const DRAG_PIXELS := 160.0     # столько пикселей по вертикали — весь диапазон
@@ -22,7 +22,7 @@ func _init() -> void:
 	min_value = 0.0
 	max_value = 1.0
 	step = 0.05
-	custom_minimum_size = Vector2(D + 12, maxf(D + 12, Design.TOUCH_MIN))  # кольцо фокуса — внутри
+	custom_minimum_size = Vector2(D + 8, maxf(D + 8, Design.TOUCH_MIN))  # кольцо фокуса — внутри
 	size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	focus_mode = Control.FOCUS_ALL
 	mouse_default_cursor_shape = Control.CURSOR_VSIZE

@@ -115,3 +115,27 @@ func test_type_scale() -> void:
 		prev = Design.size_of(role)
 	assert_true(Design.label_settings("hud").outline_size > 0, "над полем — с обводкой")
 	assert_eq(Design.label_settings("body").outline_size, 0)
+
+
+func test_fast_motion_is_responsive() -> void:
+	assert_true(Design.FAST <= 0.08 + 0.0001, "нажатие не дольше 80 мс — иначе управление «лагает»")
+
+
+func test_refuse_is_visible() -> void:
+	Settings.set_value("reduced_motion", false)
+	var b: Button = add(Button.new())
+	b.position = Vector2(40, 10)
+	Design.refuse(b)
+	assert_true(b.modulate.g < 0.9, "отказ вспыхивает томатным")
+	await tree.create_timer(Design.REFUSE_TIME + 0.15).timeout
+	assert_near(b.modulate.g, 1.0, 0.01, "цвет вернулся")
+	assert_near(b.position.x, 40.0, 0.01, "клавиша вернулась на место")
+	Settings.set_value("reduced_motion", true)
+	Design.refuse(b)
+	assert_near(b.position.x, 40.0, 0.01, "«меньше анимации» — без дрожания")
+
+
+func test_panic_resets_with_cache() -> void:
+	Design.panic = 0.7
+	Design.clear_cache()
+	assert_eq(Design.panic, 0.0)

@@ -2,11 +2,14 @@ extends Node2D
 ## Комната-лаборатория финала: стена, окно с дождём, часы, доска, полки с образцами, лампа,
 ## стол и передняя стенка ящика. Состояние сцены (учёный, рука, свет) объявлено здесь же,
 ## а учёного и руку рисует наследник lab.gd.
+## Во время пожара (Design.panic) лампа мигает, а стрелки часов дёргаются; с «меньше анимации» — нет.
 
 enum Match { NONE, HELD, LIT, FLYING, GONE }
 enum Hold { MATCH, EXTINGUISHER }
 
 const Tex = preload("res://scripts/gfx/tex.gd")
+const Design = preload("res://scripts/ui/design.gd")
+const Settings = preload("res://scripts/core/settings.gd")
 
 const STAND_X := 2550.0   # где учёный останавливается у стола
 const OUTSIDE_X := 5600.0 # откуда он входит
@@ -55,7 +58,7 @@ func _draw_wall() -> void:
 	for x in range(-3000, 6000, 600):  # стыки плиток линолеума
 		draw_line(Vector2(x + 150, 1750), Vector2(x - 250, 3200), Color(0.28, 0.25, 0.22), 3.0)
 	# пятно света лампы на стене и холодный свет из окна
-	Tex.blob(self, Vector2(640, -200), Vector2(2200, 1500), Color(1, 0.9, 0.6, 0.22 * lights))
+	Tex.blob(self, Vector2(640, -200), Vector2(2200, 1500), Color(1, 0.9, 0.6, 0.22 * lights * _lamp_flicker()))
 	Tex.blob(self, Vector2(640, -500), Vector2(1300, 900), Color(0.6, 0.7, 1.0, 0.1 + 0.25 * flash))
 
 
@@ -88,9 +91,10 @@ func _draw_clock(c: Vector2) -> void:
 	for i in 12:
 		var d := Vector2.from_angle(TAU * i / 12.0)
 		draw_line(c + d * 110.0, c + d * 128.0, LINE, 8.0 if i % 3 == 0 else 4.0)
-	var sec := Vector2.from_angle(-PI / 2 + TAU * floorf(t) / 60.0)
-	draw_line(c, c + Vector2.from_angle(-PI / 2 + 0.9) * 70.0, LINE, 12.0)
-	draw_line(c, c + Vector2.from_angle(-PI / 2 + 4.1) * 105.0, LINE, 8.0)
+	var tw := _panic_twitch()  # в панике стрелки дёргаются, как у прибора на пределе
+	var sec := Vector2.from_angle(-PI / 2 + TAU * floorf(t) / 60.0 + tw * 0.35)
+	draw_line(c, c + Vector2.from_angle(-PI / 2 + 0.9 + tw * 0.06) * 70.0, LINE, 12.0)
+	draw_line(c, c + Vector2.from_angle(-PI / 2 + 4.1 - tw * 0.1) * 105.0, LINE, 8.0)
 	draw_line(c, c + sec * 115.0, Color(0.8, 0.15, 0.1), 4.0)
 	draw_circle(c, 12.0, LINE)
 
@@ -198,14 +202,32 @@ func _draw_mini_bear(c: Vector2, s: float, fur: Color) -> void:
 		draw_line(e - Vector2(6, -6), e + Vector2(6, -6), Color.BLACK, 5.0)
 
 
+## Рывок стрелки −1..1 (0 — спокойно): резкие скачки, чаще и сильнее с паникой.
+func _panic_twitch() -> float:
+	var p := Design.panic
+	if p < 0.05 or Settings.flag("reduced_motion"):
+		return 0.0
+	var k := floorf(t * lerpf(4.0, 14.0, p))
+	return sin(k * 91.7) * p
+
+
+## Лампа на плохом контакте: при панике мигает (чем сильнее огонь, тем чаще).
+func _lamp_flicker() -> float:
+	var p := Design.panic
+	if p < 0.05 or Settings.flag("reduced_motion"):
+		return 1.0
+	return 1.0 - 0.6 * p * float(sin(t * lerpf(5.0, 19.0, p) * TAU) * sin(t * 2.3) > 0.5 - 0.3 * p)
+
+
 func _draw_lamp() -> void:
+	var lit := lights * _lamp_flicker()
 	draw_line(Vector2(640, -2500), Vector2(640, -560), Color(0.1, 0.1, 0.1), 10.0)
 	draw_colored_polygon(PackedVector2Array([Vector2(560, -300), Vector2(720, -300), Vector2(1000, 0), Vector2(280, 0)]),
-		Color(1, 0.95, 0.6, 0.07 * lights))
+		Color(1, 0.95, 0.6, 0.07 * lit))
 	draw_colored_polygon(PackedVector2Array([Vector2(600, -560), Vector2(680, -560), Vector2(780, -380), Vector2(500, -380)]),
 		Color(0.3, 0.32, 0.35))
-	draw_circle(Vector2(640, -370), 45.0, Color(1, 0.97, 0.85).lerp(Color(0.35, 0.33, 0.3), 1.0 - lights))
-	Tex.blob(self, Vector2(640, -370), Vector2.ONE * 220.0, Color(1, 0.95, 0.7, 0.35 * lights))
+	draw_circle(Vector2(640, -370), 45.0, Color(1, 0.97, 0.85).lerp(Color(0.35, 0.33, 0.3), 1.0 - lit))
+	Tex.blob(self, Vector2(640, -370), Vector2.ONE * 220.0, Color(1, 0.95, 0.7, 0.35 * lit))
 
 
 func _draw_table() -> void:

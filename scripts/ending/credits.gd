@@ -1,8 +1,9 @@
 extends RefCounted
-## Титры финала со статистикой забега.
+## Титры финала со статистикой забега. В протоколе — и сколько клеток ящика сгорело.
 
 
-static func text(game, choice_line: String) -> String:
+## burnt — сожжённых клеток ящика (fire.burnt_cells()); −1 — строку не показывать.
+static func text(game, choice_line: String, burnt := -1) -> String:
 	var mins := int(game.play_time) / 60
 	var secs := int(game.play_time) % 60
 	var lines := [
@@ -13,6 +14,10 @@ static func text(game, choice_line: String) -> String:
 		"Вилок сломано: %d" % game.forks_broken,
 		"Таблеток съедено: %d" % game.pills_eaten,
 		"Время: %d:%02d   •   Счёт: %d" % [mins, secs, game.score],
+	]
+	if burnt >= 0:
+		lines.append(burnt_line(burnt))
+	lines.append_array([
 		choice_line, "",
 		"В РОЛЯХ",
 		"Змея — образец №47",
@@ -23,5 +28,15 @@ static func text(game, choice_line: String) -> String:
 		"Графика и звук сгенерированы кодом.",
 		"Ни одной картинки. Ни одного аудиофайла.", "",
 		"Перемены будут.",
-	]
+	])
 	return "\n".join(lines)
+
+
+## «Сожжено: 1 клетка / 3 клетки / 25 клеток».
+static func burnt_line(n: int) -> String:
+	var word := "клеток"
+	if n % 10 == 1 and n % 100 != 11:
+		word = "клетка"
+	elif n % 10 in [2, 3, 4] and not (n % 100 in [12, 13, 14]):
+		word = "клетки"
+	return "Сожжено: %d %s" % [n, word]

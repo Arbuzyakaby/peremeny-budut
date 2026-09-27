@@ -80,6 +80,7 @@ func _on_phase(phase: int) -> void:
 
 
 func _on_yolk_opened() -> void:
+	g.hud.shade_accent(1.0)  # один акцент на экран: желток на арене, табло — в тень
 	if yolk_hints < 2 and g.hints_on():
 		yolk_hints += 1
 		g.hud.show_banner("Желток открыт — КУСАЙ ЕГО!", Color(1, 0.9, 0.2), 1.5)
