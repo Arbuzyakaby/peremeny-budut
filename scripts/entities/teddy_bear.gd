@@ -10,6 +10,9 @@ extends "res://scripts/entities/bear_body.gd"
 ## - медсестра: держится подальше и накрывает других медведей щитом-пузырём (их нельзя съесть).
 ## Френдли фаер: снаряд или рывок боксёра оглушает другого медведя, и тот начинает мстить обидчику.
 
+const Snake = preload("res://scripts/entities/snake.gd")
+const OilDrop = preload("res://scripts/entities/oil_drop.gd")
+
 signal throw_item(pos: Vector2, velocity: Vector2, kind: int)
 signal sound(sound_name: String)
 signal puff(pos: Vector2)

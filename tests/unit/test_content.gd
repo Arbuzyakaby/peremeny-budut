@@ -61,6 +61,7 @@ func test_bestiary_entries() -> void:
 	for a in Fork.ATTACK_NAMES.size():
 		assert_has(keys, "fork_atk_%d" % a)
 	assert_has(keys, "pill")
+	assert_has(keys, "pill_1")
 	assert_has(keys, "boss")
 
 

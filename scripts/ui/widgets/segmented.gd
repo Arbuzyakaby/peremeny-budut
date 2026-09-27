@@ -12,7 +12,8 @@ var selected := 0
 var _group := ButtonGroup.new()
 
 
-func setup(options: Array, current: int, min_seg_width := 0.0) -> void:
+## fill — клавиши делят ширину рамки поровну (без пустого хвоста справа).
+func setup(options: Array, current: int, min_seg_width := 0.0, fill := false) -> void:
 	add_theme_stylebox_override("panel", Design.well(Design.RADIUS_SM + 4, Vector2(5, 5)))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
@@ -24,6 +25,9 @@ func setup(options: Array, current: int, min_seg_width := 0.0) -> void:
 		b.button_group = _group
 		b.theme_type_variation = "SegmentButton"
 		b.custom_minimum_size = Vector2(min_seg_width, Design.TOUCH_MIN - 12)
+		if fill:
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			b.size_flags_stretch_ratio = 1.0
 		b.pressed.connect(_on_pressed.bind(i))
 		b.button_down.connect(Design.play.bind("ui_key_down"))
 		b.focus_entered.connect(Design.play.bind("ui_move"))

@@ -1,7 +1,8 @@
 extends "res://scripts/ui/screens/screen.gd"
-## Главное меню: анимированный заголовок, карточки сложностей 2×2, испытание дня и картотека,
-## древо навыков, настройки, выход. Панель слева — справа видна живая демо-арена.
-## Сверху справа сменяются советы (core/tips.gd).
+## Главное меню (v7.1): доска на винтах слева — анимированный заголовок, карточки сложностей 2×2
+## в утопленной рамке, испытание дня и картотека, навыки, настройки, выход. Справа видна живая
+## демо-арена; на неё приколота записка с советом (core/tips.gd), внизу — латунная табличка
+## с управлением и номером версии.
 
 signal difficulty_chosen(index: int)
 signal skills_requested
@@ -10,11 +11,15 @@ signal quit_requested
 signal daily_requested
 signal bestiary_requested
 
-const Icons = preload("res://scripts/ui/icons.gd")
 
 const Tips = preload("res://scripts/core/tips.gd")
 const Bestiary = preload("res://scripts/core/bestiary.gd")
 const Daily = preload("res://scripts/core/daily.gd")
+
+const TitleArt = preload("res://scripts/ui/widgets/title_art.gd")
+
+const TIP_WIDTH := 400.0
+const PAPER_INK := Color(0.2, 0.14, 0.1)
 
 var diff_buttons: Array[Button] = []
 var desc_label: Label
@@ -23,8 +28,10 @@ var daily_button: Button
 var bestiary_button: Button
 var quit_button: Button
 var controls_label: Label
+var controls_plate: PanelContainer
 var tip_label: Label
-var title_art: Control
+var tip_note: PanelContainer
+var title_art: TitleArt
 var subtitle: Label
 var fade_items: Array[Control] = []
 var difficulties: Array = []
@@ -45,25 +52,27 @@ func build() -> void:
 		Vector2(Design.SPACE[6], Design.SPACE[4])))
 	center.anchor_right = 0.5
 	center.offset_left = Design.SPACE[5]
-	title_art = Control.new()
-	title_art.custom_minimum_size = Vector2(440, 104)
-	title_art.draw.connect(_draw_title_art)
+	title_art = TitleArt.new()
 	content.add_child(title_art)
 	subtitle = Design.label("против ГИГАНТСКОЙ ЯИЧНИЦЫ", "h3", Design.YOLK, HORIZONTAL_ALIGNMENT_CENTER)
 	subtitle.label_settings = Design.label_settings("h2", Design.YOLK)
 	subtitle.label_settings.font_size = 25
 	content.add_child(subtitle)
+	content.add_child(Design.spacer(Design.SPACE[1]))
 	var choose := Design.label("ВЫБЕРИ СЛОЖНОСТЬ", "overline", Design.MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 	content.add_child(choose)
+	# карточки сложностей сидят в утопленной рамке, как клавиши в приборной панели
+	var bay := PanelContainer.new()
+	bay.add_theme_stylebox_override("panel", Design.well(Design.RADIUS_MD + 4, Vector2(Design.SPACE[3], Design.SPACE[3])))
+	bay.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	content.add_child(bay)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", Design.SPACE[3])
 	grid.add_theme_constant_override("v_separation", Design.SPACE[3])
-	var grid_center := CenterContainer.new()
-	grid_center.add_child(grid)
-	content.add_child(grid_center)
+	bay.add_child(grid)
 	for i in 4:
-		var b := Design.button("", difficulty_chosen.emit.bind(i), "", Vector2(214, 64))
+		var b := Design.button("", difficulty_chosen.emit.bind(i), "", Vector2(208, 60))
 		b.add_theme_font_size_override("font_size", 18)
 		b.focus_entered.connect(_show_desc.bind(i))
 		b.mouse_entered.connect(_show_desc.bind(i))
@@ -74,6 +83,7 @@ func build() -> void:
 	desc_label.custom_minimum_size = Vector2(0, 50)
 	desc_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	content.add_child(desc_label)
+	content.add_child(HSeparator.new())  # фрезерованная канавка: ниже — второстепенное
 	var extra := Design.hbox(Design.SPACE[3])  # испытание дня и картотека
 	content.add_child(extra)
 	daily_button = Design.button("", daily_requested.emit, "", Vector2(290, Design.TOUCH_MIN))
@@ -99,28 +109,56 @@ func build() -> void:
 		b.add_theme_font_size_override("font_size", 17)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		fade_items.append(b)
-	controls_label = Design.label("", "caption", Design.MUTED, HORIZONTAL_ALIGNMENT_LEFT)
-	controls_label.label_settings = Design.label_settings("hud", Design.MUTED)
-	controls_label.label_settings.font_size = 13
-	controls_label.anchor_left = 0.5
-	controls_label.anchor_right = 1.0
-	controls_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	controls_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	controls_label.offset_left = Design.SPACE[5]
-	controls_label.offset_right = -Design.SPACE[5]
-	controls_label.offset_top = 96
-	add_child(controls_label)
-	fade_items.append(controls_label)
+	# латунная табличка с управлением и версией — внизу справа, поверх демо-арены
+	controls_plate = PanelContainer.new()
+	var plate := Design.key(Design.Materials.Kind.BRASS, Color(0, 0, 0, 0), "normal", Design.RADIUS_SM, 0.0,
+		Vector2(Design.SPACE[5], Design.SPACE[2]))
+	plate.screws = true
+	controls_plate.add_theme_stylebox_override("panel", plate)
+	controls_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	controls_plate.anchor_left = 1.0
+	controls_plate.anchor_right = 1.0
+	controls_plate.anchor_top = 1.0
+	controls_plate.anchor_bottom = 1.0
+	controls_plate.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	controls_plate.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	controls_plate.offset_right = -Design.SPACE[5]
+	controls_plate.offset_bottom = -Design.SPACE[5]
+	add_child(controls_plate)
+	controls_label = Design.label("", "caption", Design.INK, HORIZONTAL_ALIGNMENT_CENTER)
+	controls_label.label_settings.outline_size = 2  # гравировка: светлый отсвет на латуни
+	controls_label.label_settings.outline_color = Color(1, 1, 1, 0.25)
+	controls_plate.add_child(controls_label)
+	fade_items.append(controls_plate)
 
-	tip_label = Design.label("", "h3", Design.CREAM, HORIZONTAL_ALIGNMENT_RIGHT)
-	tip_label.label_settings = Design.label_settings("hud", Design.CREAM)
-	tip_label.anchor_left = 0.5
-	tip_label.anchor_right = 1.0
-	tip_label.offset_left = Design.SPACE[5]
-	tip_label.offset_right = -Design.SPACE[5]
-	tip_label.offset_top = Design.SPACE[5]
+	# записка с советом, приколотая латунной кнопкой к столу
+	tip_note = PanelContainer.new()
+	var paper := Design.key(Design.Materials.Kind.PAPER, Color(0, 0, 0, 0), "normal", 3, 0.0,
+		Vector2(Design.SPACE[4], Design.SPACE[3]))
+	paper.grain = 0.12
+	tip_note.add_theme_stylebox_override("panel", paper)
+	tip_note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tip_note.anchor_left = 1.0
+	tip_note.anchor_right = 1.0
+	tip_note.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	tip_note.offset_right = -Design.SPACE[6]
+	tip_note.offset_top = Design.SPACE[6]
+	tip_note.custom_minimum_size = Vector2(TIP_WIDTH, 0)
+	tip_note.rotation = deg_to_rad(1.2)
+	add_child(tip_note)
+	var note := Design.vbox(Design.SPACE[1])
+	tip_note.add_child(note)
+	note.add_child(Design.label("СОВЕТ", "overline", Color(0.7, 0.16, 0.12)))
+	tip_label = Design.label("", "small", PAPER_INK)
 	tip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	add_child(tip_label)
+	tip_label.custom_minimum_size = Vector2(TIP_WIDTH - Design.SPACE[4] * 2, 0)
+	note.add_child(tip_label)
+	tip_note.draw.connect(func() -> void:  # латунная кнопка-гвоздик сверху по центру
+		var c := Vector2(tip_note.size.x / 2.0, 2.0)
+		tip_note.draw_circle(c + Vector2(1.5, 3.0), 7.0, Color(0, 0, 0, 0.35))
+		tip_note.draw_circle(c, 7.0, Design.BRASS.darkened(0.35))
+		tip_note.draw_circle(c + Vector2(-0.8, -0.8), 5.6, Design.BRASS)
+		tip_note.draw_circle(c + Vector2(-2.2, -2.2), 2.0, Color(1, 0.95, 0.75, 0.9)))
 	first_focus = diff_buttons[1]
 
 
@@ -153,10 +191,11 @@ func set_data(diffs: Array, best_scores: Array, selected: int, scales: int, touc
 	daily_button.text = "ИСПЫТАНИЕ ДНЯ: %s%s" % [mod["name"], "  •  %d" % best_today if best_today > 0 else ""]
 	bestiary_button.text = "КАРТОТЕКА %d/%d" % [Bestiary.known_count(), Bestiary.total()]
 	quit_button.visible = not touch or not OS.has_feature("mobile")
+	var version := "v" + str(ProjectSettings.get_setting("application/config/version", ""))
 	if touch:
-		controls_label.text = "Джойстик слева — поворот  •  кнопки справа — спринт и атака"
+		controls_label.text = "Джойстик слева — поворот  •  кнопки справа — спринт и атака  •  %s" % version
 	else:
-		controls_label.text = "← → / A D / мышь — поворот  •  Shift — спринт\nПробел / ЛКМ — атака медведя  •  Esc — пауза  •  F1 / Ctrl+Shift+D — разработчик"
+		controls_label.text = "← → / A D / мышь — поворот  •  Shift — спринт  •  Пробел / ЛКМ — атака\nEsc — пауза  •  F1 / Ctrl+Shift+D — разработчик  •  %s" % version
 	_show_desc(selected)
 
 
@@ -181,7 +220,9 @@ func _play_intro() -> void:
 func _next_tip() -> void:
 	tip_index = (tip_index + 1) % Tips.count()
 	tip_t = 5.0
-	tip_label.text = "СОВЕТ: " + Tips.GENERAL[tip_index]
+	tip_label.text = Tips.GENERAL[tip_index]
+	if Settings.flag("reduced_motion") or not is_inside_tree():
+		return
 	tip_label.modulate.a = 0.0
 	create_tween().tween_property(tip_label, "modulate:a", 1.0, 0.4)
 
@@ -214,61 +255,9 @@ func _process(delta: float) -> void:
 		subtitle.pivot_offset = subtitle.size / 2.0
 		subtitle.rotation = sin(t * 2.0) * 0.03
 		subtitle.scale = Vector2.ONE * (1.0 + 0.04 * sin(t * 3.0))
+	title_art.t = t
+	title_art.intro = intro
 	title_art.queue_redraw()
 	tip_t -= delta
 	if tip_t <= 0.0:
 		_next_tip()
-
-
-## Заголовок «ЗМЕЯ»: буквы падают по очереди, потом прыгают волной и переливаются;
-## под ними ползёт змейка с языком.
-func _draw_title_art() -> void:
-	var c := title_art
-	var font := Design.font("heavy")
-	var text := "ЗМЕЯ"
-	var fs := 86
-	var widths: Array[float] = []
-	var total := 0.0
-	for ch in text:
-		var w := font.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 6.0
-		widths.append(w)
-		total += w
-	var x := (c.size.x - total) / 2.0
-	var x0 := x
-	var calm := Settings.flag("reduced_motion")
-	for i in text.length():
-		var k := clampf((intro - 0.3 - i * 0.12) / 0.45, 0.0, 1.0)
-		if k <= 0.0:
-			x += widths[i]
-			continue
-		var drop := -170.0 * pow(1.0 - k, 2.0)
-		var bounce := 0.0 if calm else sin(t * 3.2 - i * 0.8) * 7.0 * k
-		var col := Color.from_hsv(0.29 + 0.05 * sin(t * 2.0 + i), 0.72, 0.97, k)
-		var rot := 0.0 if calm else sin(t * 2.4 + i * 1.3) * 0.07
-		c.draw_set_transform(Vector2(x + widths[i] / 2.0, 78.0 + drop + bounce), rot, Vector2.ONE)
-		var off := Vector2(-widths[i] / 2.0 + 3.0, 0)
-		c.draw_string_outline(font, off + Vector2(4, 5), text[i], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 14, Color(0, 0, 0, 0.35 * k))
-		c.draw_string_outline(font, off, text[i], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 12, Color(0.05, 0.2, 0.05, k))
-		c.draw_string(font, off, text[i], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
-		c.draw_string(font, off + Vector2(0, -3), text[i], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, 0.12 * k))
-		c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-		x += widths[i]
-	var k := clampf((intro - 0.9) / 0.6, 0.0, 1.0)  # змейка-подчёркивание
-	if k <= 0.0:
-		return
-	var pts := PackedVector2Array()
-	var len := total * k
-	for i in 40:
-		var px := x0 + len * i / 39.0
-		pts.append(Vector2(px, 94.0 + sin(px * 0.045 - t * 6.0) * 5.0))
-	c.draw_polyline(pts, Color(0.08, 0.3, 0.1), 13.0)
-	c.draw_polyline(pts, Color(0.4, 0.88, 0.35), 9.0)
-	var head := pts[pts.size() - 1]
-	c.draw_circle(head, 9.0, Color(0.08, 0.3, 0.1))
-	c.draw_circle(head, 7.0, Color(0.45, 0.92, 0.4))
-	c.draw_circle(head + Vector2(2, -3), 2.2, Color.WHITE)
-	c.draw_circle(head + Vector2(2.6, -3), 1.1, Color.BLACK)
-	if fmod(t, 1.6) < 0.35:
-		c.draw_line(head + Vector2(8, 0), head + Vector2(18, 0), Color(0.85, 0.1, 0.2), 2.0)
-		c.draw_line(head + Vector2(18, 0), head + Vector2(22, -3), Color(0.85, 0.1, 0.2), 1.5)
-		c.draw_line(head + Vector2(18, 0), head + Vector2(22, 3), Color(0.85, 0.1, 0.2), 1.5)

@@ -8,7 +8,6 @@ extends Control
 signal changed(index: int)
 
 const Design = preload("res://scripts/ui/design.gd")
-const Materials = preload("res://scripts/ui/materials.gd")
 
 const KNOB := 46.0
 const ARC := PI * 0.9           # дуга положений
@@ -117,7 +116,7 @@ func _draw() -> void:
 	var c := Vector2(KNOB / 2.0 + 8.0, size.y / 2.0 + 4.0)
 	var r := KNOB * 0.36
 	if has_focus():
-		draw_arc(c, r + 14.0, 0, TAU, 40, Color(Design.YOLK, 0.35), 3.0, true)
+		Design.draw_focus_circle(self, c, r + 4.5)  # светящийся воротник между ручкой и лампами
 	# точки-лампы положений
 	for i in options.size():
 		var d := Vector2.from_angle(position_angle(i))

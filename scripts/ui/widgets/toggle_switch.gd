@@ -46,22 +46,24 @@ func _on_toggled(on: bool) -> void:
 
 ## Угол рычажка: -1 — влево (выкл), +1 — вправо (вкл).
 func lever_angle() -> float:
-	return lerpf(-0.9, 0.9, knob)
+	return lerpf(-0.75, 0.75, knob)
 
 
 func _draw() -> void:
 	var r := Rect2((size - Vector2(W, H)) / 2.0, Vector2(W, H))
 	if has_focus():
-		draw_style_box(Design.focus_ring(Design.RADIUS_SM + 3), r)
+		draw_style_box(Design.focus_ring(Design.RADIUS_SM, 2.0), r)
 	# пластина с гравировкой
 	draw_style_box(Design.cached("toggle_plate", func() -> StyleBox:
 		var s := Design.key(Materials.Kind.BAKELITE, Color(0, 0, 0, 0), "normal", Design.RADIUS_SM, 2.0, Vector2.ZERO)
 		return s), r)
 	var font := Design.font("heavy")
 	var eng := Color(0, 0, 0, 0.55)
-	draw_string(font, r.position + Vector2(8, H * 0.62 + 1), "0", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.12))
-	draw_string(font, r.position + Vector2(8, H * 0.62), "0", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, eng.lerp(Design.FAINT, 0.6))
-	draw_string(font, r.position + Vector2(W - 30, H * 0.62), "I", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, eng.lerp(Design.FAINT, 0.6))
+	# гравировка — у нижней кромки, по бокам от шайбы: рычажок её не закрывает
+	draw_string(font, r.position + Vector2(7, H - 7 + 1), "0", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 1, 1, 0.12))
+	draw_string(font, r.position + Vector2(7, H - 7), "0", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, eng.lerp(Design.FAINT, 0.6))
+	draw_string(font, r.position + Vector2(W - 32, H - 7 + 1), "I", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 1, 1, 0.12))
+	draw_string(font, r.position + Vector2(W - 32, H - 7), "I", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, eng.lerp(Design.FAINT, 0.6))
 	# лампочка
 	var lp := r.position + Vector2(W - 12, H / 2.0 - 1)
 	var on_k := clampf(knob, 0.0, 1.0)
@@ -71,7 +73,7 @@ func _draw() -> void:
 		draw_circle(lp, 9.0, Color(Design.YOLK, 0.25 * on_k))
 	draw_circle(lp + Vector2(-1.3, -1.3), 1.4, Color(1, 1, 1, 0.3 + 0.5 * on_k))
 	# латунная шайба
-	var pivot := r.position + Vector2(W / 2.0 - 6, H / 2.0 + 2)
+	var pivot := r.position + Vector2(W / 2.0 - 4, H / 2.0 + 4)
 	draw_circle(pivot + Vector2(0, 1.5), 10.5, Color(0, 0, 0, 0.45))
 	draw_circle(pivot, 10.0, Color(0.42, 0.27, 0.08))
 	draw_circle(pivot + Vector2(-1, -1), 8.5, Color(0.86, 0.64, 0.25))
@@ -79,7 +81,7 @@ func _draw() -> void:
 	draw_circle(pivot, 4.2, Color(0.2, 0.14, 0.08))
 	# рычажок: сужающийся хромированный стержень с шариком, тень падает вниз-вправо
 	var dir := Vector2.from_angle(-PI / 2.0 + lever_angle())
-	var tip := pivot + dir * 19.0
+	var tip := pivot + dir * 16.0
 	var side := dir.orthogonal()
 	var shadow := PackedVector2Array([pivot + side * 3.2 + Vector2(3, 4), tip + side * 1.8 + Vector2(5, 6),
 		tip - side * 1.8 + Vector2(5, 6), pivot - side * 3.2 + Vector2(3, 4)])

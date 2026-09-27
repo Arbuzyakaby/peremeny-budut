@@ -22,7 +22,7 @@ func _init() -> void:
 	min_value = 0.0
 	max_value = 1.0
 	step = 0.05
-	custom_minimum_size = Vector2(D + 8, maxf(D + 4, Design.TOUCH_MIN))
+	custom_minimum_size = Vector2(D + 12, maxf(D + 12, Design.TOUCH_MIN))  # кольцо фокуса — внутри
 	size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	focus_mode = Control.FOCUS_ALL
 	mouse_default_cursor_shape = Control.CURSOR_VSIZE
@@ -99,7 +99,7 @@ func _draw() -> void:
 	var c := size / 2.0
 	var r := D * 0.34
 	if has_focus():
-		draw_arc(c, r + 12.0, 0, TAU, 40, Color(Design.YOLK, 0.35), 3.0, true)
+		Design.draw_focus_circle(self, c, r + 12.0)
 	# шкала: риски по дуге, пройденные — горят
 	var n := clampi(int(round((max_value - min_value) / maxf(step, 0.0001))), 4, 20)
 	var lit := ratio_of(value)

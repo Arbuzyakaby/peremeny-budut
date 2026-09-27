@@ -56,8 +56,9 @@ func colors() -> Array:
 
 
 ## Лицевая грань клавиши внутри rect (для виджетов, которые рисуют себя сами).
+## У фокуса depth — ход клавиши, вокруг грани которой он светится.
 func face_rect(rect: Rect2) -> Rect2:
-	if mode != Mode.KEY or depth <= 0.0:
+	if mode not in [Mode.KEY, Mode.FOCUS] or depth <= 0.0:
 		return rect
 	if pressed:
 		return Rect2(rect.position + Vector2(0, depth - 1.0), Vector2(rect.size.x, rect.size.y - depth + 1.0))
@@ -72,10 +73,7 @@ func _draw(ci: RID, rect: Rect2) -> void:
 	var r := minf(radius, minf(rect.size.x, rect.size.y) / 2.0)
 	match mode:
 		Mode.FOCUS:
-			for k in 3:  # мягкое свечение лампы вокруг
-				var g := rect.grow(2.0 + k * 2.0)
-				RenderingServer.canvas_item_add_polyline(ci, rrect(g, r + 2.0 + k * 2.0, true),
-					PackedColorArray([Color(accent, 0.55 - k * 0.17)]), 2.0, true)
+			_focus_bezel(ci, face_rect(rect), r)
 			return
 		Mode.INSET:
 			RenderingServer.canvas_item_add_polygon(ci, rrect(rect.grow(1.0), r + 1.0), PackedColorArray([Color(hi, 0.18)]))
@@ -131,6 +129,24 @@ func _draw(ci: RID, rect: Rect2) -> void:
 		RenderingServer.canvas_item_add_circle(ci, lp, 4.0, lo.darkened(0.3))
 		RenderingServer.canvas_item_add_circle(ci, lp, 3.0, lamp)
 		RenderingServer.canvas_item_add_circle(ci, lp + Vector2(-1, -1), 1.0, Color(1, 1, 1, 0.8 * lamp.a))
+
+
+## Фокус — латунная окантовка с подсвеченной нитью накала, врезанная в кромку грани. Рисуется только
+## внутри rect: не вылезает за клавишу, не перекрывает соседей и не обрезается прокруткой.
+func _focus_bezel(ci: RID, face: Rect2, r: float) -> void:
+	var rim := face.grow(-1.5)
+	var rr := maxf(r - 1.5, 0.0)
+	var pts := rrect(rim, rr, true)
+	RenderingServer.canvas_item_add_polyline(ci, pts, PackedColorArray([Color(0, 0, 0, 0.55)]), 3.5, true)  # канавка
+	var brass: Array = Materials.palette(Materials.Kind.BRASS)  # латунь: светлая сверху, тёмная снизу
+	RenderingServer.canvas_item_add_polyline(ci, pts, vgrad(pts, rim, brass[0], brass[2]), 1.6, true)
+	var glow := [0.95, 0.32, 0.12]  # нить накала и её отсвет внутрь грани
+	for k in glow.size():
+		var g := rim.grow(-2.2 - k * 1.8)
+		if g.size.x <= 2.0 or g.size.y <= 2.0:
+			break
+		RenderingServer.canvas_item_add_polyline(ci, rrect(g, maxf(rr - 2.2 - k * 1.8, 0.0), true),
+			PackedColorArray([Color(accent, accent.a * glow[k])]), 1.8 if k == 0 else 1.6, true)
 
 
 func _grain(ci: RID, pts: PackedVector2Array, r: Rect2, k: float) -> void:

@@ -2,10 +2,8 @@ extends Node2D
 ## Плюшевый медведь: состояние и внешний вид всех восьми видов (уши, мех со швами, пуговичные глаза,
 ## костюмы, предупреждения атак, щит-пузырь, оглушение). Поведение — в наследнике teddy_bear.gd.
 
-const Snake = preload("res://scripts/entities/snake.gd")
 const Tex = preload("res://scripts/gfx/tex.gd")
 const Design = preload("res://scripts/ui/design.gd")
-const OilDrop = preload("res://scripts/entities/oil_drop.gd")
 
 enum Type { NORMAL, BOXER, THROWER, KARATE, SEAMSTRESS, NINJA, BOMBER, MEDIC }
 enum St { ROAM, WINDUP, DASH, DIZZY, AIM, RECOVER, VANISH }

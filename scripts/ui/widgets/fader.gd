@@ -109,7 +109,7 @@ func _draw() -> void:
 	if lit.size.x > 0.0:
 		draw_rect(lit, Color(Design.YOLK, 0.55))
 	if has_focus():
-		draw_style_box(Design.focus_ring(Design.RADIUS_SM + 3), plate)
+		draw_style_box(Design.focus_ring(Design.RADIUS_SM, 0.0), plate)
 	# колпачок
 	var cx := t.position.x + t.size.x * ratio()
 	var cap := Rect2(Vector2(cx - CAP.x / 2.0, size.y / 2.0 - CAP.y / 2.0), CAP)

@@ -82,7 +82,7 @@ static func draw_entry_icon(ci: CanvasItem, e: Dictionary, c: Vector2, s: float,
 		"fork_atk":
 			Icons.fork_attack(ci, c, int(e["arg"]), Design.warn(), s)
 		"pill":
-			Icons.pill(ci, c, s, a)
+			Icons.pill_kind(ci, c, int(e["arg"]), s, a)
 		"egg":
 			Icons.egg(ci, c, s, a)
 
@@ -101,7 +101,7 @@ func _draw_card(art: Control, i: int) -> void:
 	art.draw_string(font, Vector2((art.size.x - w) / 2.0, art.size.y - 12), name,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Design.CREAM if known else Design.FAINT)
 	if i == selected:
-		art.draw_rect(Rect2(Vector2(3, 3), art.size - Vector2(6, 6)), Color(Design.YOLK, 0.8), false, 2.0)
+		art.draw_style_box(Design.focus_ring(Design.RADIUS_MD, 0.0), Rect2(Vector2.ZERO, art.size))
 
 
 ## Карточка «дела»: кремовая бумага, скрепка, машинописный текст.

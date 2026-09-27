@@ -362,15 +362,19 @@ func break_fork(f: Fork, prefix := "") -> void:
 
 # ---------------------------------------------------------------- таблетки
 
-func spawn_pill(at := Vector2.INF) -> Pill:
+## kind < 0 — случайный вид: шайб тем больше, чем ближе конец этапа (от 25 до 50 %).
+func spawn_pill(at := Vector2.INF, kind := -1) -> Pill:
 	var p := Pill.new()
 	p.z_index = 3
-	p.setup(spawn_pos(50.0) if at == Vector2.INF else at, g.bounds, g.cfg["tempo"], g.cfg["bear_aggr"])
+	if kind < 0:
+		var progress := float(g.goal_done) / maxf(g.goal_total, 1.0)
+		kind = Pill.Kind.TABLET if randf() < 0.25 + 0.25 * progress else Pill.Kind.CAPSULE
+	p.setup(spawn_pos(50.0) if at == Vector2.INF else at, g.bounds, g.cfg["tempo"], g.cfg["bear_aggr"], kind)
 	p.sound.connect(g.sfx.play)
 	p.landed.connect(_on_pill_landed.bind(p))
 	g.world.add_child(p)
 	pills.append(p)
-	g.seen("pill")
+	g.seen(p.bestiary_key())
 	return p
 
 

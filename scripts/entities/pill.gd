@@ -1,7 +1,10 @@
 extends Node2D
-## Прыгающая таблетка-капсула. Стоит на месте, приседает и прыгает на змею по дуге.
-## В воздухе неуязвима (видна метка приземления), при приземлении давит всех под собой
-## и поднимает ударную волну, оглушающую змею. На земле её можно съесть.
+## Прыгающая таблетка. Приседает и прыгает на змею по дуге. В воздухе неуязвима (видна метка
+## приземления), при приземлении давит всех под собой и поднимает ударную волну, оглушающую змею.
+## На земле её можно съесть. Атака у всех видов одна, отличаются повадки:
+## - капсула стоит на месте и прыгает высоко и далеко;
+## - шайба (круглая прессованная таблетка) между прыжками катится на ребре к змее, прыгает
+##   ниже, короче и чаще.
 
 signal landed(pos: Vector2)
 signal sound(sound_name: String)
@@ -10,9 +13,23 @@ const Tex = preload("res://scripts/gfx/tex.gd")
 const Design = preload("res://scripts/ui/design.gd")
 
 enum St { IDLE, CROUCH, JUMP }
+enum Kind { CAPSULE, TABLET }
+
+## Виды таблеток: высота и дальность прыжка, время в воздухе, приседание, скорость качения по полу,
+## множитель паузы между прыжками.
+const KINDS := [
+	{"name": "Капсула", "key": "pill", "height": 190.0, "hop": 420.0, "air": 0.85, "crouch": 0.35, "roll": 0.0, "rest": 1.0},
+	{"name": "Шайба", "key": "pill_1", "height": 120.0, "hop": 300.0, "air": 0.62, "crouch": 0.26, "roll": 62.0, "rest": 0.8},
+]
+## Шайбы — прессованный мел пастельных цветов: [лицо, ребро].
+const TABLET_COLORS := [
+	[Color(0.97, 0.96, 0.92), Color(0.78, 0.76, 0.7)],
+	[Color(1.0, 0.93, 0.62), Color(0.85, 0.72, 0.3)],
+	[Color(0.98, 0.78, 0.82), Color(0.8, 0.52, 0.58)],
+	[Color(0.72, 0.86, 1.0), Color(0.45, 0.6, 0.82)],
+]
 
 const RADIUS := 26.0
-const JUMP_HEIGHT := 190.0
 const CRUSH_RADIUS := 40.0
 const COLORS := [
 	[Color(0.92, 0.2, 0.22), Color(0.97, 0.95, 0.9)],
@@ -21,6 +38,7 @@ const COLORS := [
 	[Color(0.75, 0.35, 0.85), Color(0.95, 0.7, 0.8)],
 ]
 
+var kind := Kind.CAPSULE
 var st := St.IDLE
 var st_t := 1.0
 var bounds := Rect2(0, 0, 1280, 720)
@@ -36,18 +54,33 @@ var t := 0.0
 var squash := 0.0
 var spawn_k := 0.0
 var aim_offset := Vector2.ZERO  # кооператив (squad.gd): прыгнуть так, чтобы загнать змею к вилкам
+var roll := 0.0  # угол качения шайбы (для рисунка)
 
 
-func setup(pos: Vector2, area: Rect2, idle_tempo: float, aggression: float) -> void:
+func setup(pos: Vector2, area: Rect2, idle_tempo: float, aggression: float, pill_kind := Kind.CAPSULE) -> void:
 	position = pos
 	bounds = area
 	tempo = idle_tempo
 	aggr = aggression
+	kind = pill_kind
 	angle = randf_range(-0.6, 0.6)
-	cols = COLORS.pick_random()
-	st_t = randf_range(0.6, 1.4) * tempo
+	cols = (TABLET_COLORS if kind == Kind.TABLET else COLORS).pick_random()
+	st_t = randf_range(0.6, 1.4) * tempo * float(spec()["rest"])
 	material = Tex.material(Tex.Mat.PLASTIC, randf() * 10.0)
 	create_tween().tween_property(self, "spawn_k", 1.0, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func spec() -> Dictionary:
+	return KINDS[kind]
+
+
+## Ключ карточки в картотеке.
+func bestiary_key() -> String:
+	return spec()["key"]
+
+
+func jump_height() -> float:
+	return spec()["height"]
 
 
 ## На земле — можно съесть.
@@ -65,32 +98,41 @@ func update(delta: float, head: Vector2, head_vel: Vector2, snake_alive: bool) -
 	squash = maxf(squash - delta * 3.0, 0.0)
 	match st:
 		St.IDLE:
+			var roll_speed: float = spec()["roll"]
+			if roll_speed > 0.0 and snake_alive and spawn_k > 0.9:  # шайба катится на ребре к змее
+				var to := head - position
+				if to.length() > 60.0:
+					var step := to.normalized() * roll_speed * clampf(aggr, 0.6, 1.6) * delta
+					var inner := bounds.grow(-RADIUS - 10.0)
+					position = (position + step).clamp(inner.position, inner.end)
+					roll += step.length() / 14.0
 			if st_t <= 0.0 and snake_alive:
 				st = St.CROUCH
-				st_t = 0.35 * clampf(tempo, 0.6, 1.3)
+				st_t = float(spec()["crouch"]) * clampf(tempo, 0.6, 1.3)
 		St.CROUCH:
 			if st_t <= 0.0:
 				st = St.JUMP
-				air_time = 0.85 * clampf(tempo, 0.7, 1.2)
+				air_time = float(spec()["air"]) * clampf(tempo, 0.7, 1.2)
 				st_t = air_time
 				jump_from = position
 				var lead := head + head_vel * air_time * clampf(0.35 * aggr, 0.2, 0.8) + aim_offset
 				var inner := bounds.grow(-RADIUS - 10.0)
 				var hop := lead - position
-				if hop.length() > 420.0:  # за один прыжок не дальше 420
-					hop = hop.normalized() * 420.0
+				var reach: float = spec()["hop"]
+				if hop.length() > reach:  # за один прыжок не дальше reach
+					hop = hop.normalized() * reach
 				jump_to = (position + hop).clamp(inner.position, inner.end)
 				sound.emit("pill_hop")
 		St.JUMP:
 			var k := clampf(1.0 - st_t / air_time, 0.0, 1.0)
 			position = jump_from.lerp(jump_to, k)
-			height = sin(k * PI) * JUMP_HEIGHT
-			angle += delta * 7.0
+			height = sin(k * PI) * jump_height()
+			angle += delta * (7.0 if kind == Kind.CAPSULE else 11.0)
 			if st_t <= 0.0:
 				height = 0.0
 				position = jump_to
 				st = St.IDLE
-				st_t = randf_range(0.8, 1.2) * tempo
+				st_t = randf_range(0.8, 1.2) * tempo * float(spec()["rest"])
 				squash = 1.0
 				landed.emit(position)
 				sound.emit("pill_land")
@@ -107,13 +149,13 @@ func _draw() -> void:
 		var mark := Design.warn() if Design.Settings.flag("high_contrast") else Color(0.35, 0.6, 1.0)
 		draw_arc(target, CRUSH_RADIUS, 0, TAU, 32, Color(mark, 0.5 + 0.4 * pulse), Design.telegraph_width(3.0))
 		draw_arc(target, CRUSH_RADIUS * (1.0 - k * 0.7), 0, TAU, 32, Color(1, 1, 1, 0.5), 2.0)
-	var shadow_k := 1.0 - height / (JUMP_HEIGHT * 1.5)
+	var shadow_k := 1.0 - height / (jump_height() * 1.5)
 	Tex.blob(self, Vector2(3, 8), Vector2(30, 16) * shadow_k * s, Color(0, 0, 0, 0.28 * shadow_k))
 
 	var sc := Vector2.ONE * s * 1.25
 	match st:
 		St.CROUCH:
-			var k := 1.0 - st_t / 0.35
+			var k := 1.0 - st_t / float(spec()["crouch"])
 			sc *= Vector2(1.0 + 0.25 * k, 1.0 - 0.3 * k)
 			sc += Vector2(randf_range(-0.03, 0.03), 0)
 		St.JUMP:
@@ -121,6 +163,11 @@ func _draw() -> void:
 	if squash > 0.0:
 		sc *= Vector2(1.0 + 0.35 * squash, 1.0 - 0.3 * squash)
 	var a := angle if st == St.JUMP else angle + sin(t * 3.0) * 0.05
+	if kind == Kind.TABLET:
+		draw_set_transform(Vector2(0, -height - 4.0), a if st == St.JUMP else 0.0, sc)
+		_draw_tablet()
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
 	draw_set_transform(Vector2(0, -height - 4.0), a, sc)
 	var half := 22.0
 	var r := 11.0
@@ -153,3 +200,35 @@ func _draw() -> void:
 	else:
 		draw_line(face + Vector2(-2.5, 4), face + Vector2(2.5, 4), outline, 1.2)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Шайба: круглая прессованная таблетка с ребром, риской разлома и выдавленным «мг»; риска
+## поворачивается, когда шайба катится.
+func _draw_tablet() -> void:
+	var r := 16.0
+	var outline := Color(0.15, 0.1, 0.12)
+	var rim_h := 4.0  # видимое ребро снизу — таблетка толстая
+	draw_circle(Vector2(0, rim_h * 0.5), r + 1.8, outline)
+	draw_circle(Vector2(0, rim_h), r, cols[1])
+	draw_rect(Rect2(-r, 0, r * 2.0, rim_h), cols[1])
+	draw_circle(Vector2.ZERO, r, cols[0])
+	# меловая поверхность: фаска по краю лица и блик
+	draw_arc(Vector2.ZERO, r - 1.5, 0, TAU, 32, Color(cols[1], 0.55), 2.0)
+	draw_circle(Vector2(-5, -6), 6.0, Color(1, 1, 1, 0.35))
+	draw_circle(Vector2(-6, -7), 2.2, Color(1, 1, 1, 0.8))
+	# риска разлома: вращается при качении
+	var d := Vector2.from_angle(roll)
+	draw_line(-d * (r - 3.0), d * (r - 3.0), Color(cols[1].darkened(0.25), 0.9), 2.2)
+	draw_line(-d * (r - 3.0) + Vector2(0, 1), d * (r - 3.0) + Vector2(0, 1), Color(1, 1, 1, 0.35), 1.0)
+	draw_string(ThemeDB.fallback_font, Vector2(4, 12), "мг", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, cols[1].darkened(0.3))
+	# лицо: злые глазки, в прыжке — оскал
+	var face := Vector2(0, -2)
+	for side in [-1.0, 1.0]:
+		var e: Vector2 = face + Vector2(side * 5.0, -1)
+		draw_circle(e, 2.6, Color.WHITE)
+		draw_circle(e + Vector2(0.4, 0.5), 1.4, Color.BLACK)
+		draw_line(e + Vector2(-side * 3.2, -4.2), e + Vector2(side * 2.0, -3.0), outline, 1.4)
+	if st == St.JUMP or st == St.CROUCH:
+		draw_rect(Rect2(face + Vector2(-4, 4), Vector2(8, 3)), outline)
+	else:
+		draw_line(face + Vector2(-3, 5), face + Vector2(3, 5), outline, 1.3)

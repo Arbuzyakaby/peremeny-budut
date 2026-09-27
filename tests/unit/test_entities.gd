@@ -64,6 +64,40 @@ func test_pill_jumps_and_lands() -> void:
 	assert_true(p.is_edible(), "на земле — можно съесть")
 
 
+func test_tablet_rolls_and_hops_low() -> void:
+	var p: Pill = add(Pill.new())
+	p.setup(Vector2(300, 400), AREA, 1.0, 1.0, Pill.Kind.TABLET)
+	await frames(30)
+	assert_eq(p.bestiary_key(), "pill_1")
+	p.st_t = 5.0  # не прыгать — только катиться
+	var start := p.position
+	for i in 30:
+		p.update(DT, Vector2(900, 400), Vector2.ZERO, true)
+	assert_gt(p.position.x, start.x + 10.0, "шайба катится к змее")
+	p.st_t = 0.0
+	var landed := []
+	p.landed.connect(func(pos: Vector2) -> void: landed.append(pos))
+	var top := 0.0
+	for i in 400:
+		p.update(DT, Vector2(900, 400), Vector2.ZERO, true)
+		top = maxf(top, p.height)
+		if not landed.is_empty():
+			break
+	assert_eq(landed.size(), 1, "атака та же: прыжок и приземление")
+	assert_gt(float(Pill.KINDS[Pill.Kind.CAPSULE]["height"]), top, "прыгает ниже капсулы")
+
+
+func test_capsule_stays_put() -> void:
+	var p: Pill = add(Pill.new())
+	p.setup(Vector2(300, 400), AREA, 1.0, 1.0)
+	await frames(30)
+	p.st_t = 5.0
+	var start := p.position
+	for i in 30:
+		p.update(DT, Vector2(900, 400), Vector2.ZERO, true)
+	assert_eq(p.position, start, "капсула между прыжками стоит")
+
+
 func _bear(type: int) -> TeddyBear:
 	var b: TeddyBear = add(TeddyBear.new())
 	b.setup(Vector2(500, 300), 60.0, AREA, type, 1.0)

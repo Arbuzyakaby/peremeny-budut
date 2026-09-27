@@ -5,7 +5,7 @@ extends Node
 
 signal sounds_ready
 
-const Synth = preload("res://scripts/audio/synth.gd")
+const SoundBank = preload("res://scripts/audio/sound_bank.gd")
 const SynthMusic = preload("res://scripts/audio/synth_music.gd")
 const Settings = preload("res://scripts/core/settings.gd")
 
@@ -68,7 +68,7 @@ static func progress() -> float:
 	if is_ready():
 		return 1.0
 	if _building == "sounds" and _builder:
-		return clampf(float(_builder.built_count) / Synth.SOUND_COUNT, 0.0, 0.99)
+		return clampf(float(_builder.built_count) / SoundBank.SOUND_COUNT, 0.0, 0.99)
 	return 0.0
 
 
@@ -76,7 +76,7 @@ static func progress() -> float:
 static func build_now() -> void:
 	join_builder()
 	if sounds.is_empty():
-		sounds = Synth.new().build_sounds()
+		sounds = SoundBank.new().build_sounds()
 
 
 ## Дождаться фонового построения (при выходе из игры).
@@ -121,7 +121,7 @@ func _process(_delta: float) -> void:
 func _start_next_job() -> void:
 	if sounds.is_empty():
 		_building = "sounds"
-		_builder = Synth.new()
+		_builder = SoundBank.new()
 		_thread = Thread.new()
 		_thread.start(_builder.build_sounds)
 		return

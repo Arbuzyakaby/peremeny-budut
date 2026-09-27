@@ -16,11 +16,15 @@ const DevOverlay = preload("res://scripts/ui/dev_overlay.gd")
 const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Fader = preload("res://scripts/ui/widgets/fader.gd")
 const Fork = preload("res://scripts/entities/fork.gd")
+const Pill = preload("res://scripts/entities/pill.gd")
 
 const WIDTH := 460.0
 const TABS := ["ИНФО", "ЧИТЫ", "МИР", "ДЕБАГ", "UI", "ТЕСТЫ"]
 const BEAR_NAMES := ["Обычный", "Боксёр", "Метатель", "Каратист", "Швея", "Ниндзя", "Хлопушка", "Медсестра"]
 const TEST_RUNNER := "res://tests/test_runner.gd"
+## Звуки финала — отдельной группой в превью.
+const ENDING_SOUNDS := ["match", "ignite", "burn", "crackle", "thunder", "step", "scribble", "stamp", "extinguisher",
+	"lamp_click", "hatch", "melt"]
 
 var game  # game.gd
 var panel: PanelContainer
@@ -29,7 +33,7 @@ var info_label: Label
 var graph: Control
 var frame_ms: Array[float] = []
 var test_output: Label
-var sound_grid: GridContainer
+var sound_grid: VBoxContainer
 var overlay: DevOverlay
 var open := false
 var info_t := 0.0
@@ -63,28 +67,34 @@ func _ready() -> void:
 	var t := Design.label("ПАНЕЛЬ РАЗРАБОТЧИКА", "h3", Design.PLUM)
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(t)
-	var close := Design.button("×", toggle, "Ghost", Vector2(44, 40))
+	var close := Design.button("×", toggle, "Ghost", Vector2(40, 40))
 	close.focus_mode = Control.FOCUS_NONE
+	close.add_theme_font_size_override("font_size", 20)
+	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(close)
 	col.add_child(head)
 	var tabs := Segmented.new()
-	tabs.setup(TABS, 0)
+	tabs.setup(TABS, 0, 0.0, true)
 	tabs.changed.connect(_show_page)
 	col.add_child(tabs)
 	for b in tabs.buttons:  # компактные сегменты: тема уже применена, раз узел в дереве
 		b.add_theme_font_size_override("font_size", 12)
 		for st in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 			var sb := b.get_theme_stylebox(st).duplicate() as StyleBox
-			sb.content_margin_left = 17  # слева — место под лампу нажатой клавиши
-			sb.content_margin_right = 9
+			sb.content_margin_left = 14  # слева — место под лампу нажатой клавиши
+			sb.content_margin_right = 6
 			b.add_theme_stylebox_override(st, sb)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(scroll)
+	var gutter := MarginContainer.new()  # справа — место под полосу прокрутки, клавиши её не касаются
+	gutter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gutter.add_theme_constant_override("margin_right", Design.SPACE[4])
+	scroll.add_child(gutter)
 	var stack := Design.vbox(0)
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(stack)
+	gutter.add_child(stack)
 	for builder in [_build_info, _build_cheats, _build_world, _build_debug, _build_kit, _build_tests]:
 		var page := Design.vbox(Design.SPACE[2])
 		page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -142,11 +152,28 @@ func _toggle(parent: Control, text: String, on: bool, cb: Callable) -> void:
 	_row(parent, text, sw)
 
 
+## Компактная клавиша панели: ниже и мельче обычной, с малым ходом; длинный текст — с многоточием.
 func _btn(text: String, cb: Callable, variant := "") -> Button:
-	var b := Design.button(text, cb, variant, Vector2(0, 44))
-	b.add_theme_font_size_override("font_size", 14)
+	var b := Design.button(text.to_upper(), cb, variant, Vector2(0, 40))
+	b.add_theme_font_size_override("font_size", 13)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	b.clip_text = true
+	b.tooltip_text = text
+	if variant == "":  # бакелитовая клавиша поменьше: ход 3 px, поля уже
+		for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+			b.add_theme_stylebox_override(st, Design.cached("dev_key_" + st, func() -> StyleBox:
+				return Design.key(Design.Materials.Kind.BAKELITE, Color(0, 0, 0, 0), st, Design.RADIUS_SM, 3.0,
+					Vector2(Design.SPACE[2], Design.SPACE[2]))))
+		b.add_theme_stylebox_override("focus", Design.cached("dev_key_focus", func() -> StyleBox:
+			return Design.focus_ring(Design.RADIUS_SM, 3.0)))
 	return b
+
+
+func _section(parent: Control, text: String) -> void:
+	var l := Design.label(text, "overline", Design.YOLK)
+	parent.add_child(Design.spacer(Design.SPACE[1]))
+	parent.add_child(l)
 
 
 func _grid(parent: Control, cols: int) -> GridContainer:
@@ -219,7 +246,7 @@ func _update_info() -> void:
 # ---------------------------------------------------------------- ЧИТЫ
 
 func _build_cheats(p: VBoxContainer) -> void:
-	p.add_child(Design.label("ЗМЕЯ", "overline", Design.YOLK))
+	_section(p, "ЗМЕЯ")
 	_toggle(p, "Бессмертие", false, func(on: bool) -> void:
 		_cheat()
 		if game.snake:
@@ -243,14 +270,14 @@ func _build_cheats(p: VBoxContainer) -> void:
 	g.add_child(_btn("+100 ЧЕШУЕК", func() -> void:
 		Skills.add_scales(100)
 		game.hud.show_banner("+100 чешуек", Design.MINT, 0.8)))
-	p.add_child(Design.label("ВЫДАТЬ АТАКУ", "overline", Design.YOLK))
+	_section(p, "ВЫДАТЬ АТАКУ")
 	var ab := _grid(p, 2)
 	for type in Balance.ABILITIES:
 		ab.add_child(_btn(Balance.ABILITIES[type]["name"], func() -> void:
 			if game.snake:
 				_cheat()
 				game.abilities.gain(type)))
-	p.add_child(Design.label("ПРОГРЕСС", "overline", Design.YOLK))
+	_section(p, "ПРОГРЕСС")
 	var g2 := _grid(p, 2)
 	g2.add_child(_btn("ПОБЕДИТЬ ЭТАП", _win_stage, "Primary"))
 	g2.add_child(_btn("ЯИЧНИЦЕ 1 HP", func() -> void:
@@ -273,21 +300,25 @@ func _win_stage() -> void:
 # ---------------------------------------------------------------- МИР
 
 func _build_world(p: VBoxContainer) -> void:
-	p.add_child(Design.label("ПЕРЕЙТИ К ЭТАПУ", "overline", Design.YOLK))
+	_section(p, "ПЕРЕЙТИ К ЭТАПУ")
 	var st := _grid(p, 2)
 	for i in Balance.STAGES.size():
 		st.add_child(_btn("%d. %s" % [i + 1, Balance.STAGES[i]["short"]], _jump.bind(i)))
-	p.add_child(Design.label("СОЗДАТЬ", "overline", Design.YOLK))
-	var sp := _grid(p, 2)
+	_section(p, "СОЗДАТЬ МЕДВЕДЯ")
+	var sp := _grid(p, 3)
 	for i in BEAR_NAMES.size():
-		sp.add_child(_btn("Медведь: " + BEAR_NAMES[i], _spawn.bind("bear", i)))
+		sp.add_child(_btn(BEAR_NAMES[i], _spawn.bind("bear", i)))
+	_section(p, "СОЗДАТЬ ВИЛКУ И ТАБЛЕТКУ")
+	var sp2 := _grid(p, 3)
 	for k in Fork.KINDS:
-		sp.add_child(_btn("Вилка: " + String(Fork.KINDS[k]["name"]), _spawn.bind("fork", k)))
-	sp.add_child(_btn("Таблетка", _spawn.bind("pill", 0)))
-	p.add_child(Design.label("ПРИЁМЫ ВИЛОК (ближайшая к змее)", "overline", Design.YOLK))
+		sp2.add_child(_btn(String(Fork.KINDS[k]["name"]), _spawn.bind("fork", k)))
+	for k in Pill.KINDS.size():
+		sp2.add_child(_btn(String(Pill.KINDS[k]["name"]), _spawn.bind("pill", k)))
+	_section(p, "ПРИЁМЫ ВИЛОК — БЛИЖАЙШАЯ К ЗМЕЕ")
 	var atk := _grid(p, 2)
 	for a in Fork.ATTACK_NAMES.size():
 		atk.add_child(_btn(Fork.ATTACK_NAMES[a], _fork_attack.bind(a)))
+	_section(p, "ПОЛЕ")
 	var g := _grid(p, 2)
 	g.add_child(_btn("ОЧИСТИТЬ ПОЛЕ", func() -> void:
 		if _in_run():
@@ -354,7 +385,7 @@ func _spawn(kind: String, type: int) -> void:
 		"fork":
 			game.enemies.spawn_fork(Vector2.INF, type)
 		"pill":
-			game.enemies.spawn_pill()
+			game.enemies.spawn_pill(Vector2.INF, type)
 
 
 ## Заставить вилку провести приём (если вилок нет — создать столовую).
@@ -382,8 +413,8 @@ func _build_debug(p: VBoxContainer) -> void:
 	_toggle(p, "Сенсорное управление на ПК", Settings.choice("touch_mode") == 1, func(on: bool) -> void:
 		Settings.set_value("touch_mode", 1 if on else 0)
 		game.hud.apply_setting("touch_mode"))
-	p.add_child(Design.label("ЗВУКИ", "overline", Design.YOLK))
-	sound_grid = _grid(p, 3)
+	sound_grid = Design.vbox(Design.SPACE[2])
+	p.add_child(sound_grid)
 
 
 ## Кнопки звуков строятся при первом показе вкладки — к этому времени звуки уже синтезированы.
@@ -392,11 +423,23 @@ func _fill_sounds() -> void:
 		return
 	var names: Array = game.sfx.sounds.keys()
 	names.sort()
+	var groups := {"ЗВУКИ: ИНТЕРФЕЙС": [], "ЗВУКИ: ИГРА": [], "ЗВУКИ: ФИНАЛ": []}
 	for n: String in names:
-		var b := _btn(n, game.sfx.play.bind(n))
-		b.add_theme_font_size_override("font_size", 11)
-		b.custom_minimum_size.y = 34
-		sound_grid.add_child(b)
+		if n.begins_with("ui_"):
+			groups["ЗВУКИ: ИНТЕРФЕЙС"].append(n)
+		elif n in ENDING_SOUNDS:
+			groups["ЗВУКИ: ФИНАЛ"].append(n)
+		else:
+			groups["ЗВУКИ: ИГРА"].append(n)
+	for title: String in groups:
+		_section(sound_grid, title)
+		var grid := _grid(sound_grid, 3)
+		for n: String in groups[title]:
+			var b := _btn(n.trim_prefix("ui_").replace("_", " "), game.sfx.play.bind(n))
+			b.tooltip_text = n
+			b.add_theme_font_size_override("font_size", 11)
+			b.custom_minimum_size.y = 36
+			grid.add_child(b)
 
 
 # ---------------------------------------------------------------- UI-КИТ

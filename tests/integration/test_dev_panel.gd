@@ -3,6 +3,7 @@ extends "res://tests/integration/game_case.gd"
 ## на паузе и на выборе улучшений — там, где раньше не открывалась. Спавн вилок и их приёмов.
 
 const Fork = preload("res://scripts/entities/fork.gd")
+const Pill = preload("res://scripts/entities/pill.gd")
 
 
 func test_f1_toggles_in_menu() -> void:
@@ -73,8 +74,22 @@ func test_world_tab_has_fork_buttons() -> void:
 	await boot()
 	var texts := []
 	for b in game.dev_panel.pages[2].find_children("*", "Button", true, false):
-		texts.append((b as Button).text)
+		texts.append((b as Button).tooltip_text)
 	for k in Fork.KINDS:
-		assert_has(texts, "Вилка: " + String(Fork.KINDS[k]["name"]))
+		assert_has(texts, String(Fork.KINDS[k]["name"]))
 	for n in Fork.ATTACK_NAMES:
 		assert_has(texts, n)
+	for pk in Pill.KINDS:
+		assert_has(texts, String(pk["name"]), "кнопка каждого вида таблеток")
+
+
+func test_spawn_every_pill_kind() -> void:
+	await boot_stage(2)
+	game.enemies.clear(false)
+	for k in Pill.KINDS.size():
+		game.dev_panel._spawn("pill", k)
+	var kinds := []
+	for p in game.enemies.pills:
+		kinds.append(p.kind)
+	kinds.sort()
+	assert_eq(kinds, [0, 1], "капсула и шайба")

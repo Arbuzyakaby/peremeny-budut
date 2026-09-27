@@ -123,6 +123,6 @@ func test_menu_tips_rotate_and_loading_tip() -> void:
 	var first: String = menu.tip_label.text
 	menu._next_tip()
 	assert_ne(menu.tip_label.text, first, "совет сменился")
-	assert_true(String(menu.tip_label.text).begins_with("СОВЕТ: "))
+	assert_true(menu.tip_note.is_ancestor_of(menu.tip_label), "совет — на приколотой записке")
 	var ls: LoadingScreen = add(LoadingScreen.new())
 	assert_has(Tips.GENERAL, ls.tip, "на загрузке — совет")

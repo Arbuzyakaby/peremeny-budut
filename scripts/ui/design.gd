@@ -245,14 +245,26 @@ static func panel_style() -> StyleBox:
 	return plank(Color(0, 0, 0, 0), RADIUS_LG, Vector2(SPACE[7] - 8, SPACE[6]))
 
 
-## Фокус: кромка светится лампой желтка.
-static func focus_ring(radius := RADIUS_MD + 3) -> StyleBox:
+## Фокус: латунная окантовка грани с нитью накала цвета желтка — внутри клавиши, не за её краем.
+## travel — ход клавиши: окантовка обходит лицевую грань, а не боковину.
+static func focus_ring(radius := RADIUS_MD, travel := KEY_TRAVEL) -> StyleBox:
 	var s := PhysicalBox.new()
 	s.mode = PhysicalBox.Mode.FOCUS
 	s.radius = radius
+	s.depth = travel
 	s.accent = YOLK
 	s.shadow = false
 	return s
+
+
+## Фокус круглого контрола (крутилка, галетник): латунное кольцо с нитью накала вокруг ручки.
+static func draw_focus_circle(ci: CanvasItem, c: Vector2, r: float) -> void:
+	var pal: Array = Materials.palette(Materials.Kind.BRASS)
+	ci.draw_arc(c, r, 0, TAU, 48, Color(0, 0, 0, 0.55), 4.0, true)
+	ci.draw_arc(c, r, PI, TAU, 24, pal[0], 1.6, true)
+	ci.draw_arc(c, r, 0, PI, 24, pal[2], 1.6, true)
+	ci.draw_arc(c, r - 2.6, 0, TAU, 48, Color(YOLK, 0.95), 1.8, true)
+	ci.draw_arc(c, r - 4.4, 0, TAU, 48, Color(YOLK, 0.3), 1.6, true)
 
 
 ## Кэш стилей, которые рисуются каждый кадр (HUD): не плодить объекты.
@@ -282,76 +294,10 @@ static func telegraph_width(base: float) -> float:
 
 # ---------------------------------------------------------------- тема
 
+## Тема Godot из материалов дизайн-языка (сборка — в theme_factory.gd; загружается по запросу,
+## чтобы не было циклического preload: фабрика сама пользуется этим модулем).
 static func make_theme() -> Theme:
-	var th := Theme.new()
-	th.default_font = font("body")
-	th.default_font_size = size_of("body")
-	th.set_stylebox("panel", "PanelContainer", panel_style())
-	th.set_stylebox("panel", "Panel", panel_style())
-	_key_styles(th, "Button", Materials.Kind.BAKELITE, CREAM, Color.WHITE)
-	_key_styles(th, "PrimaryButton", Materials.Kind.BRASS, INK, INK)
-	_key_styles(th, "GhostButton", Materials.Kind.RUBBER, MUTED, CREAM, 2.0)
-	_key_styles(th, "DangerButton", Materials.Kind.ENAMEL, CREAM, Color.WHITE)
-	_key_styles(th, "CardButton", Materials.Kind.BAKELITE, CREAM, Color.WHITE)
-	for st in ["normal", "hover", "pressed", "hover_pressed"]:
-		th.set_stylebox(st, "CardButton", card_style(LINE_STRONG if st == "normal" else YOLK, st, RADIUS_MD, Vector2(SPACE[2], SPACE[2])))
-	# клавиши-вкладки «как у радиолы»: нажатая остаётся утопленной, на ней горит лампа
-	_key_styles(th, "SegmentButton", Materials.Kind.BAKELITE, MUTED, CREAM, 3.0, RADIUS_SM, Vector2(SPACE[4], SPACE[2]))
-	for st in ["pressed", "hover_pressed"]:
-		var on := key(Materials.Kind.BAKELITE, Color(0, 0, 0, 0), st, RADIUS_SM, 3.0, Vector2(SPACE[4], SPACE[2]))
-		on.lamp = YOLK
-		on.lamp_left = true
-		th.set_stylebox(st, "SegmentButton", on)
-	th.set_color("font_pressed_color", "SegmentButton", YOLK)
-	th.set_color("font_hover_pressed_color", "SegmentButton", YOLK)
-	th.set_font_size("font_size", "SegmentButton", 15)
-	for v in ["PrimaryButton", "GhostButton", "DangerButton", "SegmentButton", "CardButton"]:
-		th.set_type_variation(v, "Button")
-	# ползунок (запасной — в интерфейсе вместо него фейдеры и крутилки)
-	th.set_stylebox("slider", "HSlider", well(RADIUS_PILL, Vector2(0, 5)))
-	var fill := key(Materials.Kind.BRASS, Color(0, 0, 0, 0), "normal", RADIUS_PILL, 0.0, Vector2(0, 5))
-	fill.shadow = false
-	th.set_stylebox("grabber_area", "HSlider", fill)
-	th.set_stylebox("grabber_area_highlight", "HSlider", fill)
-	th.set_stylebox("focus", "HSlider", focus_ring(RADIUS_PILL))
-	th.set_icon("grabber", "HSlider", knob_texture(24, false))
-	th.set_icon("grabber_highlight", "HSlider", knob_texture(26, true))
-	# прокрутка — латунный бегунок в утопленной щели
-	th.set_stylebox("scroll", "VScrollBar", well(RADIUS_PILL, Vector2(3, 3)))
-	var grab := key(Materials.Kind.BRASS, Color(0, 0, 0, 0), "normal", RADIUS_PILL, 0.0, Vector2(3, 3))
-	grab.shadow = false
-	var grab_hi := key(Materials.Kind.BRASS, Color(0, 0, 0, 0), "hover", RADIUS_PILL, 0.0, Vector2(3, 3))
-	grab_hi.shadow = false
-	th.set_stylebox("grabber", "VScrollBar", grab)
-	th.set_stylebox("grabber_highlight", "VScrollBar", grab_hi)
-	th.set_stylebox("grabber_pressed", "VScrollBar", grab_hi)
-	th.set_stylebox("panel", "ScrollContainer", StyleBoxEmpty.new())
-	var sep := StyleBoxLine.new()  # разделитель — фрезерованная канавка
-	sep.color = Color(0, 0, 0, 0.45)
-	sep.thickness = 2
-	th.set_stylebox("separator", "HSeparator", sep)
-	th.set_constant("separation", "HSeparator", SPACE[4])
-	th.set_color("font_color", "Label", CREAM)
-	th.set_font("font", "TooltipLabel", font("body"))
-	return th
-
-
-static func _key_styles(th: Theme, type: String, material: int, text: Color, text_hover: Color,
-		travel := KEY_TRAVEL, radius := RADIUS_MD, pad := Vector2(SPACE[5], SPACE[3])) -> void:
-	for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
-		th.set_stylebox(st, type, key(material, Color(0, 0, 0, 0), st, radius, travel, pad))
-	th.set_stylebox("focus", type, focus_ring(radius + 3))
-	th.set_font("font", type, font("heavy"))
-	th.set_font_size("font_size", type, 19)
-	th.set_color("font_color", type, text)
-	th.set_color("font_focus_color", type, text_hover)
-	th.set_color("font_hover_color", type, text_hover)
-	th.set_color("font_pressed_color", type, text_hover)
-	th.set_color("font_hover_pressed_color", type, text_hover)
-	th.set_color("font_disabled_color", type, Color(text, 0.4))
-	# гравировка: светлый отсвет вокруг букв на латуни, тёмный — на бакелите и эмали
-	th.set_color("font_outline_color", type, Color(1, 1, 1, 0.2) if text == INK else Color(0, 0, 0, 0.45))
-	th.set_constant("outline_size", type, 2)
+	return load("res://scripts/ui/theme_factory.gd").build()
 
 
 ## Латунная ручка-бегунок (иконка HSlider): радиальный блик, тёмная кромка, риска.

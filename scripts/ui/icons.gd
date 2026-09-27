@@ -46,6 +46,22 @@ static func pill(ci: CanvasItem, c: Vector2, s := 1.0, a := 1.0) -> void:
 	ci.draw_line(c + Vector2(-7, -3.5) * s, c + Vector2(4, -3.5) * s, Color(1, 1, 1, 0.45 * a), 1.5 * s)
 
 
+## Таблетка-шайба: круглая, с ребром и риской разлома.
+static func tablet(ci: CanvasItem, c: Vector2, s := 1.0, a := 1.0) -> void:
+	ci.draw_circle(c + Vector2(0, 2) * s, 9.5 * s, Color(0.78, 0.76, 0.7, a))
+	ci.draw_circle(c, 9.5 * s, Color(0.97, 0.96, 0.92, a))
+	ci.draw_line(c + Vector2(-6.5, 0) * s, c + Vector2(6.5, 0) * s, Color(0.6, 0.58, 0.52, a), 1.8 * s)
+	ci.draw_circle(c + Vector2(-3.5, -4) * s, 2.2 * s, Color(1, 1, 1, 0.8 * a))
+
+
+## Таблетка по виду: 0 — капсула, 1 — шайба.
+static func pill_kind(ci: CanvasItem, c: Vector2, kind: int, s := 1.0, a := 1.0) -> void:
+	if kind == 1:
+		tablet(ci, c, s, a)
+	else:
+		pill(ci, c, s, a)
+
+
 static func egg(ci: CanvasItem, c: Vector2, s := 1.0, a := 1.0) -> void:
 	ci.draw_circle(c, 12.0 * s, Color(0.99, 0.97, 0.9, a))
 	ci.draw_circle(c + Vector2(1, -1) * s, 5.5 * s, Color(1, 0.75, 0.1, a))

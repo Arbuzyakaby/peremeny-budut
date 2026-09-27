@@ -2,7 +2,7 @@ extends "res://tests/test_case.gd"
 ## Звуки синтезатора: полный набор, без перегруза и щелчков в конце; петля огня бесшовна.
 
 const Sfx = preload("res://scripts/audio/sfx.gd")
-const Synth = preload("res://scripts/audio/synth.gd")
+const SoundBank = preload("res://scripts/audio/sound_bank.gd")
 const SynthMusic = preload("res://scripts/audio/synth_music.gd")
 
 
@@ -16,7 +16,7 @@ func _samples(s: AudioStreamWAV) -> PackedFloat32Array:
 
 
 func test_sound_count_matches_constant() -> void:
-	assert_eq(Sfx.sounds.size(), Synth.SOUND_COUNT, "SOUND_COUNT для полосы загрузки")
+	assert_eq(Sfx.sounds.size(), SoundBank.SOUND_COUNT, "SOUND_COUNT для полосы загрузки")
 
 
 func test_design_language_sounds_exist() -> void:
