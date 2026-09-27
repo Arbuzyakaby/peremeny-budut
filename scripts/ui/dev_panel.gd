@@ -75,7 +75,7 @@ func _ready() -> void:
 		b.add_theme_font_size_override("font_size", 12)
 		for st in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 			var sb := b.get_theme_stylebox(st).duplicate() as StyleBox
-			sb.content_margin_left = 9
+			sb.content_margin_left = 17  # слева — место под лампу нажатой клавиши
 			sb.content_margin_right = 9
 			b.add_theme_stylebox_override(st, sb)
 	var scroll := ScrollContainer.new()
