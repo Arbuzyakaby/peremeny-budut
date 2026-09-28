@@ -189,6 +189,11 @@ func _cheat() -> void:
 	game.mark_debug_run()
 
 
+## Чит на чешуйки меняет сохранение навсегда, поэтому он есть только в отладочной сборке (редактор, тесты).
+static func scales_cheat_allowed() -> bool:
+	return OS.is_debug_build()
+
+
 func _in_run() -> bool:
 	return game.snake != null and game.state in [game.State.LEVEL, game.State.BOSS, game.State.BOSS_INTRO, game.State.PERK]
 
@@ -267,9 +272,16 @@ func _build_cheats(p: VBoxContainer) -> void:
 				game.snake.lives += 1
 				game.hud.set_max_lives(game.snake.max_lives)
 				game.hud.set_lives(game.snake.lives)))
-	g.add_child(_btn("+100 ЧЕШУЕК", func() -> void:
+	var scales_btn := _btn("+100 ЧЕШУЕК", func() -> void:
+		if not scales_cheat_allowed():
+			return
+		_cheat()
 		Skills.add_scales(100)
-		game.hud.show_banner("+100 чешуек", Design.MINT, 0.8)))
+		game.hud.show_banner("+100 чешуек", Design.MINT, 0.8))
+	if not scales_cheat_allowed():  # чешуйки — постоянный прогресс: в выпущенной сборке их не накрутить
+		scales_btn.disabled = true
+		scales_btn.tooltip_text = "Только в сборке из редактора"
+	g.add_child(scales_btn)
 	_section(p, "ВЫДАТЬ АТАКУ")
 	var ab := _grid(p, 2)
 	for type in Balance.ABILITIES:
@@ -326,7 +338,7 @@ func _build_world(p: VBoxContainer) -> void:
 			game.shots.clear()))
 	g.add_child(_btn("ФИНАЛ", func() -> void:
 		game.args["ending"] = true
-		game.debug_run = true
+		_cheat()
 		if game.state == game.State.MENU:
 			game.start_game(game.difficulty)
 		elif _in_run():
@@ -354,7 +366,7 @@ func _build_world(p: VBoxContainer) -> void:
 
 
 func _jump(i: int) -> void:
-	game.debug_run = true
+	_cheat()
 	if game.state == game.State.MENU:
 		game.args["stage"] = i
 		game.start_game(game.difficulty)

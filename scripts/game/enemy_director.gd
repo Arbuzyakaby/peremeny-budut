@@ -134,6 +134,8 @@ func spawn_bear(type: int, at := Vector2.INF) -> TeddyBear:
 
 func update_bears(delta: float, snake: Snake, fighting: bool) -> void:
 	for bear: TeddyBear in bears.duplicate():
+		if bear.is_queued_for_deletion():  # съеден или поле очищено (этап пройден) в этом же кадре
+			continue
 		bear.update(delta, snake)
 		if not fighting or not snake.alive:
 			continue
@@ -146,7 +148,7 @@ func update_bears(delta: float, snake: Snake, fighting: bool) -> void:
 				eat_bear(bear)
 	# таран: боксёр в рывке или разозлённый медведь сбивают других медведей
 	for a: TeddyBear in bears.duplicate():
-		if not is_instance_valid(a) or not a.is_ramming():
+		if not is_instance_valid(a) or a.is_queued_for_deletion() or not a.is_ramming():
 			continue
 		for b: TeddyBear in bears:
 			if b != a and a.position.distance_to(b.position) < TeddyBear.RADIUS * 2.0 + 4.0:
@@ -170,12 +172,16 @@ func friendly_hit(victim: TeddyBear, attacker: Node2D, push_vel: Vector2) -> boo
 
 ## Змея сбила медведя атакой.
 func snake_hits_bear(bear: TeddyBear, push_vel: Vector2) -> void:
+	if not bears.has(bear):  # уже убран с поля — очков за него нет
+		return
 	if bear.hit_by_friend(null, push_vel):
 		g.add_score(Balance.FRIENDLY_POINTS, bear.position, "БАЦ! ")
 		g.fx.burst(bear.position, Color(0.6, 1, 0.6), 8)
 
 
 func eat_bear(bear: TeddyBear) -> void:
+	if not bears.has(bear):  # второй раз того же медведя не съесть (и после очистки поля — тоже)
+		return
 	bears.erase(bear)
 	for other in bears:  # обидчика съели — мстить некому
 		if other.grudge == bear:
@@ -290,6 +296,8 @@ func _on_fork_attack(kind: String, data: Dictionary, f: Fork) -> void:
 
 func update_forks(delta: float, snake: Snake) -> void:
 	for f: Fork in forks.duplicate():
+		if not is_instance_valid(f) or f.is_queued_for_deletion():
+			continue
 		f.update(delta, snake.head_pos, snake.alive)
 		if not is_instance_valid(f):
 			continue
@@ -364,6 +372,8 @@ func pincer_breakout(f: Fork, snake: Snake) -> void:
 
 
 func break_fork(f: Fork, prefix := "") -> void:
+	if not forks.has(f):  # уже сломана или поле очищено — не считать дважды
+		return
 	if f.pincer_id != 0:  # сломали вилку клещей — клещи разваливаются
 		squad.breakout(f, forks)
 	forks.erase(f)
@@ -403,6 +413,8 @@ func spawn_pill(at := Vector2.INF, kind := -1) -> Pill:
 func update_pills(delta: float, snake: Snake) -> void:
 	var head_vel := Vector2.from_angle(snake.heading) * Snake.BASE_SPEED
 	for p: Pill in pills.duplicate():
+		if p.is_queued_for_deletion():
+			continue
 		p.update(delta, snake.head_pos, head_vel, snake.alive)
 		if snake.alive and p.is_edible() and p.position.distance_to(snake.head_pos) < Pill.RADIUS + Snake.HEAD_RADIUS:
 			eat_pill(p)

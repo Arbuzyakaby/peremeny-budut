@@ -37,6 +37,12 @@ const Darkness = preload("res://scripts/game/darkness.gd")
 
 enum State { LOADING, MENU, LEVEL, PERK, BOSS_INTRO, BOSS, OUTRO, CUTSCENE, WIN, GAME_OVER }
 
+## Самый длинный шаг симуляции за кадр. Перетаскивание окна, сворачивание или фризы дают кадр
+## в секунды — без ограничения змея за один шаг улетает в бортик или проскакивает сквозь снаряды.
+const MAX_STEP := 1.0 / 20.0
+## Сколько секунд ждать второго нажатия «пропустить финал».
+const SKIP_CONFIRM_TIME := 2.0
+
 ## Переживают перезагрузку сцены: выбранная сложность и «сразу начать заново».
 static var difficulty := 1
 static var auto_start := false
@@ -113,6 +119,8 @@ func _ready() -> void:
 	hud.sfx = sfx
 	add_child(hud)
 	hud.difficulty_chosen.connect(func(i: int) -> void:
+		if state != State.MENU:  # двойное нажатие — забег уже начат
+			return
 		daily_mode = false
 		start_game(i))
 	hud.daily_chosen.connect(start_daily)
@@ -197,10 +205,11 @@ static func _on_quit() -> void:
 	Sfx.release_all()
 	Tex.clear_cache()
 	Design.clear_cache()
+	Fx.clear_cache()
 
 
-func _parse_args() -> void:
-	for a: String in OS.get_cmdline_user_args():
+func _parse_args(user_args := OS.get_cmdline_user_args()) -> void:
+	for a: String in user_args:
 		if a.begins_with("--stage="):
 			args["stage"] = clampi(int(a.get_slice("=", 1)), 0, Balance.BOSS_STAGE)
 		elif a.begins_with("--diff="):
@@ -221,7 +230,8 @@ func _parse_args() -> void:
 			args["tab"] = int(a.get_slice("=", 1))
 		elif a in ["--ending", "--skills", "--perks", "--dev", "--settings"]:
 			args[a.trim_prefix("--")] = true
-	debug_run = autopilot or args["stage"] >= 0 or args["ending"]
+	# --open=end/win/restart завершают забег с выдуманным счётом — это тоже отладка, не рекорд
+	debug_run = autopilot or args["stage"] >= 0 or args["ending"] or args.get("open", "") in ["end", "win", "restart"]
 
 
 # ---------------------------------------------------------------- меню и старт
@@ -236,6 +246,8 @@ func show_menu() -> void:
 
 ## Ежедневное испытание: Нормальная сложность, модификатор и сид дня.
 func start_daily() -> void:
+	if state != State.MENU:
+		return
 	daily_mode = true
 	start_game(Daily.BASE_DIFFICULTY)
 
@@ -283,9 +295,15 @@ func start_game(diff: int) -> void:
 	enter_stage(maxi(args["stage"], 0))
 
 
+var _restarting := false
+
+
 func restart(retry: bool) -> void:
 	if get_tree().current_scene == null:  # игра встроена в тест — перезагружать нечего
 		return
+	if _restarting:  # двойное нажатие «Ещё раз» / «В меню» — сцена уже перезагружается
+		return
+	_restarting = true
 	auto_start = retry
 	get_tree().paused = false
 	Engine.time_scale = 1.0
@@ -425,6 +443,7 @@ func on_boss_defeated() -> void:
 	_clear_field()
 	run_scales += Balance.SCALES_PER_BOSS
 	state = State.OUTRO
+	snake.safe = true  # победа: до финала змею уже ничто не ранит (раньше можно было разбиться о бортик)
 
 
 func start_ending() -> void:
@@ -438,14 +457,16 @@ func start_ending() -> void:
 	ending.start(self)
 
 
-var _skip_armed := false
+var _skip_armed_ms := -1
 
 
 func _skip_ending() -> void:
 	if state != State.CUTSCENE or ending == null:
 		return
-	if Settings.flag("confirm_skip") and not _skip_armed:
-		_skip_armed = true
+	var now := Time.get_ticks_msec()
+	var armed := _skip_armed_ms >= 0 and now - _skip_armed_ms <= int(SKIP_CONFIRM_TIME * 1000.0)
+	if Settings.flag("confirm_skip") and not armed:  # подтверждение живёт 2 с, а не до конца финала
+		_skip_armed_ms = now
 		hud.show_banner("Ещё раз — пропустить финал", Design.MUTED, 1.2)
 		return
 	ending.skip()
@@ -474,6 +495,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _end(win: bool) -> void:
+	if state in [State.WIN, State.GAME_OVER]:  # итоги уже подведены: второй раз рекорд не пишем
+		return
 	state = State.WIN if win else State.GAME_OVER
 	if boss:
 		boss.active = false
@@ -503,6 +526,7 @@ func _end(win: bool) -> void:
 # ---------------------------------------------------------------- цикл
 
 func _process(delta: float) -> void:
+	delta = minf(delta, MAX_STEP * Engine.time_scale)
 	shake = maxf(shake - delta * 40.0, 0.0)
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake * Settings.num("shake")
 	var fighting := state in [State.LEVEL, State.BOSS]
@@ -633,6 +657,5 @@ func menu_demo_refresh() -> void:
 
 ## Пометить забег отладочным (любое читерство из панели разработчика).
 func mark_debug_run() -> void:
-	if not debug_run:
-		debug_run = true
-		hud.set_dev_run(true)
+	debug_run = true
+	hud.set_dev_run(true)

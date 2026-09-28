@@ -54,7 +54,7 @@ LOADING → MENU → LEVEL ⇄ PERK → … → BOSS_INTRO → BOSS → OUTRO �
 | Модуль | Что хранит | Где |
 |---|---|---|
 | `core/settings.gd` | настройки по схеме `SCHEMA` (см. [SETTINGS.md](SETTINGS.md)) | `user://settings.cfg` |
-| `core/save_data.gd` | рекорды, чешуйки, открытые навыки | `user://save.cfg` |
+| `core/save_data.gd` | рекорды, чешуйки, открытые навыки (файл зашифрован, запись атомарная) | `user://save.dat` |
 | `core/bestiary.gd` | открытые карточки картотеки | в сохранении |
 | `core/daily.gd` | испытание дня и его рекорд | в сохранении |
 | `core/balance.gd` | этапы, сложности, числа баланса | константы |

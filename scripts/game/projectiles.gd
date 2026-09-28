@@ -169,6 +169,8 @@ func _snake_shot_hits(d: OilDrop) -> bool:
 func update_drops(delta: float) -> void:
 	var snake: Snake = g.snake
 	for d: OilDrop in drops.duplicate():
+		if d.is_queued_for_deletion():  # поле очищено в этом же кадре (этап пройден, яичница съедена)
+			continue
 		d.update(delta, snake.head_pos)
 		if d.is_missed():  # промах лежит на полу и никого не ранит
 			if d.miss_done():
@@ -231,6 +233,8 @@ func _end_flight(d: OilDrop) -> void:
 func update_waves(delta: float) -> void:
 	var snake: Snake = g.snake
 	for w: Shockwave in waves.duplicate():
+		if w.is_queued_for_deletion():
+			continue
 		w.update(delta)
 		if not w.friendly and w.hits(snake.head_pos):
 			w.hit_done = true

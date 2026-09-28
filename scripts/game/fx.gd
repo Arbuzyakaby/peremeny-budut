@@ -7,10 +7,18 @@ const Settings = preload("res://scripts/core/settings.gd")
 const Tex = preload("res://scripts/gfx/tex.gd")
 
 var world: Node2D
+## Кривая размера и градиент частиц одинаковы у всех облачков: создаём один раз, а не на каждый взрыв.
+static var _scale_curve: Curve
+static var _ramp: Gradient
 
 
 func _init(world_node: Node2D) -> void:
 	world = world_node
+
+
+static func clear_cache() -> void:
+	_scale_curve = null
+	_ramp = null
 
 
 ## Всплывающая надпись над точкой мира. score — это очки (их можно выключить в настройках).
@@ -58,14 +66,15 @@ func burst(pos: Vector2, color: Color, amount: int, size := 1.0) -> void:
 	p.texture = Tex.soft()
 	p.scale_amount_min = 0.09 * size
 	p.scale_amount_max = 0.17 * size
-	var curve := Curve.new()
-	curve.add_point(Vector2(0, 1))
-	curve.add_point(Vector2(1, 0.2))
-	p.scale_amount_curve = curve
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(1.3, 1.3, 1.3, 1))
-	ramp.set_color(1, Color(1, 1, 1, 0))
-	p.color_ramp = ramp
+	if _scale_curve == null:
+		_scale_curve = Curve.new()
+		_scale_curve.add_point(Vector2(0, 1))
+		_scale_curve.add_point(Vector2(1, 0.2))
+		_ramp = Gradient.new()
+		_ramp.set_color(0, Color(1.3, 1.3, 1.3, 1))
+		_ramp.set_color(1, Color(1, 1, 1, 0))
+	p.scale_amount_curve = _scale_curve
+	p.color_ramp = _ramp
 	p.color = color
 	p.finished.connect(p.queue_free)
 	world.add_child(p)

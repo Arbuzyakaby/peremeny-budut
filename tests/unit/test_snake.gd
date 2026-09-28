@@ -125,3 +125,28 @@ func test_wall_hit_hurts() -> void:
 	s.heading = PI
 	s.update(1.0 / 60.0)
 	assert_eq(s.lives, 2, "удар о бортик")
+
+
+func test_safe_snake_takes_no_damage() -> void:
+	var s := _snake()
+	s.safe = true
+	s.head_pos = Vector2(30, 400)
+	s.heading = PI
+	s.update(1.0 / 60.0)
+	assert_eq(s.lives, 3, "после победы бортик не ранит")
+	assert_true(s.alive)
+
+
+func test_segments_cache_follows_movement() -> void:
+	var s := _snake()
+	var before := s.get_segments().duplicate()
+	for i in 10:
+		s.update(1.0 / 60.0)
+	var after := s.get_segments()
+	assert_ne(before[0], after[0], "кэш сегментов обновляется при движении")
+	assert_eq(after[0], s.trail[0], "первый сегмент — начало следа")
+	s.grow(4)
+	for i in 30:
+		s.update(1.0 / 60.0)
+	assert_eq(s.get_segments().size(), (s.trail.size() + Snake.POINTS_PER_SEGMENT - 1) / Snake.POINTS_PER_SEGMENT,
+		"после роста сегментов столько же, сколько в следе")

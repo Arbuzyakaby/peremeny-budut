@@ -161,9 +161,10 @@ func add(node: Node) -> Node:
 ## Перенаправить сохранения во временные файлы и начать с чистого листа.
 static func use_temp_storage() -> void:
 	DirAccess.make_dir_recursive_absolute(TMP)
-	SaveData.path = TMP + "/save.cfg"
+	SaveData.path = TMP + "/save.dat"
+	SaveData.legacy_path = ""  # не переносить настоящее старое сохранение игрока во временное
 	Settings.path = TMP + "/settings.cfg"
-	for f in ["save.cfg", "settings.cfg"]:
+	for f in ["save.dat", "save.dat.tmp", "save.cfg", "save.cfg.old", "settings.cfg"]:
 		if FileAccess.file_exists(TMP + "/" + f):
 			DirAccess.remove_absolute(TMP + "/" + f)
 	Skills.load_progress()
@@ -174,6 +175,7 @@ static func use_temp_storage() -> void:
 
 static func restore_storage() -> void:
 	SaveData.path = SaveData.DEFAULT_PATH
+	SaveData.legacy_path = SaveData.LEGACY_PATH
 	Settings.path = Settings.DEFAULT_PATH
 	Skills.load_progress()
 	Settings.load_from_disk()

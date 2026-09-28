@@ -220,3 +220,63 @@ func test_pill_wave_stuns_forks_but_spares_snake() -> void:
 	await step(60)
 	assert_eq(game.snake.lives, lives, "своя волна змею не бьёт")
 	assert_false(game.snake.is_stunned(), "и не оглушает")
+
+
+func test_snake_cannot_die_between_boss_and_ending() -> void:
+	await boot_stage(3)
+	await wait_until(func() -> bool: return game.state == Game.State.BOSS)
+	game.boss.dev_set_hp(0)
+	assert_eq(game.state, Game.State.OUTRO)
+	game.snake.invuln = 0.0
+	game.snake.lives = 1
+	game.snake.head_pos = Vector2(game.bounds.position.x + 2, 360)
+	game.snake.heading = PI
+	await step(3)
+	assert_true(game.snake.alive, "после победы бортик не убивает")
+	assert_eq(game.state, Game.State.OUTRO)
+
+
+func test_run_ends_only_once() -> void:
+	await boot()
+	game.start_game(0)
+	game.score = 500
+	game._end(true)
+	assert_eq(game.state, Game.State.WIN)
+	game.score = 900
+	game._end(false)
+	assert_eq(game.state, Game.State.WIN, "поражение не перекрывает победу")
+	assert_eq(SaveData.best(0), 500, "рекорд записан один раз")
+
+
+func test_huge_frame_is_clamped() -> void:
+	await boot_stage(0)
+	game.enemies.clear(false)
+	game.snake.head_pos = Vector2(640, 360)
+	game.snake.heading = 0.0
+	var lives: int = game.snake.lives
+	game._process(3.0)  # окно тащили три секунды
+	assert_eq(game.snake.lives, lives, "змея не улетела в бортик за один кадр")
+	assert_between(game.snake.head_pos.x, 640.0, 640.0 + Game.MAX_STEP * 700.0, "шаг ограничен")
+
+
+func test_stage_clear_mid_frame_does_not_double_count() -> void:
+	await boot_stage(0)
+	game.enemies.clear(false)
+	game.goal_done = game.goal_total - 1
+	var a = game.enemies.spawn_bear(0, Vector2(300, 300))
+	var b = game.enemies.spawn_bear(0, Vector2(900, 300))
+	game.enemies.eat_bear(a)  # последний медведь этапа — поле очищается
+	assert_eq(game.state, Game.State.PERK)
+	var eaten: int = game.bears_eaten
+	var score: int = game.score
+	game.enemies.eat_bear(b)  # тот же кадр: второй медведь уже убран
+	assert_eq(game.bears_eaten, eaten, "убранный медведь не съедается")
+	assert_eq(game.score, score, "и очков за него нет")
+
+
+func test_debug_open_does_not_write_records() -> void:
+	await boot()
+	game._parse_args(PackedStringArray(["--open=win"]))
+	assert_true(game.debug_run, "--open=win — отладочный забег")
+	game._open_for_debug("win")
+	assert_eq(SaveData.best(game.difficulty), 0, "выдуманный счёт 1234 не становится рекордом")

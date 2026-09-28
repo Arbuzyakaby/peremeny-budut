@@ -1,6 +1,6 @@
 extends RefCounted
 ## Картотека врагов: карточка открывается, когда враг (или приём вилки) впервые появляется на поле.
-## Хранится в user://save.cfg, раздел [bestiary]. Отладочные забеги карточки не открывают.
+## Хранится в user://save.dat, раздел [bestiary]. Отладочные забеги карточки не открывают.
 
 const SaveData = preload("res://scripts/core/save_data.gd")
 
@@ -116,8 +116,5 @@ static func total() -> int:
 
 
 static func reset() -> void:
-	var cf := SaveData.load_file()
-	if cf.has_section(SECTION):
-		cf.erase_section(SECTION)
-	cf.save(SaveData.path)
+	SaveData.erase_section(SECTION)
 	load_progress()

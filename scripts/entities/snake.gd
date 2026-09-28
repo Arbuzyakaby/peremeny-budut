@@ -26,6 +26,8 @@ var bounds := Rect2(0, 0, 1280, 720)
 var head_pos := Vector2(640, 450)
 var heading := -PI / 2
 var trail := PackedVector2Array()
+var _segs := PackedVector2Array()  # кэш сегментов: считаем один раз за кадр, а не в каждой проверке
+var _segs_dirty := true
 var length := 12
 var lives := 3
 var max_lives := 3
@@ -56,6 +58,8 @@ var small := 1.0  # масштаб (новорождённая змейка в �
 ## Сенсорное управление: желаемое направление (длина — чувствительность) и спринт.
 var touch_steer := Vector2.ZERO
 var touch_sprint := false
+## Победа: до финала змею ничто не ранит (бортик в том числе).
+var safe := false
 ## Панель разработчика.
 var god := false
 var endless_stamina := false
@@ -90,6 +94,7 @@ func reset(pos: Vector2) -> void:
 	var back := -Vector2.from_angle(heading)
 	for i in length * POINTS_PER_SEGMENT + 1:
 		trail.append(pos + back * STEP * i)
+	_segs_dirty = true
 
 
 func _input(event: InputEvent) -> void:
@@ -180,11 +185,16 @@ func _autopilot(delta: float) -> void:
 
 
 func _extend_trail() -> void:
+	var added := 0
 	while head_pos.distance_to(trail[0]) >= STEP:
 		trail.insert(0, trail[0] + (head_pos - trail[0]).normalized() * STEP)
+		added += 1
 	var max_points := length * POINTS_PER_SEGMENT + 1
 	if trail.size() > max_points:
 		trail.resize(max_points)
+		added += 1
+	if added > 0:
+		_segs_dirty = true
 
 
 func _check_walls() -> void:
@@ -210,11 +220,18 @@ func _check_self_bite() -> void:
 			return
 
 
+## Сегменты тела (каждая POINTS_PER_SEGMENT-я точка следа). Кэш: самоукус, рисунок, отряд и повтор
+## спрашивают их по нескольку раз за кадр. Возвращается сам кэш (packed-массивы передаются по ссылке):
+## не менять и не хранить между кадрами — для этого duplicate().
 func get_segments() -> PackedVector2Array:
-	var out := PackedVector2Array()
-	for i in range(0, trail.size(), POINTS_PER_SEGMENT):
-		out.append(trail[i])
-	return out
+	if _segs_dirty:
+		_segs.resize((trail.size() + POINTS_PER_SEGMENT - 1) / POINTS_PER_SEGMENT)
+		var k := 0
+		for i in range(0, trail.size(), POINTS_PER_SEGMENT):
+			_segs[k] = trail[i]
+			k += 1
+		_segs_dirty = false
+	return _segs
 
 
 ## Потратить стамину на атаку. false — не хватает сил.
@@ -241,6 +258,7 @@ func is_dashing() -> bool:
 
 func grow(amount: int) -> void:
 	length += amount
+	_segs_dirty = true
 	bite_t = 0.25
 
 
@@ -276,7 +294,7 @@ func heal(amount := 1) -> bool:
 ## Возвращает true, если урон действительно прошёл (не было неуязвимости).
 ## cause — откуда пришёл удар (для повтора гибели и совета на экране итогов, см. core/tips.gd).
 func take_damage(amount := 1, cause := "") -> bool:
-	if invuln > 0.0 or not alive or god:
+	if invuln > 0.0 or not alive or god or safe:
 		return false
 	last_cause = cause
 	if shield > 0:
