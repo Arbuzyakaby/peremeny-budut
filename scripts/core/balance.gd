@@ -53,16 +53,34 @@ const STAGES := [
 		"hint": ""},
 ]
 
-## Атаки, которые змея перенимает у съеденных медведей (ключ — тип медведя из teddy_bear.gd).
+## Атаки, которые змея перенимает (ключ — тип атаки). 1–7 — у съеденных особых медведей (тип медведя
+## из teddy_bear.gd), 10–13 — у сломанных вилок и съеденных таблеток (v8.0).
+## v8.0: медвежьи атаки ослаблены — меньше зарядов, дороже по стамине, слабее по яичнице (BOSS_CHIP);
+## атаки вилок и таблеток ещё скромнее: 1–2 заряда, выдаются за каждую FORK_PILL_EVERY-ю вилку или
+## таблетку и только в пустой слот (или в ту же атаку), не больше max зарядов.
 const ABILITIES := {
-	1: {"name": "УДАР С РАЗБЕГА", "charges": 3, "cost": 0.25},
-	2: {"name": "ПУГОВИЦЫ", "charges": 8, "cost": 0.08},
-	3: {"name": "ВЕРТУШКА", "charges": 3, "cost": 0.3},
-	4: {"name": "ИГЛЫ", "charges": 5, "cost": 0.15},
-	5: {"name": "ТЕНЕВОЙ РЫВОК", "charges": 3, "cost": 0.2},
-	6: {"name": "ХЛОПУШКА", "charges": 4, "cost": 0.15},
-	7: {"name": "ЗАПЛАТКА", "charges": 1, "cost": 0.3},
+	1: {"name": "УДАР С РАЗБЕГА", "charges": 2, "cost": 0.3, "source": "bear", "max": 6},
+	2: {"name": "ПУГОВИЦЫ", "charges": 6, "cost": 0.1, "source": "bear", "max": 12},
+	3: {"name": "ВЕРТУШКА", "charges": 2, "cost": 0.35, "source": "bear", "max": 6},
+	4: {"name": "ИГЛЫ", "charges": 4, "cost": 0.18, "source": "bear", "max": 10},
+	5: {"name": "ТЕНЕВОЙ РЫВОК", "charges": 2, "cost": 0.25, "source": "bear", "max": 6},
+	6: {"name": "ХЛОПУШКА", "charges": 3, "cost": 0.2, "source": "bear", "max": 8},
+	7: {"name": "ЗАПЛАТКА", "charges": 1, "cost": 0.4, "source": "bear", "max": 2},
+	10: {"name": "ЗАЛП ЗУБЦОВ", "charges": 2, "cost": 0.22, "source": "fork", "max": 4},
+	11: {"name": "ВЫПАД", "charges": 2, "cost": 0.3, "source": "fork", "max": 4},
+	12: {"name": "УКОЛ ВИЛАМИ", "charges": 1, "cost": 0.3, "source": "fork", "max": 2},
+	13: {"name": "УДАРНАЯ ВОЛНА", "charges": 1, "cost": 0.3, "source": "pill", "max": 2},
 }
+## Атака от вилки по её виду (Fork.Kind: столовая, десертная, вилы) и от таблетки.
+const FORK_ABILITY := [10, 11, 12]
+const PILL_ABILITY := 13
+const FORK_PILL_EVERY := 2      # атаку даёт каждая 2-я сломанная вилка / съеденная таблетка
+const ABILITY_COOLDOWN := 0.3   # между атаками, с (нельзя «пулемётить» пуговицами)
+const TINE_RANGE := 0.55        # залп зубцов змеи летит недалеко (секунды жизни зубца)
+const POGO_REACH := 70.0        # укол вилами: точка удара впереди головы
+const POGO_RADIUS := 78.0
+const PILL_WAVE_REACH := 180.0  # ударная волна таблетки: радиус оглушения
+const PILL_WAVE_STUN := 1.4
 
 ## Очки (умножаются на score_mult сложности).
 const BEAR_POINTS := [10, 20, 15, 25, 20, 30, 25, 20]
@@ -80,7 +98,8 @@ const SCALES_PER_BOSS := 30.0
 
 ## Урон по яичнице разными атаками (в «делениях», до множителя навыков).
 const BOSS_CHIP := {
-	"fork": 0.5, "cracker": 0.8, "spin": 0.5, "dash": 0.6, "button": 0.25, "needle": 0.18,
+	"fork": 0.5, "cracker": 0.6, "spin": 0.4, "dash": 0.45, "button": 0.2, "needle": 0.14,
+	"tine": 0.12, "lunge": 0.3, "pogo": 0.35,
 }
 const YOLK_SHOT_MULT := 3.0
 

@@ -12,6 +12,7 @@ var radius := 40.0
 var speed := 300.0
 var max_radius := 820.0
 var stun := false
+var friendly := false  # волна змеи (атака таблетки): мятная, змею не задевает
 var gaps: Array[float] = []
 var hit_done := false
 var t := 0.0
@@ -56,8 +57,9 @@ func _draw() -> void:
 	var fade := clampf(1.0 - radius / max_radius, 0.0, 1.0)
 	if stun:
 		var r := radius + THICKNESS
-		draw_texture_rect(Tex.ring(), Rect2(-Vector2(r, r), Vector2(r, r) * 2.0), false, Color(0.45, 0.7, 1.0, 0.8 * fade))
-		draw_arc(Vector2.ZERO, radius, 0, TAU, 64, Color(0.75, 0.9, 1.0, 0.9 * fade), 5.0)
+		var ring_col := Color(0.45, 1.0, 0.7) if friendly else Color(0.45, 0.7, 1.0)
+		draw_texture_rect(Tex.ring(), Rect2(-Vector2(r, r), Vector2(r, r) * 2.0), false, Color(ring_col, 0.8 * fade))
+		draw_arc(Vector2.ZERO, radius, 0, TAU, 64, Color(ring_col.lightened(0.4), 0.9 * fade), 5.0)
 		for i in 10:  # пыль, поднятая волной
 			var a := TAU * i / 10.0 + t * 0.8
 			Tex.blob(self, Vector2.from_angle(a) * radius, Vector2.ONE * 10.0, Color(0.9, 0.95, 1.0, 0.5 * fade))

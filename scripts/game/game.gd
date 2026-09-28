@@ -227,6 +227,7 @@ func _parse_args() -> void:
 # ---------------------------------------------------------------- меню и старт
 
 func show_menu() -> void:
+	sfx.play_music("menu")
 	state = State.MENU
 	daily_mode = false
 	menu_demo = MenuDemo.new(self)
@@ -518,6 +519,10 @@ func _process(delta: float) -> void:
 			replay.record(self, delta)
 	if darkness and snake:
 		darkness.follow(snake.head_pos)
+	if snake and fighting:
+		var yolk := boss != null and boss.is_yolk_open()
+		sfx.set_intensity(music_intensity(state == State.BOSS, boss.phase() if boss else 1, snake.lives,
+			snake.max_lives, not enemies.squad.pincer.is_empty(), yolk, float(goal_done) / maxf(goal_total, 1.0)))
 	if autopilot and snake and fighting:
 		Autopilot.drive(self)
 
@@ -532,7 +537,7 @@ func _process(delta: float) -> void:
 				boss.update(delta, snake)
 		State.LEVEL, State.BOSS:
 			snake.update(delta)
-			abilities.update_dash()
+			abilities.update(delta)
 			if state == State.BOSS:
 				boss.update(delta, snake)
 				enemies.update_reinforcements(delta)
@@ -557,6 +562,24 @@ func _notification(what: int) -> void:
 		NOTIFICATION_APPLICATION_FOCUS_IN, NOTIFICATION_APPLICATION_RESUMED:
 			if sfx:
 				sfx.set_suspended(false)
+
+
+## Музыка 2.0: насколько подмешать слой напряжения. На этапе — растёт к концу этапа, при последней
+## жизни и когда вилки заходят в клещи; в бою с яичницей — по фазе, а открытый желток — на полную.
+static func music_intensity(boss_fight: bool, phase: int, lives: int, max_lives: int, pincer: bool,
+		yolk_open: bool, progress: float) -> float:
+	var k := 0.0
+	if boss_fight:
+		k = [0.35, 0.65, 0.9][clampi(phase, 1, 3) - 1]
+		if yolk_open:
+			k = 1.0
+	else:
+		k = 0.3 * clampf(progress, 0.0, 1.0)
+		if pincer:
+			k += 0.35
+	if lives <= 1 and max_lives > 1:
+		k += 0.45
+	return clampf(k, 0.0, 1.0)
 
 
 # ---------------------------------------------------------------- очки, эффекты, сигналы

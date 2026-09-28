@@ -111,6 +111,25 @@ static func _cause_of(d: OilDrop) -> String:
 	return "shot"
 
 
+static func _chip_kind(d: OilDrop) -> String:
+	match d.kind:
+		OilDrop.Kind.BUTTON:
+			return "button"
+		OilDrop.Kind.TINE:
+			return "tine"
+	return "needle"
+
+
+## Волна змеи (ударная волна таблетки): только картинка — оглушение раздаёт abilities.gd, змею не задевает.
+func spawn_snake_wave(pos: Vector2, reach: float) -> void:
+	var w := Shockwave.new()
+	w.z_index = 1
+	w.setup_stun(pos, reach)
+	w.friendly = true
+	g.world.add_child(w)
+	waves.append(w)
+
+
 ## Выстрел змеи во что-то попал? true — снаряд израсходован.
 func _snake_shot_hits(d: OilDrop) -> bool:
 	for bear: TeddyBear in g.enemies.bears:
@@ -140,7 +159,7 @@ func _snake_shot_hits(d: OilDrop) -> bool:
 			return true
 		var yolk := boss.position + FriedEggBoss.YOLK_OFFSET
 		var into_yolk := boss.is_yolk_open() and d.position.distance_to(yolk) < FriedEggBoss.YOLK_RADIUS + 14.0
-		if boss.take_chip(Combat.shot_chip(d.kind == OilDrop.Kind.BUTTON, into_yolk, g.mods)):
+		if boss.take_chip(Combat.shot_chip(_chip_kind(d), into_yolk, g.mods)):
 			g.sfx.play("splat", 1.3)
 		g.fx.burst(d.position, Color(1, 0.95, 0.7), 6)
 		return true
@@ -213,7 +232,7 @@ func update_waves(delta: float) -> void:
 	var snake: Snake = g.snake
 	for w: Shockwave in waves.duplicate():
 		w.update(delta)
-		if w.hits(snake.head_pos):
+		if not w.friendly and w.hits(snake.head_pos):
 			w.hit_done = true
 			if w.stun:
 				if snake.stun(1.3):

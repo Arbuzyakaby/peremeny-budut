@@ -187,7 +187,7 @@ func eat_bear(bear: TeddyBear) -> void:
 	g.add_score_raw(pts, bear.position, "НОКАУТ! " if dizzy else "")
 	bear.queue_free()
 	g.snake.grow(3)
-	g.abilities.gain(bear.type)
+	g.abilities.gain_bear(bear.type)
 	if not g.is_goal_stage(0):  # помощники на других этапах — только атака и очки
 		g.sfx.play("eat")
 		return
@@ -374,6 +374,7 @@ func break_fork(f: Fork, prefix := "") -> void:
 	g.add_score(Balance.FORK_POINTS, f.position, prefix)
 	f.queue_free()
 	g.snake.grow(1)
+	g.abilities.gain_fork(f.kind)
 	if g.is_goal_stage(1):
 		g.forks_broken += 1
 		g.goal_progress(1)
@@ -418,6 +419,7 @@ func eat_pill(p: Pill, prefix := "") -> void:
 	p.queue_free()
 	g.snake.grow(2)
 	g.snake.stamina = minf(g.snake.stamina + 0.2, 1.0)
+	g.abilities.gain_pill()
 	if g.is_goal_stage(2):
 		g.pills_eaten += 1
 		g.goal_progress(2)

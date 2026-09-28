@@ -1,5 +1,5 @@
 extends RefCounted
-## Дизайн-язык «Ящик экспериментов» 2.0 — единственный источник цветов, шрифтов, отступов, радиусов,
+## Дизайн-язык «Ящик экспериментов» 2.2 — единственный источник цветов, шрифтов, отступов, радиусов,
 ## материалов, теней и анимаций интерфейса. Описание и правила — docs/DESIGN.md.
 ## Идея: интерфейс — панель лабораторного прибора, вмонтированная в деревянный ящик. Никаких плоских
 ## «цифровых» заливок: у каждой кнопки, тумблера и крутилки есть материал (бакелит, латунь, хром,
@@ -295,6 +295,79 @@ static func safe() -> Color:
 ## Толщина линий предупреждений (режим высокой контрастности делает их жирнее).
 static func telegraph_width(base: float) -> float:
 	return base * (1.8 if Settings.flag("high_contrast") else 1.0)
+
+
+# ---------------------------------------------------------------- 2.2: язык телеграфов
+
+## Три смысла предупреждений на арене — у всех врагов одинаковые:
+## AIM — «сюда полетит» (пунктир, danger), AREA — «здесь ударит» (кольцо, warn),
+## OPEN — «окно, бей сейчас» (сплошная кромка, safe). Цвета — с учётом режима для дальтоников.
+enum Tell { AIM, AREA, OPEN }
+
+
+static func tell_color(kind: int, alpha := 1.0) -> Color:
+	var c := danger()
+	match kind:
+		Tell.AREA:
+			c = warn()
+		Tell.OPEN:
+			c = safe()
+	return Color(c, alpha)
+
+
+## Пунктир прицела от a к b: штрихи бегут к цели (phase — время), толщина — telegraph_width.
+static func draw_dashes(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, width := 3.0, dash := 18.0,
+		gap := 14.0, phase := 0.0) -> void:
+	var len := a.distance_to(b)
+	if len < 1.0:
+		return
+	var dir := (b - a) / len
+	var w := telegraph_width(width)
+	var d := fmod(phase * 60.0, dash + gap) - (dash + gap)
+	while d < len:
+		var s0 := maxf(d, 0.0)
+		var s1 := minf(d + dash, len)
+		if s1 > s0:
+			var fade := 1.0 - 0.6 * s0 / len
+			ci.draw_line(a + dir * s0, a + dir * s1, Color(col, col.a * fade), w)
+		d += dash + gap
+
+
+## Кольцо зоны удара: заливка, кромка и «стрелка часов» k (0..1) — сколько осталось до удара.
+static func draw_tell_ring(ci: CanvasItem, c: Vector2, r: float, kind: int, k: float) -> void:
+	var col := tell_color(kind)
+	ci.draw_circle(c, r, Color(col, 0.1 + 0.12 * k))
+	ci.draw_arc(c, r, 0, TAU, 48, Color(col, 0.75), telegraph_width(3.0))
+	if k > 0.0:
+		ci.draw_arc(c, r * clampf(k, 0.0, 1.0), 0, TAU, 40, Color(col.lightened(0.4), 0.55), telegraph_width(2.0))
+
+
+# ---------------------------------------------------------------- 2.2: источники атак змеи
+
+## Откуда у змеи атака: у каждого источника — свой акцент этапа и гравировка на табличке.
+const SOURCE_COLORS := {"bear": Color(0.851, 0.627, 0.4), "fork": Color(0.85, 0.42, 0.16), "pill": Color(0.373, 0.831, 0.769)}
+const SOURCE_NAMES := {"bear": "МЕДВЕДЬ", "fork": "ВИЛКА", "pill": "ТАБЛЕТКА"}
+
+
+## Ряд ламп (заряды атаки и т. п.): горящие — цвета col с ореолом, погасшие — тёмное стекло.
+## Больше max_shown — последняя лампа показывает «+».
+static func draw_lamps(ci: CanvasItem, origin: Vector2, count: int, lit: int, col: Color, r := 5.0,
+		step := 14.0, max_shown := 8) -> void:
+	var n := mini(count, max_shown)
+	for i in n:
+		var c := origin + Vector2(i * step, 0)
+		ci.draw_circle(c, r + 1.5, BRASS.darkened(0.35))
+		if i < lit:
+			ci.draw_circle(c, r + 3.0, Color(col, 0.22))
+			ci.draw_circle(c, r, col)
+			ci.draw_circle(c + Vector2(-r * 0.35, -r * 0.35), r * 0.35, Color(1, 1, 1, 0.7))
+		else:
+			ci.draw_circle(c, r, Color(0.12, 0.08, 0.05))
+			ci.draw_arc(c, r * 0.6, PI * 1.1, PI * 1.6, 6, Color(1, 1, 1, 0.15), 1.0)
+	if count > max_shown:
+		var c := origin + Vector2((n - 1) * step, 0)
+		ci.draw_line(c - Vector2(r * 0.5, 0), c + Vector2(r * 0.5, 0), INK, 1.5)
+		ci.draw_line(c - Vector2(0, r * 0.5), c + Vector2(0, r * 0.5), INK, 1.5)
 
 
 # ---------------------------------------------------------------- тема

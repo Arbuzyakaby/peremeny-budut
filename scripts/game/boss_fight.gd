@@ -1,6 +1,6 @@
 extends RefCounted
 ## Бой с Гигантской Яичницей: появление (падает сверху), сигналы босса (выстрелы, волны, укусы,
-## фазы, открытый желток) и победа, после которой начинается финал.
+## фазы с рёвом, открытый желток, окна наказания) и победа, после которой начинается финал.
 
 const Balance = preload("res://scripts/core/balance.gd")
 const FriedEggBoss = preload("res://scripts/entities/fried_egg_boss.gd")
@@ -8,6 +8,7 @@ const FriedEggBoss = preload("res://scripts/entities/fried_egg_boss.gd")
 var g  # game.gd
 var boss: FriedEggBoss
 var yolk_hints := 0
+var daze_hinted := {}
 
 
 func _init(game) -> void:
@@ -31,6 +32,7 @@ func begin() -> FriedEggBoss:
 	boss.bitten.connect(_on_bitten)
 	boss.phase_changed.connect(_on_phase)
 	boss.yolk_opened.connect(_on_yolk_opened)
+	boss.dazed.connect(_on_dazed)
 	boss.defeated.connect(_on_defeated)
 	g.world.add_child(boss)
 	var tw: Tween = g.create_tween()
@@ -73,14 +75,29 @@ func _on_bitten(hp_left: int) -> void:
 func _on_phase(phase: int) -> void:
 	g.sfx.play("phase")
 	g.add_shake(16.0)
+	g.vibrate(80)
+	g.fx.burst(boss.position, Color(1, 1, 1), 30, 1.3)  # пар от рёва
+	g.shots.cut_enemy_drops(boss.position, 1600.0, false, Color(1, 0.95, 0.8))  # рёв сдувает масло с поля
 	if phase == 2:
-		g.hud.show_banner("Яичница злится! Новые атаки!", Color(1, 0.55, 0.1))
+		g.hud.show_banner("ЯИЧНИЦА ПОДГОРАЕТ! Прыжки и горящее масло", Color(1, 0.55, 0.1))
 	else:
-		g.hud.show_banner("ЯИЧНИЦА В ЯРОСТИ!", Color(1, 0.25, 0.15))
+		g.hud.show_banner("ЯИЧНИЦА ПРИГОРЕЛА! В ЯРОСТИ!", Color(1, 0.25, 0.15))
+
+
+## Окно наказания: таран в бортик или прыжок — яичница оглушена, желток открыт.
+func _on_dazed(reason: String) -> void:
+	g.add_shake(14.0 if reason == "wall" else 8.0)
+	g.fx.burst(boss.position + FriedEggBoss.YOLK_OFFSET, Color(1, 0.9, 0.3), 16)
+	if not daze_hinted.has(reason) and g.hints_on():
+		daze_hinted[reason] = true
+		var text := "Врезалась в бортик — КУСАЙ ЖЕЛТОК!" if reason == "wall" else "Увязла в сковороде — КУСАЙ ЖЕЛТОК!"
+		g.hud.show_banner(text, Color(1, 0.9, 0.2), 1.5)
 
 
 func _on_yolk_opened() -> void:
 	g.hud.shade_accent(1.0)  # один акцент на экран: желток на арене, табло — в тень
+	if boss.act == FriedEggBoss.Act.DAZED:
+		return  # у окна наказания своя подсказка
 	if yolk_hints < 2 and g.hints_on():
 		yolk_hints += 1
 		g.hud.show_banner("Желток открыт — КУСАЙ ЕГО!", Color(1, 0.9, 0.2), 1.5)

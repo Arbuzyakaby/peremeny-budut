@@ -260,10 +260,10 @@ func _draw() -> void:
 	_arcade(ac, ar, base.lerp(Color.WHITE, _attack_flash * 0.4), _attack_flash > 0.5, a)
 	if ready:
 		Icons.ability(self, ac + Vector2(-4, -6) * s, ability_type, _time, s * 1.5)
-		var f := Design.font("heavy")
-		var cnt := "×%d" % ability_charges
-		draw_string_outline(f, ac + Vector2(ar * 0.2, ar * 0.75), cnt, HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * s), 5, Design.INK)
-		draw_string(f, ac + Vector2(ar * 0.2, ar * 0.75), cnt, HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * s), Color.WHITE)
+		var shown := mini(ability_charges, 8)  # заряды — лампами, как на табло (дизайн-язык 2.2)
+		var step := 12.0 * s
+		Design.draw_lamps(self, ac + Vector2(-(shown - 1) * step / 2.0, ar * 0.62), ability_charges, ability_charges,
+			Design.MINT, 4.0 * s, step)
 	else:
 		var f2 := Design.font("heavy")
 		var txt := "АТАКА"

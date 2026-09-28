@@ -343,7 +343,7 @@ func test_pincer_forks_look_at_each_other() -> void:
 	var f0 = group[0]
 	var mate = group[1]
 	assert_gt(f0.look_t, 0.0)
-	for i in 10:
+	for i in 16:  # переглядывание 0,3 с: за это время вилка успевает развернуться даже на 180°
 		f0.update(1.0 / 60.0, game.snake.head_pos, true)
 	var want: float = (mate.position - f0.position).angle()
 	assert_true(absf(angle_difference(f0.rotation, want)) < 0.3, "повернулась к напарнику")
@@ -481,3 +481,97 @@ func test_expired_tine_sticks_in_floor() -> void:
 	oil.life = 0.01
 	game.shots.update_drops(1.0 / 60.0)
 	assert_false(game.shots.drops.has(oil), "капля масла просто исчезает, как раньше")
+
+
+# ---------------------------------------------------------------- v8.0: рассредоточение, уклонение, огонь по подходу, милосердие
+
+func test_shooters_spread_around_snake() -> void:
+	await boot_stage(0, 2)
+	game.enemies.clear(false)
+	var a = game.enemies.spawn_bear(TeddyBear.Type.THROWER, Vector2(300, 200))
+	var b = game.enemies.spawn_bear(TeddyBear.Type.SEAMSTRESS, Vector2(360, 230))
+	var c = game.enemies.spawn_bear(TeddyBear.Type.NINJA, Vector2(330, 280))
+	game.snake.head_pos = Vector2(640, 400)
+	_think()
+	var sq: Squad = game.enemies.squad
+	for bear in [a, b, c]:
+		assert_eq(sq.role_of(bear), "spread", "стрелок рассредоточивается")
+	var head := game.snake.head_pos
+	var angles := []
+	for bear in [a, b, c]:
+		angles.append((bear.order_pos - head).angle())
+	for i in 3:
+		for j in range(i + 1, 3):
+			assert_gt(absf(angle_difference(angles[i], angles[j])), 1.2, "с разных сторон, а не кучей")
+	assert_gt(sq.stats["spread"], 0)
+
+
+func test_single_shooter_does_not_spread() -> void:
+	await boot_stage(0, 2)
+	game.enemies.clear(false)
+	var a = game.enemies.spawn_bear(TeddyBear.Type.THROWER, Vector2(300, 200))
+	_think()
+	assert_eq(game.enemies.squad.role_of(a), "", "одному рассредоточиваться не с кем")
+
+
+func test_bear_dodges_snake_ranged_attack() -> void:
+	await boot_stage(0, 2)
+	game.enemies.clear(false)
+	game.snake.head_pos = Vector2(400, 400)
+	game.snake.heading = 0.0
+	var target = game.enemies.spawn_bear(TeddyBear.Type.NORMAL, Vector2(700, 410))
+	var aside = game.enemies.spawn_bear(TeddyBear.Type.NORMAL, Vector2(400, 150))
+	_think()
+	var sq: Squad = game.enemies.squad
+	assert_eq(sq.role_of(target), "", "без стрелковой атаки не уклоняется")
+	game.abilities.gain(2)  # пуговицы
+	_think()
+	assert_eq(sq.role_of(target), "dodge", "медведь на линии огня отскакивает")
+	assert_eq(sq.role_of(aside), "", "а в стороне — нет")
+	assert_gt(absf(target.order_pos.y - target.position.y), 80.0, "вбок от линии огня")
+	assert_false(Squad.in_line_of_fire(game.snake.head_pos, Vector2.RIGHT, target.order_pos), "уходит с линии")
+
+
+func test_dodge_needs_hard() -> void:
+	await boot_stage(0, 1)
+	game.enemies.clear(false)
+	game.snake.head_pos = Vector2(400, 400)
+	game.snake.heading = 0.0
+	var target = game.enemies.spawn_bear(TeddyBear.Type.NORMAL, Vector2(700, 410))
+	game.abilities.gain(2)
+	_think()
+	assert_eq(game.enemies.squad.role_of(target), "", "на Нормальной враги оружие змеи не читают")
+
+
+func test_mercy_on_last_life() -> void:
+	await boot_stage(1, 2)
+	_ready_forks(2)
+	game.snake.lives = 1
+	var sq: Squad = game.enemies.squad
+	sq.tick_t = 0.0
+	game.enemies.update_squad(0.3, game.snake)
+	assert_true(sq.mercy, "последняя жизнь — милосердие")
+	assert_gt(sq.stats["mercy"], 0)
+	game.snake.lives = game.snake.max_lives
+	sq.tick_t = 0.0
+	game.enemies.update_squad(0.3, game.snake)
+	assert_false(sq.mercy)
+
+
+func test_boss_fire_leads_to_yolk() -> void:
+	await boot_stage(3, 2)
+	await wait_state(game.State.BOSS, 400)
+	game.enemies.clear(false)
+	var boss = game.boss
+	var t1 = game.enemies.spawn_bear(TeddyBear.Type.THROWER, Vector2(200, 600))
+	game.snake.head_pos = Vector2(640, 650)
+	boss.act = boss.Act.YOLK_OPEN
+	boss.act_t = 5.0
+	_think()
+	var sq: Squad = game.enemies.squad
+	assert_eq(sq.role_of(t1), "boss_fire", "желток открыт — стрелок бьёт по подходу")
+	var yolk: Vector2 = boss.position + boss.YOLK_OFFSET
+	assert_true(t1.lead_hint.distance_to(yolk) < game.snake.head_pos.distance_to(yolk), "упреждение — на пути к желтку")
+	boss.act = boss.Act.IDLE
+	game.enemies.update_squad(1.0 / 60.0, game.snake)
+	assert_eq(t1.lead_hint, Vector2.INF, "желток закрылся — прицел снят")

@@ -235,3 +235,132 @@ func test_herding_pill_tint_and_feint_bear_draw() -> void:
 	r.order = "rescue"
 	await frames(2)  # картонные звёзды, поднятая лапа, оттенок — рисуются без ошибок
 	assert_false(b.is_dizzy(), "обманщик не оглушён по-настоящему")
+
+
+# ---------------------------------------------------------------- v8.0: новая яичница
+
+func _snake_at(p: Vector2) -> Snake:
+	var s: Snake = add(Snake.new())
+	s.bounds = AREA
+	s.reset(p)
+	return s
+
+
+func test_boss_reads_orbit_far_and_close() -> void:
+	var e := _boss()
+	for i in 180:  # кружит вокруг на 260 px
+		e.read_snake(e.position + Vector2.from_angle(i * DT * 2.0) * 260.0, DT)
+	assert_eq(e.habit(), "orbit", "кружит")
+	var far := _boss()
+	for i in 300:
+		far.read_snake(Vector2(1200, 650), DT)
+	assert_eq(far.habit(), "far", "держится далеко")
+	var close := _boss()
+	for i in 300:
+		close.read_snake(close.position + Vector2(170, 0), DT)
+	assert_eq(close.habit(), "close", "липнет")
+
+
+func test_boss_counters_habit() -> void:
+	var e := _boss()
+	var base := e.attack_weights(2, "")
+	var orbit := e.attack_weights(2, "orbit")
+	assert_gt(orbit[FriedEggBoss.Atk.CHARGE], base[FriedEggBoss.Atk.CHARGE], "против кружения — таран")
+	var close := e.attack_weights(2, "close")
+	assert_gt(close[FriedEggBoss.Atk.RING], base[FriedEggBoss.Atk.RING], "против липкой — кольцо")
+	assert_false(e.attack_weights(1, "").has(FriedEggBoss.Atk.SIZZLE), "лужи — со второй фазы")
+	assert_true(e.attack_weights(3, "").has(FriedEggBoss.Atk.PEPPER), "перчинки — на третьей")
+	e.last_attack = FriedEggBoss.Atk.RING
+	assert_false(e.attack_weights(1, "").has(FriedEggBoss.Atk.RING), "без повтора")
+
+
+func test_boss_predicts_ahead_of_moving_head() -> void:
+	var e := _boss()
+	for i in 60:
+		e.read_snake(Vector2(300 + i * 4.0, 600), DT)  # 240 px/с вправо
+	var ahead := e.predict(Vector2(540, 600), 0.5)
+	assert_gt(ahead.x, 600.0, "наперерез — впереди головы")
+
+
+func test_boss_attack_starts_with_tell() -> void:
+	var e := _boss()
+	var s := _snake_at(Vector2(640, 650))
+	e.begin_attack(FriedEggBoss.Atk.RING, s.head_pos)
+	assert_eq(e.act, FriedEggBoss.Act.TELL, "сначала телеграф")
+	var shots := [0]
+	e.shoot.connect(func(_p: Vector2, _v: Vector2, _k: int) -> void: shots[0] += 1)
+	for i in 20:
+		e.update(DT, s)
+	assert_eq(shots[0], 0, "во время телеграфа не стреляет")
+	for i in 40:
+		e.update(DT, s)
+	assert_gt(shots[0], 0, "после телеграфа — кольцо")
+
+
+func test_boss_charge_into_wall_opens_yolk() -> void:
+	var e := _boss()
+	var s := _snake_at(Vector2(640, 660))
+	s.god = true
+	var dazed := [""]
+	e.dazed.connect(func(r: String) -> void: dazed[0] = r)
+	e.act = FriedEggBoss.Act.CHARGE
+	e.act_t = 2.0
+	e.vel = Vector2(900, 0)
+	for i in 60:
+		e.update(DT, s)
+		if e.act == FriedEggBoss.Act.DAZED:
+			break
+	assert_eq(e.act, FriedEggBoss.Act.DAZED, "таран в бортик — оглушена")
+	assert_eq(dazed[0], "wall")
+	assert_true(e.is_yolk_open(), "окно наказания: желток открыт")
+	var hp := e.hp
+	s.head_pos = e.position + FriedEggBoss.YOLK_OFFSET
+	e.update(DT, s)
+	assert_eq(e.hp, hp, "в первые мгновения оглушения укус не засчитан")
+	for i in int(FriedEggBoss.DAZE_GRACE / DT) + 2:
+		e.update(DT, s)
+	assert_eq(e.hp, hp - 1, "укус в окне наказания снимает деление")
+
+
+func test_boss_slam_ends_in_daze() -> void:
+	var e := _boss()
+	var s := _snake_at(Vector2(200, 650))
+	s.god = true
+	e.begin_attack(FriedEggBoss.Atk.SLAM, s.head_pos)
+	assert_eq(e.act, FriedEggBoss.Act.JUMP)
+	for i in 120:
+		e.update(DT, s)
+		if e.act == FriedEggBoss.Act.DAZED:
+			break
+	assert_eq(e.act, FriedEggBoss.Act.DAZED, "после прыжка вязнет в сковороде")
+	assert_eq(e.daze_reason, "slam")
+
+
+func test_boss_puddle_tells_then_burns() -> void:
+	var e := _boss()
+	var s := _snake_at(Vector2(300, 600))
+	e.add_puddle(s.head_pos)
+	var lives := s.lives
+	e.update(DT, s)
+	assert_eq(s.lives, lives, "пузырится — ещё не жжёт")
+	for i in int(FriedEggBoss.PUDDLE_TELL / DT) + 2:
+		e.update(DT, s)
+	assert_eq(s.lives, lives - 1, "горящее масло жжёт")
+	for i in int((FriedEggBoss.PUDDLE_BURN + 0.6) / DT):
+		e.update(DT, s)
+	assert_true(e.puddles.is_empty(), "лужа догорела")
+
+
+func test_boss_phase_change_roars_and_is_invulnerable() -> void:
+	var e := _boss()
+	var phases := []
+	e.phase_changed.connect(func(p: int) -> void: phases.append(p))
+	e.dev_set_hp(9)
+	e.act = FriedEggBoss.Act.IDLE
+	e.take_chip(1.0)
+	assert_eq(phases, [2])
+	assert_eq(e.act, FriedEggBoss.Act.ROAR, "новая фаза — рёв")
+	assert_eq(e.phase_name(), "ПОДГОРАЕТ")
+	var hp := e.hp
+	assert_false(e.take_chip(5.0), "в рёве неуязвима")
+	assert_eq(e.hp, hp)

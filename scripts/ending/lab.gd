@@ -1,6 +1,7 @@
 extends "res://scripts/ending/lab_room.gd"
 ## Кабинет-лаборатория, который виден, когда камера отдаляется в финале. Арена оказывается
-## маленьким ящиком на столе учёного-бюрократа: серый костюм, очки, бейдж, планшет с протоколом.
+## маленьким ящиком на столе учёного-бюрократа: белый халат поверх серого костюма, очки, бейдж,
+## планшет с протоколом (v8.0: халат, новая комната — см. lab_room.gd).
 ## Всё рисуется кодом в мировых координатах (арена занимает 0..1280 × 0..720).
 ## Рука со спичкой (или огнетушителем) рисуется отдельным узлом поверх арены.
 
@@ -16,6 +17,8 @@ func _ready() -> void:
 	add_child(front)
 	for i in 40:
 		drops.append(Vector2(randf(), randf()))
+	for i in 26:
+		motes.append(Vector3(randf(), randf(), randf() * TAU))
 
 
 func _process(delta: float) -> void:
@@ -24,6 +27,8 @@ func _process(delta: float) -> void:
 	flash = maxf(flash - delta * 1.8, 0.0)
 	if walking:
 		walk += delta * 7.0
+	if holding == Hold.EXTINGUISHER:
+		took_extinguisher = true  # шкаф на стене опустел
 	queue_redraw()
 	front.queue_redraw()
 
@@ -58,10 +63,14 @@ func _hand_drawn() -> Vector2:
 
 func _draw() -> void:
 	_draw_wall()
-	_draw_window(Rect2(150, -1000, 980, 560))
-	_draw_clock(Vector2(-560, -820))
-	_draw_board(Rect2(3330, -950, 800, 500))
+	_draw_window(WINDOW)
+	_draw_chalkboard(CHALKBOARD)
+	_draw_pipe()
+	_draw_sign(SIGN)
+	_draw_board(BOARD)
+	_draw_fire_box(FIRE_BOX)
 	_draw_shelves()
+	_draw_clock(Vector2(-1600, -750))
 	_draw_lamp()
 	_draw_person()
 	_draw_table()
@@ -85,7 +94,7 @@ func _draw_person() -> void:
 	var el := Vector2(sx + 560, 440) + o
 	var hand_r := Vector2(sx + 430, 700) + o
 	for pass_i in 2:
-		var col := LINE if pass_i == 0 else SUIT
+		var col := LINE if pass_i == 0 else COAT
 		var w := 190.0 if pass_i == 0 else 164.0
 		draw_line(sh, el, col, w)
 		draw_line(el, hand_r, col, w)
@@ -110,6 +119,20 @@ func _draw_person() -> void:
 	draw_line(c + Vector2(0, 380), c + Vector2(0, 900), SUIT_DARK, 6.0)
 	for y in [520.0, 700.0]:
 		draw_circle(c + Vector2(30, y), 16.0, SUIT_DARK)
+	# белый халат нараспашку поверх костюма: полы, воротник, нагрудный карман с ручками
+	for s in [-1.0, 1.0]:
+		var coat := PackedVector2Array([c + Vector2(s * 150, -110), c + Vector2(s * 390, -100), c + Vector2(s * 530, 60),
+			c + Vector2(s * 600, 900), c + Vector2(s * 230, 900), c + Vector2(s * 200, 300)])
+		draw_colored_polygon(coat, COAT)
+		draw_polyline(PackedVector2Array([coat[0], coat[5], coat[4]]), COAT_SHADE, 12.0)
+		draw_colored_polygon(PackedVector2Array([c + Vector2(s * 150, -110), c + Vector2(s * 290, -80),
+			c + Vector2(s * 210, 150)]), COAT_SHADE)  # воротник
+	var pocket := Rect2(c + Vector2(260, 180), Vector2(170, 150))
+	draw_rect(pocket, COAT_SHADE)
+	for k in 3:
+		draw_line(pocket.position + Vector2(30 + k * 45, 10), pocket.position + Vector2(30 + k * 45, -70),
+			[Color(0.15, 0.25, 0.6), Color(0.75, 0.15, 0.12), Color(0.15, 0.15, 0.18)][k], 16.0)
+	draw_line(c + Vector2(420, 600), c + Vector2(560, 600), COAT_SHADE, 10.0)  # боковой карман
 	# бейдж на шнурке
 	draw_line(c + Vector2(-120, -90), c + Vector2(-230, 180), Color(0.2, 0.35, 0.7), 10.0)
 	draw_line(c + Vector2(-60, -90), c + Vector2(-150, 180), Color(0.2, 0.35, 0.7), 10.0)
@@ -201,7 +224,7 @@ func _draw_person() -> void:
 func _draw_front() -> void:
 	if sx > OUTSIDE_X - 10.0:
 		return
-	var suit := SUIT
+	var suit := COAT
 	var skin := SKIN
 	if glow > 0.0:
 		suit = suit.lerp(Color(1, 0.6, 0.3), glow * 0.2)

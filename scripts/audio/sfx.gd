@@ -29,6 +29,10 @@ const PRIORITY := ["win", "lose", "ignite", "extinguisher", "boss_down", "stage_
 	"hatch", "phase", "yolk", "perk", "match", "burn"]
 ## Звуки огня идут через шину Ambient — их вместе с петлёй пожара приглушает duck().
 const FIRE_SOUNDS := ["crackle", "burn"]
+## Музыка 2.0: громкость основы и слоя напряжения (при intensity = 1 слой звучит как основа).
+const MUSIC_DB := -11.0
+const HI_SILENT_DB := -60.0
+const INTENSITY_RATE := 0.8  # насколько быстро слой догоняет цель, 1/с
 
 static var sounds: Dictionary = {}
 static var music: Dictionary = {}
@@ -41,6 +45,10 @@ var players: Array[AudioStreamPlayer] = []
 var started: Array[int] = []
 var last_played: Dictionary = {}
 var music_player: AudioStreamPlayer
+## Слой напряжения (музыка 2.0): играет синхронно с основой, громкость — по set_intensity().
+var music_hi: AudioStreamPlayer
+var intensity := 0.0         # цель 0..1
+var intensity_shown := 0.0   # плавно догоняет цель
 var ambient_player: AudioStreamPlayer
 var ambient_tween: Tween
 var wanted_ambient := ""
@@ -69,9 +77,13 @@ func _ready() -> void:
 		started.append(0)
 		voice_names.append("")
 	music_player = AudioStreamPlayer.new()
-	music_player.volume_db = -11.0
+	music_player.volume_db = MUSIC_DB
 	music_player.bus = "Music"
 	add_child(music_player)
+	music_hi = AudioStreamPlayer.new()
+	music_hi.volume_db = HI_SILENT_DB
+	music_hi.bus = "Music"
+	add_child(music_hi)
 	ambient_player = AudioStreamPlayer.new()
 	ambient_player.volume_db = -60.0
 	ambient_player.bus = "Ambient"
@@ -141,7 +153,9 @@ static func _amp(bus_name: String) -> AudioEffectAmplify:
 	return amp
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	intensity_shown = move_toward(intensity_shown, intensity, delta * INTENSITY_RATE)
+	music_hi.volume_db = hi_db(intensity_shown)
 	if _thread != null and not _thread.is_alive():
 		var was_sounds := _building == "sounds"
 		join_builder()
@@ -172,10 +186,17 @@ func _update_music() -> void:
 	if wanted_track != current_track:
 		if wanted_track == "":
 			music_player.stop()
+			music_hi.stop()
 			current_track = ""
 		elif music.has(wanted_track):
 			music_player.stream = music[wanted_track]
 			music_player.play()
+			var hi := wanted_track + SynthMusic.HI_SUFFIX
+			if music.has(hi):  # слои одной длины: запускаем вместе — и они не разъедутся
+				music_hi.stream = music[hi]
+				music_hi.play()
+			else:
+				music_hi.stop()
 			current_track = wanted_track
 	if wanted_ambient != "" and not ambient_player.playing and music.has(wanted_ambient):
 		ambient_player.stream = music[wanted_ambient]
@@ -339,7 +360,22 @@ func _fade_ambient(db: float, time: float) -> void:
 
 
 func play_music(track: String) -> void:
+	if track != wanted_track:
+		intensity = 0.0
+		intensity_shown = 0.0
 	wanted_track = track
+
+
+## Музыка 2.0: насколько подмешан слой напряжения (0 — только основа, 1 — полный).
+func set_intensity(k: float) -> void:
+	intensity = clampf(k, 0.0, 1.0)
+
+
+## Громкость слоя напряжения при уровне k: тишина → как основа (по кривой, чтобы слой вступал заметно).
+static func hi_db(k: float) -> float:
+	if k <= 0.01:
+		return HI_SILENT_DB
+	return lerpf(-30.0, MUSIC_DB - 1.0, sqrt(clampf(k, 0.0, 1.0)))
 
 
 func toggle_mute() -> bool:

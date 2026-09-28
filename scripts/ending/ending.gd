@@ -103,6 +103,7 @@ func start(g) -> void:
 	sfx = g.sfx
 	lab = Lab.new()
 	lab.z_index = -10
+	lab.tally = [g.bears_eaten, g.forks_broken, g.pills_eaten]  # итоги забега — мелом на доске
 	g.add_child(lab)
 	fire = Fire.new()
 	fire.seed_value = randi()  # каждый пожар свой: раскладка обломков, прогрев углов, запас топлива

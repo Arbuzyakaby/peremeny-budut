@@ -65,3 +65,19 @@ func test_coop_only_on_hard_and_ultra() -> void:
 func test_fork_stage_uses_drawer_floor() -> void:
 	assert_eq(Balance.STAGES[1]["floor"], Tex.Floor.DRAWER, "вилки — в ящике для приборов, а не на сером подносе")
 	assert_has(String(Balance.STAGES[1]["hint"]), "НЕ БЕЙ В ЛОБ")
+
+
+# ---------------------------------------------------------------- v8.0: напряжение музыки
+
+const GameScript = preload("res://scripts/game/game.gd")
+
+
+func test_music_intensity_rules() -> void:
+	assert_eq(GameScript.music_intensity(false, 1, 3, 3, false, false, 0.0), 0.0, "спокойное начало этапа")
+	assert_gt(GameScript.music_intensity(false, 1, 3, 3, true, false, 0.0), 0.3, "клещи — напряжённее")
+	assert_gt(GameScript.music_intensity(false, 1, 1, 3, false, false, 0.0), 0.4, "последняя жизнь")
+	assert_eq(GameScript.music_intensity(false, 1, 1, 1, false, false, 0.0), 0.0, "Ультра с одной жизнью — не паника с начала")
+	var p1 := GameScript.music_intensity(true, 1, 3, 3, false, false, 0.0)
+	var p3 := GameScript.music_intensity(true, 3, 3, 3, false, false, 0.0)
+	assert_gt(p3, p1, "третья фаза яичницы громче первой")
+	assert_eq(GameScript.music_intensity(true, 1, 3, 3, false, true, 0.0), 1.0, "открытый желток — на полную")

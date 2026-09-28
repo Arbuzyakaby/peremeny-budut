@@ -141,3 +141,82 @@ func test_throwing_match_is_players_choice() -> void:
 	game.ending.skip()
 	await frames(2)
 	assert_eq(game.state, Game.State.WIN)
+
+
+# ---------------------------------------------------------------- v8.0: атаки вилок и таблеток
+
+const Fork = preload("res://scripts/entities/fork.gd")
+const TeddyBear = preload("res://scripts/entities/teddy_bear.gd")
+
+
+func test_every_second_fork_gives_its_attack() -> void:
+	await boot_stage(1)
+	var ab = game.abilities
+	ab.reset()
+	ab.gain_fork(Fork.Kind.TABLE)
+	assert_eq(ab.type, -1, "первая вилка — ещё нет")
+	ab.gain_fork(Fork.Kind.TABLE)
+	assert_eq(ab.type, 10, "вторая столовая — залп зубцов")
+	assert_eq(ab.charges, 2)
+	for i in 6:
+		ab.gain_fork(Fork.Kind.TABLE)
+	assert_eq(ab.charges, 4, "не больше максимума")
+
+
+func test_fork_attack_does_not_replace_bear_attack() -> void:
+	await boot_stage(1)
+	var ab = game.abilities
+	ab.reset()
+	ab.gain(TeddyBear.Type.BOMBER)
+	ab.gain_fork(Fork.Kind.DESSERT)
+	ab.gain_fork(Fork.Kind.DESSERT)
+	assert_eq(ab.type, TeddyBear.Type.BOMBER, "атака медведя не пропадает")
+	ab.gain_pill()
+	ab.gain_pill()
+	assert_eq(ab.type, TeddyBear.Type.BOMBER, "и от таблеток тоже")
+
+
+func test_breaking_forks_and_eating_pills_feed_attacks() -> void:
+	await boot_stage(1)
+	game.abilities.reset()
+	game.enemies.clear(false)
+	for i in 2:
+		var f = game.enemies.spawn_fork(Vector2(300 + i * 200, 300), Fork.Kind.PITCH)
+		game.enemies.break_fork(f)
+	assert_eq(game.abilities.type, 12, "вилы — укол")
+	await boot_stage(2)
+	game.abilities.reset()
+	game.enemies.clear(false)
+	for i in 2:
+		game.enemies.eat_pill(game.enemies.spawn_pill(Vector2(300 + i * 200, 300)))
+	assert_eq(game.abilities.type, 13, "таблетки — ударная волна")
+
+
+func test_tine_volley_is_short_range() -> void:
+	await boot_stage(1)
+	game.enemies.clear(false)
+	game.abilities.reset()
+	game.abilities.gain(10)
+	game.snake.stamina = 1.0
+	game.abilities.use()
+	var tines := game.shots.drops.filter(func(d) -> bool: return d.from_snake)
+	assert_len(tines, 3, "три зубца")
+	assert_true(tines[0].life <= 0.6, "летят недалеко")
+	game.abilities.use()
+	assert_eq(game.abilities.charges, 1, "пауза между атаками — второй выстрел сразу не проходит")
+
+
+func test_pill_wave_stuns_forks_but_spares_snake() -> void:
+	await boot_stage(1)
+	game.enemies.clear(false)
+	game.abilities.reset()
+	var f = game.enemies.spawn_fork(game.snake.head_pos + Vector2(120, 0), Fork.Kind.TABLE)
+	f.st = Fork.St.ROAM
+	game.abilities.gain(13)
+	game.snake.stamina = 1.0
+	var lives: int = game.snake.lives
+	game.abilities.use()
+	assert_eq(f.st, Fork.St.DIZZY, "вилка оглушена волной")
+	await step(60)
+	assert_eq(game.snake.lives, lives, "своя волна змею не бьёт")
+	assert_false(game.snake.is_stunned(), "и не оглушает")

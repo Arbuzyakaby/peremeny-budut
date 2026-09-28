@@ -79,6 +79,9 @@ static func stage(ci: CanvasItem, c: Vector2, which: int, s := 1.0, a := 1.0) ->
 
 ## Иконка атаки: медведь-источник + его предмет.
 static func ability(ci: CanvasItem, c: Vector2, type: int, t: float, s := 1.0) -> void:
+	if type >= 10:  # v8.0: атаки вилок и таблеток — вилка своего вида или таблетка с бейджем приёма
+		_enemy_ability(ci, c, type, t, s)
+		return
 	bear(ci, c, s)
 	var o := c
 	match type:
@@ -105,6 +108,19 @@ static func ability(ci: CanvasItem, c: Vector2, type: int, t: float, s := 1.0) -
 		7:  # медсестра — крест
 			ci.draw_rect(Rect2(o + Vector2(7, 1) * s, Vector2(5, 15) * s), Color(0.9, 0.12, 0.15))
 			ci.draw_rect(Rect2(o + Vector2(2, 6) * s, Vector2(15, 5) * s), Color(0.9, 0.12, 0.15))
+
+
+## Атаки вилок (10 залп, 11 выпад, 12 укол вилами) и таблетки (13 ударная волна).
+static func _enemy_ability(ci: CanvasItem, c: Vector2, type: int, t: float, s: float) -> void:
+	if type == 13:
+		pill(ci, c + Vector2(-2, 1) * s, s * 0.85)
+		var k := fmod(t * 1.5, 1.0)
+		ci.draw_arc(c + Vector2(-2, 1) * s, (8.0 + 8.0 * k) * s, 0, TAU, 20, Color(0.45, 1.0, 0.7, 1.0 - k), 2.0 * s)
+		return
+	fork_kind(ci, c + Vector2(-2, 2) * s, type - 10, s * 0.9)
+	var badge := c + Vector2(10, 8) * s
+	ci.draw_circle(badge, 7.0 * s, Color(0.08, 0.04, 0.02))
+	fork_attack(ci, badge, [1, 0, 3][type - 10], Color(1, 0.85, 0.5), s * 0.45)
 
 
 static func shield(ci: CanvasItem, c: Vector2, r: float) -> void:

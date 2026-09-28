@@ -124,3 +124,40 @@ func test_hush_always_releases() -> void:
 	assert_false(s.is_hushed(), "hush(0) снимает тишину сразу")
 	await tree.create_timer(0.3).timeout
 	assert_false(s.is_hushed(), "старый таймер не глушит повторно")
+
+
+# ---------------------------------------------------------------- v8.0: музыка 2.0
+
+func test_songs_have_synced_tension_layer() -> void:
+	var t0 := Time.get_ticks_msec()
+	var built := SynthMusic.new().build_track("level")
+	assert_true(built.has("level") and built.has("level" + SynthMusic.HI_SUFFIX), "основа и слой напряжения")
+	var base: AudioStreamWAV = built["level"]
+	var hi: AudioStreamWAV = built["level" + SynthMusic.HI_SUFFIX]
+	assert_eq(base.data.size(), hi.data.size(), "слои одной длины — играют синхронно")
+	assert_eq(base.loop_end, hi.loop_end, "и петля одна")
+	assert_near(base.data.size() / 2.0 / SynthMusic.SR, SynthMusic.song_length("level"), 0.01, "8 тактов")
+	print("    level построен за %d мс" % (Time.get_ticks_msec() - t0))
+
+
+func test_every_layered_song_is_complete() -> void:
+	for name: String in SynthMusic.LAYERED:
+		var s: Dictionary = SynthMusic.SONGS[name]
+		assert_eq((s["chords"] as Array).size(), SynthMusic.FORM.size(), name + ": такт на каждую часть формы")
+		assert_eq((s["bass"] as Array).size(), (s["chords"] as Array).size(), name + ": бас")
+		for pat: Array in s["patterns"]:
+			assert_len(pat, 16, name + ": паттерн в 16 шагов")
+		assert_true(name in SynthMusic.TRACKS, name)
+
+
+func test_tension_layer_volume_follows_intensity() -> void:
+	assert_eq(Sfx.hi_db(0.0), Sfx.HI_SILENT_DB, "без напряжения слоя не слышно")
+	assert_true(Sfx.hi_db(0.3) < Sfx.hi_db(0.7), "громче с напряжением")
+	assert_true(Sfx.hi_db(1.0) <= Sfx.MUSIC_DB, "не громче основы")
+	var s: Node = add(Sfx.new())
+	s.play_music("boss")
+	s.set_intensity(1.0)
+	s._process(0.5)
+	assert_near(s.intensity_shown, 0.4, 0.01, "слой вступает плавно")
+	s.play_music("level")
+	assert_eq(s.intensity, 0.0, "новый трек — с чистого листа")

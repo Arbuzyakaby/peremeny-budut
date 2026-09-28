@@ -4,7 +4,7 @@ extends "res://scripts/audio/synth.gd"
 ## резкие верха срезаны фильтрами; поправка — третьим аргументом to_stream (дБ).
 
 ## Сколько звуков в build_sounds() — для полосы загрузки (тест сверяет с фактом).
-const SOUND_COUNT := 69
+const SOUND_COUNT := 70
 
 var _bank: Dictionary = {}
 
@@ -45,6 +45,9 @@ func build_sounds() -> Dictionary:
 	_bank["throw"] = to_stream(mix(tone(0.1, 900, 400, W.SQUARE, 0.12), _whoosh(0.12, 0.2, 800, 3000)))
 	_bank["warn"] = to_stream(seq([tone(0.06, 1000, 1000, W.SQUARE, 0.13, 0.0, 0.5), silence(0.04),
 		tone(0.06, 1000, 1000, W.SQUARE, 0.13, 0.0, 0.5)]))
+	# рёв яичницы на смене фазы: низкое рычание пилой с вибрато и нарастающее шкворчание масла
+	var growl := am(mix(tone(1.1, 95, 62, W.SAW, 0.3, 0.0, 1.1), tone(1.1, 101, 66, W.SAW, 0.22, 0.0, 1.1)), 11.0, 0.45)
+	_bank["roar"] = to_stream(mix(lowpass(growl, 1400), noise(1.1, 0.3, 1.4, 5200, 1800, 0.35)), false, -3.0)
 	_bank["phase"] = to_stream(mix(tone(0.9, 140, 50, W.SAW, 0.35, 0.0, 1.2), tone(0.9, 147, 52, W.SAW, 0.28, 0.0, 1.2)))
 	_bank["pepper"] = to_stream(tone(0.12, 1400, 600, W.SINE, 0.3))
 	_bank["splat"] = to_stream(mix(noise(0.12, 0.45, 3.0, 1500), tone(0.1, 180, 90, W.SINE, 0.3)))

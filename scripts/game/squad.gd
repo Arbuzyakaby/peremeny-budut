@@ -11,6 +11,13 @@ extends RefCounted
 ## - ЦЕПОЧКА (только Ультра): когда один медведь атакует, соседи подхватывают атаку следом;
 ## - ОБМАНЩИК (только Ультра): медведь садится на линию настоящей атаки и изображает оглушение —
 ##   приманивает змею под зубцы.
+## v8.0:
+## - РАССРЕДОТОЧЕНИЕ: стрелки (метатель, швея, ниндзя, хлопушка) расходятся по кругу вокруг змеи
+##   на равные углы — снаряды летят с разных сторон, а не одной кучей;
+## - УКЛОНЕНИЕ: враги «читают оружие змеи» — если у неё стрелковая атака (пуговицы, иглы, залп зубцов),
+##   медведь на линии огня отскакивает вбок (дёргается перед этим — видно);
+## - ОГОНЬ ПО ПОДХОДУ: когда желток яичницы открыт, стрелки целятся змее на путь к желтку;
+## - МИЛОСЕРДИЕ: на последней жизни (если жизней было больше одной) клещи реже, обманщика и цепочек нет.
 ## Окно обязательства: взятая роль держится не меньше COMMIT_TICKS тактов (0,5 с), раньше её снимает
 ## только срыв — враг погиб или оглушён, цель пропала, враг застрял. Подробности — docs/AI.md.
 ## На Лёгкой и Нормальной (coop = 0) ничего не делает.
@@ -33,6 +40,14 @@ const BREAKOUT_STAMINA := 0.3    # цена прорыва сквозь вилк
 const DECOY_CD := 6.0
 const DECOY_LURE := 140.0        # обманщик садится на линию атаки на таком расстоянии от головы
 const DECOY_REACH := 420.0       # дальше этого от точки приманки медведя не зовут
+const SPREAD_RADIUS := 330.0     # рассредоточение: круг стрелков вокруг змеи
+const DODGE_CONE := 0.3          # уклонение: полуугол линии огня, рад
+const DODGE_RANGE := 520.0
+const DODGE_STEP := 110.0        # на сколько отскакивает вбок
+const DODGE_COOLDOWN := 2.5      # следующий отскок этого медведя — не раньше
+const MERCY_PINCER := 1.5        # милосердие: пауза между клещами длиннее во столько раз
+const RANGED_SNAKE_ATTACKS := [2, 4, 10]  # пуговицы, иглы, залп зубцов (типы из Balance.ABILITIES)
+const RANGED_BEARS := [TeddyBear.Type.THROWER, TeddyBear.Type.SEAMSTRESS, TeddyBear.Type.NINJA, TeddyBear.Type.BOMBER]
 
 var d  # enemy_director.gd — только на время update(): постоянная ссылка дала бы цикл и утечку
 var level := 0
@@ -47,8 +62,9 @@ var decoy_cd := 0.0
 var roles := {}
 var role_cd := {}        # instance_id → секунды, пока роль не дают (после застревания)
 var hinted := {}
+var mercy := false       # последняя жизнь — отряд давит мягче
 var stats := {"pincer": 0, "rescue": 0, "guard": 0, "crossfire": 0, "herd": 0, "chain": 0, "boss_guard": 0,
-	"breakout": 0, "decoy": 0, "abort": 0}
+	"breakout": 0, "decoy": 0, "abort": 0, "spread": 0, "dodge": 0, "boss_fire": 0, "mercy": 0}
 
 
 func reset() -> void:
@@ -85,13 +101,20 @@ func _think(delta: float, snake: Snake) -> void:
 	if tick_t > 0.0:
 		return
 	tick_t = TICK
+	var was_mercy := mercy
+	mercy = snake.lives <= 1 and snake.max_lives > 1
+	if mercy and not was_mercy:
+		stats["mercy"] += 1
 	_age_roles()
 	_plan_pincer(snake)
 	_plan_support(snake)
+	_plan_dodge(snake)
 	_plan_crossfire(snake)
+	_plan_boss_fire(snake)
+	_plan_spread(snake)
 	_plan_herding(snake)
 	_plan_boss_guard(snake)
-	if level >= 2:
+	if level >= 2 and not mercy:
 		_plan_chain(snake)
 		_plan_decoy(snake)
 	_drop_stale()
@@ -151,7 +174,7 @@ func _clear_role_fields(r: Dictionary) -> void:
 	if not is_instance_valid(n):
 		return
 	if n is TeddyBear:
-		if r["role"] == "crossfire":
+		if r["role"] in ["crossfire", "boss_fire"]:
 			n.lead_hint = Vector2.INF
 		else:
 			n.order = ""
@@ -199,7 +222,7 @@ func _aborted(r: Dictionary) -> bool:
 			return not (pincer.has(target) or target.st in [Fork.St.AIM, Fork.St.SPRINT])
 		"herd":
 			return d.forks.is_empty()
-		"boss_guard":
+		"boss_guard", "boss_fire":
 			return d.g.boss == null or not d.g.boss.is_yolk_open()
 	return false
 
@@ -231,9 +254,9 @@ func _goal_of(r: Dictionary) -> Vector2:
 	match r["role"]:
 		"rescue":
 			return (r["target"] as Node2D).position
-		"guard", "boss_guard":
+		"guard", "boss_guard", "dodge":
 			return n.order_pos
-	return Vector2.INF  # точка обманщика едет вместе со змеёй — застреванием не считается
+	return Vector2.INF  # точки обманщика и круга стрелков едут вместе со змеёй — застреванием не считается
 
 
 ## Конец такта: роли, у которых кончилось окно и которые план не продлил, снимаются.
@@ -260,6 +283,9 @@ func _role_target(node: Object) -> Object:
 
 func _plan_pincer(snake: Snake) -> void:
 	if not pincer.is_empty() or pincer_cd > 0.0:
+		return
+	if mercy and randf() < 0.35:  # на последней жизни клещи собираются реже
+		pincer_cd = 1.0
 		return
 	var need := 3 if level >= 2 and d.forks.size() >= 3 else 2
 	var ready: Array[Fork] = []
@@ -342,7 +368,7 @@ func _strike(snake: Snake) -> void:
 		f.begin_attack(Fork.Atk.LUNGE, snake.head_pos)
 	pincer.clear()
 	pincer_look_t = 0.0
-	pincer_cd = 4.5 if level >= 2 else 6.0
+	pincer_cd = (4.5 if level >= 2 else 6.0) * (MERCY_PINCER if mercy else 1.0)
 
 
 func _release_pincer() -> void:
@@ -565,3 +591,102 @@ func _plan_decoy(snake: Snake) -> void:
 		decoy_cd = DECOY_CD
 		stats["decoy"] += 1
 		_announce("decoy", Tips.DECOY_HINT)
+
+
+# ---------------------------------------------------------------- v8.0: рассредоточение, уклонение, огонь по подходу
+
+## Стрелки без роли расходятся по кругу вокруг змеи на равные углы (порядок — по их текущему углу,
+## чтобы никто не бежал через всю арену).
+func _plan_spread(snake: Snake) -> void:
+	var shooters: Array[TeddyBear] = []
+	for b: TeddyBear in d.bears:
+		if b.type in RANGED_BEARS and b.st == TeddyBear.St.ROAM and not b.has_grudge():
+			var role := role_of(b)
+			if role == "spread" or (role == "" and _can_take(b)):
+				shooters.append(b)
+	if shooters.size() < 2:
+		for b in shooters:  # одному рассредоточиваться не с кем
+			if role_of(b) == "spread":
+				_release(b.get_instance_id())
+		return
+	var head := snake.head_pos
+	shooters.sort_custom(func(a: TeddyBear, b: TeddyBear) -> bool:
+		return (a.position - head).angle() < (b.position - head).angle())
+	var start := (shooters[0].position - head).angle()
+	var slots := spread_slots(head, start, shooters.size(), d.g.bounds)
+	var fresh := false
+	for i in shooters.size():
+		var b := shooters[i]
+		if role_of(b) != "spread":
+			fresh = true
+		if _assign(b, "spread"):
+			b.order = "guard"
+			b.order_pos = slots[i]
+	if fresh:
+		stats["spread"] += 1
+
+
+## Точки круга стрелков: count штук на равных углах от angle0, внутри арены.
+static func spread_slots(head: Vector2, angle0: float, count: int, bounds: Rect2) -> Array[Vector2]:
+	var out: Array[Vector2] = []
+	var inner := bounds.grow(-50.0)
+	for i in count:
+		var a := angle0 + TAU * i / count
+		out.append((head + Vector2.from_angle(a) * SPREAD_RADIUS).clamp(inner.position, inner.end))
+	return out
+
+
+## Змея со стрелковой атакой: медведь на линии огня отскакивает вбок.
+func _plan_dodge(snake: Snake) -> void:
+	var ab = d.g.abilities
+	if ab == null or not ab.type in RANGED_SNAKE_ATTACKS or ab.charges <= 0:
+		return
+	var head := snake.head_pos
+	var aim := Vector2.from_angle(snake.heading)
+	var inner: Rect2 = d.g.bounds.grow(-40.0)
+	for b: TeddyBear in d.bears:
+		if role_of(b) == "dodge" or not _can_take(b) or b.st != TeddyBear.St.ROAM or b.is_shielded():
+			continue
+		if not in_line_of_fire(head, aim, b.position):
+			continue
+		var side := aim.orthogonal()
+		if side.dot(b.position - head) < 0.0:
+			side = -side
+		if _assign(b, "dodge"):
+			b.order = "guard"
+			b.order_pos = (b.position + side * DODGE_STEP).clamp(inner.position, inner.end)
+			b.hit_flash = 0.4  # дёрнулся — видно, что сейчас отскочит
+			role_cd[b.get_instance_id()] = DODGE_COOLDOWN + COMMIT_TICKS * TICK
+			stats["dodge"] += 1
+			_announce("dodge", Tips.DODGE_HINT)
+
+
+## Точка на линии огня змеи: впереди, в узком конусе, не дальше DODGE_RANGE.
+static func in_line_of_fire(head: Vector2, aim: Vector2, p: Vector2) -> bool:
+	var to := p - head
+	var dist := to.length()
+	return dist > 1.0 and dist < DODGE_RANGE and absf(aim.angle_to(to)) < DODGE_CONE
+
+
+## Желток открыт: стрелки целятся змее на путь к желтку.
+func _plan_boss_fire(snake: Snake) -> void:
+	var boss: FriedEggBoss = d.g.boss
+	if boss == null or not boss.is_yolk_open():
+		return
+	var yolk := boss.position + FriedEggBoss.YOLK_OFFSET
+	var head := snake.head_pos
+	var lead := head + (yolk - head).normalized() * minf(140.0, head.distance_to(yolk) * 0.5)
+	for b: TeddyBear in d.bears:
+		if not b.type in RANGED_BEARS:
+			continue
+		var role := role_of(b)
+		if role != "boss_fire" and not (role in ["", "spread"] and not is_committed(b)):
+			continue
+		if role != "boss_fire":
+			if not _assign(b, "boss_fire"):
+				continue
+			b.attack_cd = minf(b.attack_cd, 0.5)
+			stats["boss_fire"] += 1
+		elif not is_committed(b):
+			_assign(b, "boss_fire")
+		b.lead_hint = lead

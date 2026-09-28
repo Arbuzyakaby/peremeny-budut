@@ -32,6 +32,10 @@ var ability_type := -1
 var ability_name := ""
 var ability_charges := 0
 var ability_flash := 0.0
+## Названия фаз яичницы (как FriedEggBoss.PHASE_NAMES — без preload сущности в интерфейс).
+const BOSS_PHASES := ["ШКВОРЧИТ", "ПОДГОРАЕТ", "ПРИГОРЕЛА"]
+## Источник атаки по её типу (как Balance.ABILITIES[type]["source"]).
+const ABILITY_SOURCE := {10: "fork", 11: "fork", 12: "fork", 13: "pill"}
 var boss_visible := false
 var boss_hp := 0
 var boss_max := 1
@@ -146,7 +150,7 @@ func _right_rect() -> Rect2:
 
 
 func _ability_rect() -> Rect2:
-	return Rect2(size.x - PAD - safe.z - 270, PAD + safe.y + 92, 270, 58)
+	return Rect2(size.x - PAD - safe.z - 290, PAD + safe.y + 92, 290, 72)
 
 
 ## Место под кнопку паузы на сенсорном экране — слева от панели жизней.
@@ -290,19 +294,24 @@ func _draw_right(panel: StyleBox) -> void:
 	Design.draw_bar(self, Rect2(r.position + Vector2(20, 60), Vector2(r.size.x - 40, 10)), stamina, st_col)
 
 
+## Табличка атаки (2.2): иконка, название, гравировка источника (медведь, вилка, таблетка — цветом
+## его этапа) и заряды лампами вместо «×N».
 func _draw_ability() -> void:
 	var r := _ability_rect()
+	var src: String = ABILITY_SOURCE.get(ability_type, "bear")
+	var src_col: Color = Design.SOURCE_COLORS[src]
 	draw_style_box(Design.cached("hud_ability", func() -> StyleBox:
 		return Design.plank(Color(0, 0, 0, 0), Design.RADIUS_MD, Vector2.ZERO, false)), r)
+	draw_line(r.position + Vector2(10, 8), r.position + Vector2(10, r.size.y - 8), src_col, 3.0)  # кромка источника
 	if ability_flash > 0.01:
 		draw_style_box(Design.box(Color.TRANSPARENT, Color(Design.MINT, ability_flash), Design.RADIUS_MD, 2, Vector2.ZERO), r)
-	Icons.ability(self, r.position + Vector2(32, 30), ability_type, t)
-	_text(r.position + Vector2(60, 26), ability_name, "heavy", 16, Design.MINT, 4)
-	_text(r.position + Vector2(60, 47), "кнопка АТАКА" if touch else "Пробел / ЛКМ", "body", 13, Design.MUTED)
-	var cnt := "×%d" % ability_charges
-	var f := Design.font("heavy")
-	draw_string_outline(f, r.position + Vector2(196, 42), cnt, HORIZONTAL_ALIGNMENT_RIGHT, 60, 26, 5, Design.INK)
-	draw_string(f, r.position + Vector2(196, 42), cnt, HORIZONTAL_ALIGNMENT_RIGHT, 60, 26, Color.WHITE)
+	Icons.ability(self, r.position + Vector2(34, 30), ability_type, t)
+	_text(r.position + Vector2(62, 24), ability_name, "heavy", 16, Design.MINT, 4)
+	_text(r.position + Vector2(62, 44), Design.SOURCE_NAMES[src], "heavy", 11, src_col.lightened(0.15))
+	_text(r.position + Vector2(62, 62), "кнопка АТАКА" if touch else "Пробел / ЛКМ", "body", 12, Design.MUTED)
+	var shown := mini(ability_charges, 8)  # заряды — лампами справа внизу, под названием им не тесно
+	Design.draw_lamps(self, r.position + Vector2(r.size.x - 18 - (shown - 1) * 13.0, 54), maxi(ability_charges, 1),
+		ability_charges, Design.MINT, 4.5, 13.0)
 
 
 func _draw_boss_bar() -> void:
@@ -313,7 +322,7 @@ func _draw_boss_bar() -> void:
 	draw_style_box(Design.box(Color.TRANSPARENT, Color(col, 0.8), Design.RADIUS_MD, 2, Vector2.ZERO), frame)
 	_text(frame.position + Vector2(22, 26), "ГИГАНТСКАЯ ЯИЧНИЦА", "heavy", 18, Design.CREAM, 4)
 	var f := Design.font("heavy")
-	draw_string(f, frame.position + Vector2(frame.size.x - 222, 26), "ФАЗА %d" % boss_phase, HORIZONTAL_ALIGNMENT_RIGHT,
+	draw_string(f, frame.position + Vector2(frame.size.x - 222, 26), "ФАЗА %d · %s" % [boss_phase, BOSS_PHASES[boss_phase - 1]], HORIZONTAL_ALIGNMENT_RIGHT,
 		200, 16, col)
 	var bar := Rect2(frame.position + Vector2(22, 38), Vector2(frame.size.x - 44, 18))
 	draw_rect(bar.grow(2), Design.INK)
