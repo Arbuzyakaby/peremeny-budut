@@ -346,6 +346,60 @@ input[type=range].fader { width: 100%; accent-color: var(--brass); height: 28px;
 .meter { height: 10px; border-radius: 5px; background: #0f0a07; box-shadow: inset 0 1px 4px rgba(0,0,0,.8); overflow: hidden; }
 .meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #3e7a2c, var(--green), #ffd66b, var(--tomato)); }
 
+/* --- песочницы: холст + панель --- */
+.sandbox { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 22px; align-items: start; }
+@media (max-width: 880px) { .sandbox { grid-template-columns: minmax(0,1fr); } }
+.screen { border-radius: 12px; padding: 7px; background: linear-gradient(135deg, #6a4526, #3b2515 50%, #5a3a20); box-shadow: 0 14px 30px rgba(0,0,0,.5); }
+.screen canvas { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; background: #0e0906; touch-action: none; cursor: crosshair; }
+.side { display: flex; flex-direction: column; gap: 12px; }
+.side .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.hint { font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+.hint kbd { background: #2a1c14; border-radius: 5px; padding: 1px 6px; box-shadow: 0 2px 0 #120b07; color: var(--text); }
+.stamina { height: 8px; border-radius: 4px; background: #0f0a07; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,.8); }
+.stamina i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #3e7a2c, var(--green)); transition: width .1s; }
+
+/* --- пульт --- */
+.panel-demo { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 16px; }
+@media (max-width: 900px) { .panel-demo { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.ctl { border-radius: var(--r-m); padding: 18px 16px; background: linear-gradient(180deg, #2f2016, #221710); box-shadow: inset 0 1px 0 rgba(255,220,160,.1), 0 6px 16px rgba(0,0,0,.3);
+	display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.ctl .cap { font: 600 10.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--brass); }
+.ctl p { font-size: 13px; color: var(--muted); line-height: 1.45; }
+.ctl svg { display: block; touch-action: none; }
+.knob { cursor: ns-resize; outline: none; border-radius: 50%; }
+.knob:focus-visible { box-shadow: 0 0 0 3px rgba(243,212,138,.5); }
+.lever { background: none; border: 0; padding: 0; cursor: pointer; }
+.bigkey { min-width: 150px; }
+.bigkey.danger { color: #f3c9c0; background: linear-gradient(180deg, #7a2a22, #561a14); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 5px 0 #2a0c08, 0 10px 18px rgba(0,0,0,.45); }
+.readout.small { font-size: 12px; line-height: 1.6; padding: 8px 12px; width: 100%; }
+
+/* --- как делалась игра --- */
+.timeline-chart { overflow-x: auto; }
+.timeline-chart svg { min-width: 760px; width: 100%; display: block; }
+.tl-v { cursor: pointer; outline: none; }
+.tl-v:focus-visible rect.hit, .tl-v:hover rect.hit { fill: rgba(243,212,138,.08); }
+.tl-panel { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 20px; align-items: start; margin-top: 16px; }
+@media (max-width: 700px) { .tl-panel { grid-template-columns: minmax(0,1fr); } }
+.tl-panel .big { font: 900 34px/1 var(--display); color: var(--green); }
+.tl-panel .when { font: 500 12px/1.4 var(--mono); color: var(--muted); margin-top: 6px; }
+.tl-panel ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 15px; display: grid; gap: 6px; }
+.tl-panel ul b { color: var(--text); }
+.stories { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+@media (max-width: 880px) { .stories { grid-template-columns: minmax(0,1fr); } }
+.story { border-radius: var(--r-m); background: linear-gradient(180deg, #2f2016, #261a12); box-shadow: inset 0 1px 0 rgba(255,220,160,.1), 0 6px 16px rgba(0,0,0,.3); }
+.story summary { list-style: none; cursor: pointer; padding: 18px 20px; display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; gap: 14px; align-items: center; }
+@media (max-width: 560px) { .story summary .tg { display: none; } }
+.story summary::-webkit-details-marker { display: none; }
+.story summary .n { font: 600 12px/1 var(--mono); color: var(--brass); }
+.story summary h3 { font-size: 16px; }
+.story summary .tg { font: 500 11px/1 var(--mono); color: var(--muted); }
+.story summary::after { content: "+"; font: 700 20px/1 var(--display); color: var(--brass); transition: transform .2s; }
+.story[open] summary::after { transform: rotate(45deg); }
+.story .body { padding: 0 20px 20px; display: grid; gap: 10px; font-size: 15px; color: var(--muted); line-height: 1.55; }
+.story .body b { color: var(--text); }
+.story .body .lbl { font: 600 10.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--brass); margin-bottom: -4px; }
+.story .body .res { color: var(--green); }
+
 /* --- лайтбокс: листание --- */
 dialog.lightbox .lb-nav { position: fixed; top: 50%; transform: translateY(-50%); }
 dialog.lightbox .lb-prev { left: 14px; } dialog.lightbox .lb-next { right: 14px; }
@@ -374,6 +428,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 			<a href="#sound">Звук</a>
 			<a href="#design">Интерфейс</a>
 			<a href="#tricks">Хитрости</a>
+			<a href="#dev">Как делалась</a>
 			<a href="#tests">Тесты</a>
 		</div>
 		<button class="key small" id="spoil-all" type="button" aria-pressed="false">Спойлеры</button>
@@ -469,6 +524,34 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 	floor_view.size = ARENA.size * bake_scale
 	floor_view.render_target_update_mode = \
 		SubViewport.<span class="n">UPDATE_ONCE</span>          <span class="c"># и всё</span></pre>
+			</div>
+		</div>
+
+
+		<div class="stack" style="gap:16px;margin-top:40px">
+			<h3>Пол из формул — потрогай сам</h3>
+			<p class="muted prose" style="font-size:15.5px">Это шейдер пола из <code>gfx/tex.gd</code>, перенесённый в WebGL без изменений: те же <code>hash</code>, <code>vnoise</code>, <code>fbm</code> на пять октав и пять поверхностей. Переключи режим и посмотри на время кадра: «каждый кадр» — как было в 8.0, «запечь» — как стало в 8.1.</p>
+			<div class="sandbox">
+				<div class="screen"><canvas id="floor-gl" width="1280" height="720" aria-label="Процедурный пол этапа, отрисованный шейдером"></canvas></div>
+				<div class="side">
+					<div class="row" id="floor-kinds">
+						<button class="key small" type="button" data-kind="0" aria-pressed="true">Фанера</button>
+						<button class="key small" type="button" data-kind="4" aria-pressed="false">Бархат</button>
+						<button class="key small" type="button" data-kind="2" aria-pressed="false">Кафель</button>
+						<button class="key small" type="button" data-kind="3" aria-pressed="false">Сковорода</button>
+						<button class="key small" type="button" data-kind="1" aria-pressed="false">Поднос</button>
+					</div>
+					<div class="row">
+						<button class="key small" type="button" data-fmode="live" aria-pressed="true">Каждый кадр · 8.0</button>
+						<button class="key small" type="button" data-fmode="bake" aria-pressed="false">Запечь · 8.1</button>
+					</div>
+					<div class="row">
+						<button class="key small" type="button" data-fres="1" aria-pressed="true">1280×720</button>
+						<button class="key small" type="button" data-fres="2" aria-pressed="false">2560×1440</button>
+					</div>
+					<div class="readout" id="floor-readout">—</div>
+					<p class="hint">В режиме «каждый кадр» счётчик запусков растёт на 60 в секунду, в режиме «запечь» — замирает на смене пола. На мощной видеокарте разница во времени — доли миллисекунды, на телефоне и в 2560×1440 — заметно больше.</p>
+				</div>
 			</div>
 		</div>
 
@@ -864,6 +947,29 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 	</div>
 </section>
 
+
+<section id="snake-play" style="padding-top:0;border-top:0">
+	<div class="wrap stack" style="gap:16px">
+		<h3>Песочница: <code>snake.gd</code> в браузере</h3>
+		<p class="muted prose" style="font-size:15.5px">Та же змея, перенесённая на JavaScript: след из точек через 3 px, поворот с конечной скоростью, стамина, самоукус без шеи, удар о бортик. Съешь медведей — змея растёт. Врежься — и открой повтор: кольцевой буфер на 90 снимков, 30 раз в секунду, проигрывается в 0,4 скорости.</p>
+		<div class="sandbox">
+			<div class="screen"><canvas id="snake-cv" width="1280" height="720" aria-label="Песочница змеи: змея ползёт к указателю"></canvas></div>
+			<div class="side">
+				<p class="hint">Змея поворачивает к указателю или пальцу. Спринт — зажать кнопку мыши, палец или <kbd>Пробел</kbd>.</p>
+				<div class="readout small" id="snake-readout">—</div>
+				<div class="stamina" aria-hidden="true"><i id="snake-stamina"></i></div>
+				<label class="toggle"><input type="checkbox" id="snake-dots"> точки следа и шея</label>
+				<label class="toggle"><input type="checkbox" id="snake-clamp" checked> потолок шага 1/20 с (8.1)</label>
+				<div class="row">
+					<button class="key small" type="button" id="snake-freeze">Фриз окна на 1 с</button>
+					<button class="key small" type="button" id="snake-replay" disabled>Повтор</button>
+				</div>
+				<p class="hint">Выключи потолок шага и нажми «Фриз»: так змея вела себя в 8.0, когда окно тащили мышью.</p>
+			</div>
+		</div>
+	</div>
+</section>
+
 <section id="ai">
 	<div class="wrap">
 		<div class="head">
@@ -913,6 +1019,23 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 				<p class="muted" style="font-size:15px">Застрявший враг (три такта не приблизился к цели хотя бы на 3 px) теряет роль и 1,5 с не получает новую. Адаптации к стилю игрока нет: враги реагируют на то, что происходит на поле сейчас.</p>
 			</div>
 		</div>
+
+		<div class="stack" style="gap:16px;margin-top:40px">
+			<h3>Клещи вживую</h3>
+			<p class="muted prose" style="font-size:15.5px">Порт <code>pincer_slots()</code> и такта клещей: вилки занимают точки на окружности R = 250 вокруг головы, по курсу всегда просвет. Встали на места — 0,3 с переглядываются и бьют выпадом разом. Прорвись спринтом сквозь вилку, пока они не ударили.</p>
+			<div class="sandbox">
+				<div class="screen"><canvas id="pincer-cv" width="1280" height="720" aria-label="Клещи: вилки окружают голову змеи"></canvas></div>
+				<div class="side">
+					<div class="row">
+						<button class="key small" type="button" data-forks="2" aria-pressed="true">2 вилки · Сложная</button>
+						<button class="key small" type="button" data-forks="3" aria-pressed="false">3 вилки · Ультра</button>
+					</div>
+					<div class="readout small" id="pincer-readout">—</div>
+					<p class="hint">Голова ползёт к указателю. Спринт — зажать кнопку мыши, палец или <kbd>Пробел</kbd>: так можно пройти сквозь вилку на замахе (стоит 30% стамины).</p>
+				</div>
+			</div>
+		</div>
+
 		<div class="table-box" style="margin-top:34px">
 			<table>
 				<thead><tr><th>Роль</th><th>Кто</th><th>Что делает</th></tr></thead>
@@ -1220,6 +1343,38 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 				</tbody>
 			</table>
 		</div>
+
+		<div class="stack" style="gap:16px;margin-top:40px">
+			<h3>Потрогай пульт</h3>
+			<p class="muted prose" style="font-size:15.5px">Четыре контрола из игры с их настоящими звуками — рецепты те же, что в <code>sound_bank.gd</code>. Обрати внимание на отказ: звук, рывок и вспышка сразу, иначе нажатие кажется потерянным.</p>
+			<div class="panel-demo">
+				<div class="ctl">
+					<span class="cap">Крутилка</span>
+					<svg class="knob" id="knob" width="140" height="140" viewBox="0 0 140 140" tabindex="0" role="slider" aria-label="Громкость" aria-valuemin="0" aria-valuemax="100" aria-valuenow="80"></svg>
+					<div class="readout small" id="knob-readout">громкость 80%</div>
+					<p>Тянуть вверх-вниз, колесо, стрелки. Шкала 270°, 21 детент, у каждого щелчок с разбросом ±5%. Двойной щелчок — 80%.</p>
+				</div>
+				<div class="ctl">
+					<span class="cap">Тумблер</span>
+					<button class="lever" id="lever" type="button" aria-pressed="true" aria-label="Подсказки"><svg width="120" height="140" viewBox="0 0 120 140" id="lever-svg"></svg></button>
+					<div class="readout small" id="lever-readout">подсказки: вкл</div>
+					<p>Хром в латунной шайбе. Перекидывается с упругим перелётом, горит лампа. Звук: щелчок, пружина, толчок в корпус.</p>
+				</div>
+				<div class="ctl">
+					<span class="cap">Клавиша</span>
+					<button class="key primary bigkey" id="bigkey" type="button">Пуск</button>
+					<div class="readout small" id="bigkey-readout">нажатий: 0</div>
+					<p>Нажатие — глухое «тук», отпускание — щелчок. Грань уходит вниз на 4 px, текст вместе с ней.</p>
+				</div>
+				<div class="ctl">
+					<span class="cap">Видимый отказ</span>
+					<button class="key bigkey danger" id="nokey" type="button" aria-disabled="true">Нельзя</button>
+					<div class="readout small" id="nokey-readout">отказов: 0</div>
+					<p><code>Design.refuse()</code>: дребезг реле, рывок на 3 px вбок и томатная вспышка на 150 мс — одновременно.</p>
+				</div>
+			</div>
+		</div>
+
 		<div class="two" style="margin-top:30px">
 			<div class="stack">
 				<h3>Отказ, который видно</h3>
@@ -1324,6 +1479,175 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 		<div class="two" style="margin-top:20px">
 			<figure class="shot"><img loading="lazy" src="img/dev.webp" width="1600" height="900" alt="Панель разработчика поверх главного меню: FPS, график кадров, вкладки Инфо, Читы, Мир, Дебаг, UI, Тесты"><figcaption data-tag="Отладка · F1"><b>Панель разработчика</b><span>FPS и график кадров, читы, спавн врагов, хитбоксы, превью всех 70 звуков, витрина UI и тесты прямо в игре.</span></figcaption></figure>
 			<figure class="shot"><img loading="lazy" src="img/theend.webp" width="1600" height="900" alt="Экран итогов Конец: таблица с результатами забега"><figcaption data-tag="Итоги · победа"><b>«…но не своего создателя»</b><span>Экран итогов после финала: «Змея одолела яичницу… но не своего создателя».</span></figcaption></figure>
+		</div>
+	</div>
+</section>
+
+
+<section id="dev">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Как делалась игра</span>
+			<h2>Три дня, десять версий</h2>
+			<p class="lead">Первая публичная версия вышла 26 сентября в 10 утра, 8.1 — 28 сентября после обеда. За это время игра выросла с 4 до 16 тысяч строк, а начиная с шестой ни одна версия не выходила без зелёных тестов. Нажми на версию, чтобы увидеть, что в ней появилось.</p>
+		</div>
+		<div class="diagram timeline-chart">
+			<p class="fig-title">Схема 10 · строки кода и тесты по версиям</p>
+			<svg id="tl-svg" viewBox="0 0 960 300" role="img" aria-label="График роста кода и тестов от версии 4.0 до 8.1"></svg>
+		</div>
+		<div class="tl-panel" id="tl-panel" aria-live="polite"></div>
+
+		<div class="diagram" style="margin-top:34px">
+			<p class="fig-title">Схема 11 · цикл одной правки</p>
+			<svg viewBox="0 0 960 250" role="img" aria-label="Цикл правки: идея, код, тест, кадры, плейтест, сборка и релиз">
+				<defs><marker id="ard" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
+				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ard)">
+					<path d="M150 74H176"/><path d="M296 74H322"/><path d="M442 74H468"/><path d="M588 74H614"/><path d="M734 74H760"/>
+					<path d="M842 160 C 842 212 90 212 90 108" stroke-dasharray="4 5"/>
+				</g>
+				<g font-size="12" text-anchor="middle">
+					<rect x="30" y="44" width="120" height="60" rx="10" fill="#3a271b"/><text x="90" y="70" fill="#f3d48a" font-size="13" font-weight="700">Задача</text><text x="90" y="90" fill="#b3a187">что увидит игрок</text>
+					<rect x="178" y="44" width="118" height="60" rx="10" fill="#3a271b"/><text x="237" y="70" fill="#f3d48a" font-size="13" font-weight="700">Тест</text><text x="237" y="90" fill="#b3a187">сначала падает</text>
+					<rect x="324" y="44" width="118" height="60" rx="10" fill="#d8a94f"/><text x="383" y="70" fill="#2d1f0c" font-size="13" font-weight="700">Код</text><text x="383" y="90" fill="#3d2a12">GDScript</text>
+					<rect x="470" y="44" width="118" height="60" rx="10" fill="#3a271b"/><text x="529" y="70" fill="#f3d48a" font-size="13" font-weight="700">Кадры</text><text x="529" y="90" fill="#b3a187" class="mono">--shots</text>
+					<rect x="616" y="44" width="118" height="60" rx="10" fill="#3a271b"/><text x="675" y="70" fill="#f3d48a" font-size="13" font-weight="700">Плейтест</text><text x="675" y="90" fill="#b3a187">первые 5 минут</text>
+					<rect x="762" y="44" width="160" height="60" rx="10" fill="#1d4631"/><text x="842" y="70" fill="#dff7d0" font-size="13" font-weight="700">Релиз</text><text x="842" y="90" fill="#b8e0a4">exe · apk · Releases</text>
+				</g>
+				<g font-size="11.5" fill="#b3a187">
+					<text x="237" y="130" text-anchor="middle" class="mono">godot --headless -s tests/run_tests.gd</text>
+					<text x="237" y="146" text-anchor="middle">274 теста · 65 с</text>
+					<text x="529" y="130" text-anchor="middle" class="mono">--open=settings --shots=90</text>
+					<text x="529" y="146" text-anchor="middle">глазами по кадрам</text>
+					<text x="842" y="130" text-anchor="middle" class="mono">--export-release</text>
+					<text x="842" y="146" text-anchor="middle">Windows и Android</text>
+				</g>
+				<text x="455" y="232" fill="#b3a187" font-size="12" text-anchor="middle">если плейтест нашёл то, что игрок заметит, — новая задача, круг заново</text>
+			</svg>
+		</div>
+
+		<div class="head" style="margin-top:56px;margin-bottom:24px">
+			<span class="plate">Дневник решений</span>
+			<h2 style="font-size:clamp(24px,3.2vw,34px)">Двенадцать задач и как они решались</h2>
+			<p class="lead">Не всё получалось с первого раза. Вот что ломалось, мешало или просто было непонятно игроку — и что с этим сделали. Нажми на карточку.</p>
+		</div>
+		<div class="stories">
+			<details class="story">
+				<summary><span class="n">01</span><h3>Как рисовать без единой картинки</h3><span class="tg">v4.0 · draw_*</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>Правило проекта — ноль файлов: ни спрайтов, ни звуков, ни шрифтов. Но игра должна выглядеть как игрушки на столе, а не как геометрия.</p>
+					<p class="lbl">Как решал</p><p>Каждая сущность рисует себя сама в <code>_draw()</code> кругами, дугами и полигонами. Объём даёт не рисунок, а общий шейдер «материала» (<code>Tex.material</code>): мех, ржавчина, белок, пластик, ткань, латунь. У каждого объекта свой <code>seed</code>, поэтому одинаковые медведи всё равно разные. Тени и блики — одна мягкая текстура-градиент, растянутая как угодно.</p>
+					<p class="lbl">Итог</p><p class="res">28 файлов рисуют себя сами, а весь визуал помещается в код.</p>
+				</div>
+			</details>
+			<details class="story">
+				<summary><span class="n">02</span><h3>Звук синтезируется долго</h3><span class="tg">v6.0 · Thread</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>70 эффектов и семь треков по 17 секунд — это миллионы отсчётов. Синтез в главном потоке замораживал запуск на несколько секунд.</p>
+					<p class="lbl">Как решал</p><p>Синтез уехал в фоновый <code>Thread</code>: сначала все эффекты (экран загрузки показывает прогресс по <code>built_count</code>), потом по одному треку, пока игрок уже в меню. Готовое лежит в <code>static</code>-кэше и переживает перезапуск сцены — новый забег ничего не синтезирует заново.</p>
+					<p class="lbl">Итог</p><p class="res">Меню открывается, как только готовы эффекты; музыка догружается фоном.</p>
+				</div>
+			</details>
+			<details class="story">
+				<summary><span class="n">03</span><h3>Змея не должна ползать по клеткам</h3><span class="tg">v4.0 · snake.gd</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>Классическая змейка ходит по сетке, а здесь нужна плавная, как живая, — и при этом с честным самоукусом.</p>
+					<p class="lbl">Как решал</p><p>Тело — не объекты, а след: голова оставляет точку каждые 3 px, сегмент — каждая третья точка. Длина — сколько точек хранить. Самоукус проверяется, пропуская первые 14 сегментов, иначе на крутом повороте змея кусала бы шею. <a href="#snake-play">Попробуй в песочнице</a>.</p>
+					<p class="lbl">Итог</p><p class="res">Змея плавная, растёт одним числом и дёшево проверяет столкновения.</p>
+				</div>
+			</details>
+			<details class="story">
+				<summary><span class="n">04</span><h3>Как научить бить вилку сбоку</h3><span class="tg">v5.0 · fork.gd</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>У вилки опасны только зубцы. Игроки упрямо атаковали в лоб, получали урон и не понимали за что.</p>
+					<p class="lbl">Как решал</p><p>Правило оформил сразу в четырёх местах: <code>hurts()</code> проверяет угол между зубцами и головой; при первом ударе в лоб — подсказка «заходи сбоку или сзади»; в картотеке у вилки графа «слабое место»; позже телеграфы 2.2 показали, куда смотрят зубцы.</p>
+					<p class="lbl">Итог</p><p class="res">Правило читается без обучения: игрок узнаёт его из первого же удара.</p>
+				</div>
+			</details>
+			<details class="story">
+				<summary><span class="n">05</span><h3>ИИ дёргался, как в панике</h3><span class="tg">v7.2 · squad.gd</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>Отряд думал раз в 0,25 с и каждый такт переназначал роли. Враги метались между задачами, и сговор выглядел как сбой.</p>
+					<p class="lbl">Как решал</p><p>Ввёл <b>окно обязательства</b>: взятую роль враг держит минимум два такта. Снять её раньше может только видимое событие — гибель, оглушение, пропажа цели. Застрявший (три такта без продвижения на 3 px) теряет роль на 1,5 с. У клещей всегда есть просвет по курсу, а у каждого приёма — телеграф анимацией.</p>
+					<p class="lbl">Итог</p><p class="res">Сговор стало видно заранее, и его можно сорвать. <a href="#pincer-cv">Клещи вживую</a>.</p>
+				</div>
+			</details>
+			<details class="story">
+				<summary><span class="n">06</span><h3>Пожар был красивый, но скучный</h3><span class="tg">v7.2 · fire_sim.gd</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>На плейтесте огонь иногда полминуты тлел в углу. Игрок решал, что это декорация, и пропускал финал.</p>
+					<p class="lbl">Как решал</p><p>Сформулировал гарантию: за 5 секунд игрок должен увидеть, что огонь настоящий. Под каждой капсулой — затравка из бумаги, симуляция пишет время трёх переходов (пластик потёк, металл раскалился, скорлупа закоптилась), а тест прогоняет 40 сидов и проверяет худший случай.</p>
+					<p class="lbl">Итог</p><p class="res">Худший первый переход — около 1,4 с на любом сиде.</p>
+				</div>
+			</details>
+			<details class="story">
+				<summary><span class="n">07</span><h3>Клик ощущался как лаг</h3><span class="tg">v7.2 · Design</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>Каждая клавиша проигрывала анимацию нажатия 120 мс и только потом срабатывала. Мозг читал эту паузу как задержку управления.</p>
+					<p class="lbl">Как решал</p><p>Сократил отклик до 80 мс и добавил видимый отказ: если нажать нельзя, дребезг реле, рывок на 3 px и вспышка — сразу, чтобы игрок не нажимал повторно. <a href="#knob">Пульт можно потрогать</a>.</p>
+					<p class="lbl">Итог</p><p class="res">Интерфейс перестал казаться медленным при той же анимации.</p>
+				</div>
+			</details>
+			<details class="story">
+				<summary><span class="n">08</span><h3>F1 не работал на паузе</h3><span class="tg">v7.0 · dev_panel.gd</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>Панель разработчика слушал главный узел игры, а на паузе он не получает ввод. Открыть панель именно тогда, когда что-то сломалось, было нельзя.</p>
+					<p class="lbl">Как решал</p><p>Клавиши теперь ловит сама панель: <code>PROCESS_MODE_ALWAYS</code> и <code>_input</code>, а не <code>_unhandled_input</code>, чтобы клавишу не перехватил элемент в фокусе. На ноутбуках F1 занят яркостью, поэтому есть запасные ё и Ctrl+Shift+D. Всё это проверяет интеграционный тест с настоящими нажатиями.</p>
+					<p class="lbl">Итог</p><p class="res">Панель открывается везде: в меню, в забеге, на паузе и на выборе улучшений.</p>
+				</div>
+			</details>
+			<details class="story">
+				<summary><span class="n">09</span><h3>Android падал на кнопке «Назад»</h3><span class="tg">Android · hud.gd</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>Системная «Назад» на Android работает как Esc. Переход в меню перезагружает сцену — и прямо из системного уведомления это роняло игру в потоке рендера.</p>
+					<p class="lbl">Как решал</p><p>Обработчик уведомления больше ничего не делает сам: <code>_on_system_back.call_deferred()</code> переносит действие в обычный кадр, где перезагрузка сцены безопасна.</p>
+					<p class="lbl">Итог</p><p class="res">«Назад» работает как Esc на всех экранах, без падений.</p>
+				</div>
+			</details>
+			<details class="story">
+				<summary><span class="n">10</span><h3>Настройки не помещались</h3><span class="tg">v7.2 · тест раскладки</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>35 настроек на пяти вкладках на телефоне уходили за экран, а прокрутка в игре с тач-управлением неудобна.</p>
+					<p class="lbl">Как решал</p><p>Сделал компактный пульт в две колонки и закрепил результат тестом <code>test_settings_fit_without_scroll</code>: он открывает каждую вкладку и проверяет, что содержимое влезает. Раскладку проверял глазами по кадрам <code>--open=settings --shots=90</code>.</p>
+					<p class="lbl">Итог</p><p class="res">Экран настроек помещается целиком при любом масштабе интерфейса от 80%.</p>
+				</div>
+			</details>
+			<details class="story">
+				<summary><span class="n">11</span><h3>Тесты не видят картинку</h3><span class="tg">проверка · --shots</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>Юнит-тесты ловят логику, но не видят, что табло наехало на кнопку или заголовок ушёл за край.</p>
+					<p class="lbl">Как решал</p><p>Игра научилась сама открывать любой экран (<code>--open=</code>) и сохранять кадры на нужных номерах (<code>--shots=</code>). Автопилот (<code>--autopilot</code>) проходит этапы без игрока — на нём держатся интеграционные тесты. Все скриншоты этого сайта сняты так же, скриптом.</p>
+					<p class="lbl">Итог</p><p class="res">Каждая правка интерфейса проверяется и тестом, и кадром.</p>
+				</div>
+			</details>
+			<details class="story">
+				<summary><span class="n">12</span><h3>Аудит всего кода</h3><span class="tg">v8.1 · аудит</span></summary>
+				<div class="body">
+					<p class="lbl">Задача</p><p>К восьмой версии код вырос до 16 тысяч строк. Нужно было убедиться, что в нём нет лазеек и лишней работы.</p>
+					<p class="lbl">Как решал</p><p>Прочитал код целиком с тремя вопросами: где можно сломать забег, где сжульничать и что считается зря. На каждую находку сначала написал тест, который падал, потом исправил. <a href="#v81">Подробности — в начале страницы</a>.</p>
+					<p class="lbl">Итог</p><p class="res">Девять находок, десять новых тестов, пол больше не считается каждый кадр.</p>
+				</div>
+			</details>
+		</div>
+
+		<div class="head" style="margin-top:56px;margin-bottom:24px">
+			<span class="plate">Инструменты</span>
+			<h2 style="font-size:clamp(24px,3.2vw,34px)">Чем игра проверяет саму себя</h2>
+		</div>
+		<div class="table-box">
+			<table>
+				<thead><tr><th>Инструмент</th><th>Как вызвать</th><th>Зачем</th></tr></thead>
+				<tbody>
+					<tr><td>Автотесты</td><td class="num">-s res://tests/run_tests.gd</td><td>своя система без аддонов: юнит и интеграция, ожидание кадров через <code>await</code></td></tr>
+					<tr><td>Только часть</td><td class="num">-- --only=fire · --unit</td><td>быстро прогнать то, что правишь</td></tr>
+					<tr><td>Этап сразу</td><td class="num">-- --stage=3 --diff=2</td><td>не проходить три этапа ради босса; забег помечается отладочным</td></tr>
+					<tr><td>Кадры</td><td class="num">-- --open=pause --shots=30,90</td><td>открыть экран и сохранить кадры — проверить раскладку глазами</td></tr>
+					<tr><td>Автопилот</td><td class="num">-- --autopilot</td><td>змея играет сама: так интеграционные тесты проходят этапы</td></tr>
+					<tr><td>Финал</td><td class="num">-- --ending</td><td>сразу лаборатория, пожар и титры</td></tr>
+					<tr><td>Выгрузка звуков</td><td class="num">-- --dump-sfx</td><td>все 70 звуков в WAV — послушать в редакторе</td></tr>
+					<tr><td>Телефон на ПК</td><td class="num">-- --touch</td><td>мышь притворяется пальцем: проверить тач-управление без телефона</td></tr>
+					<tr><td>Панель разработчика</td><td class="num">F1 · ё · Ctrl+Shift+D</td><td>FPS, читы, спавн, хитбоксы, звуки, тесты прямо в игре</td></tr>
+				</tbody>
+			</table>
 		</div>
 	</div>
 </section>
@@ -2278,6 +2602,542 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 			pads.appendChild(b);
 		});
 		scope(new Float32Array(SR / 4), "—", 1);
+	})();
+
+	/* =====================================================================
+	   Общее для интерактива: кэш звуков пульта и ввод «спринта»
+	   ===================================================================== */
+	const UI_SFX = {
+		ui_detent: () => toStream(mix(pop(0.008, 0.22, 2500, 7000), tone(0.015, 3300, 3000, SINE, 0.05, 0, 6))),
+		ui_lever: () => toStream(mix(mix(pop(0.01, 0.32, 1500, 6000), metal([1850, 2930, 4100], 0.14, 0.07)), tone(0.05, 110, 70, SINE, 0.3, 0, 3)), false, -2),
+		ui_key_down: () => toStream(mix(lowpass(noise(0.04, 0.5, 3.5), 1800), tone(0.06, 150, 85, SINE, 0.35, 0, 3))),
+		ui_select: () => toStream(mix(pop(0.016, 0.34, 1800, 6500), tone(0.05, 1900, 1700, SINE, 0.1, 0, 5))),
+		ui_error: () => toStream(mix(am(tone(0.16, 120, 110, SQ, 0.1, 0, 1.2), 50, 0.8), pop(0.02, 0.25, 600, 2500))),
+		eat: () => toStream(seq([tone(0.06, 440, 700, SQ, 0.2), tone(0.1, 700, 1200, SQ, 0.2)])),
+		hurt: () => toStream(mix(tone(0.35, 320, 70, SAW, 0.35, 0, 1.5), noise(0.25, 0.3, 2, 1800))),
+		clang: () => toStream(mix(metal([523, 1187, 1873, 2711], 0.7, 0.4), noise(0.05, 0.2, 3, 5500, 2000)), false, -5),
+	};
+	const sfxCache = {};
+	function sfx(name, jitter = 0, vol = 0.7) {
+		const ctx = audio(); if (!ctx) return;
+		if (!sfxCache[name]) sfxCache[name] = UI_SFX[name]();
+		const buf = sfxCache[name], pitch = 1 + (Math.random() * 2 - 1) * jitter;
+		play(ctx, () => {
+			const s = ctx.createBufferSource(), g = ctx.createGain();
+			s.buffer = buffer(ctx, buf); s.playbackRate.value = pitch; g.gain.value = vol;
+			s.connect(g); g.connect(ctx.destination); s.start();
+		});
+	}
+	let spaceHeld = false;
+	window.addEventListener("keydown", e => { if (e.code === "Space" && e.target === document.body) { spaceHeld = true; e.preventDefault(); } });
+	window.addEventListener("keyup", e => { if (e.code === "Space") spaceHeld = false; });
+	function pointerWorld(cv, e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * 1280, y: (e.clientY - r.top) / r.height * 720 }; }
+	const rotateToward = (a, b, d) => { let df = b - a; while (df > Math.PI) df -= 2 * Math.PI; while (df < -Math.PI) df += 2 * Math.PI; return Math.abs(df) <= d ? b : a + Math.sign(df) * d; };
+	function loopWhenVisible(node, step) {
+		let vis = false, lt = 0;
+		function f(ts) { if (!vis) { lt = 0; return; } const dt = lt ? (ts - lt) / 1000 : 1 / 60; lt = ts; step(Math.min(dt, 2)); requestAnimationFrame(f); }
+		onVisible(node, v => { const was = vis; vis = v; if (v && !was) requestAnimationFrame(f); });
+	}
+
+	/* =====================================================================
+	   Пол из формул — шейдер gfx/tex.gd в WebGL
+	   ===================================================================== */
+	(function floorGL() {
+		const cv = document.getElementById("floor-gl"); if (!cv) return;
+		const out = document.getElementById("floor-readout");
+		const gl = cv.getContext("webgl", { antialias: false, preserveDrawingBuffer: false });
+		if (!gl) { out.textContent = "WebGL недоступен в этом браузере"; return; }
+		const VS = "attribute vec2 p; varying vec2 vUV; void main(){ vUV = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5); gl_Position = vec4(p, 0.0, 1.0); }";
+		const FS = `#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform float kind; varying vec2 vUV;
+float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+float vnoise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y); }
+float fbm(vec2 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < 5; i++) { v += a * vnoise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return v; }
+float seg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a; vec2 ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
+float fork_sdf(vec2 q) { float d = seg(q, vec2(-120.0, 0.0), vec2(0.0, 0.0)) - 9.0; d = min(d, seg(q, vec2(0.0, 0.0), vec2(26.0, 0.0)) - 13.0);
+	for (int i = 0; i < 4; i++) { float y = -13.5 + float(i) * 9.0; d = min(d, seg(q, vec2(26.0, y), vec2(92.0, y)) - 2.8); } return d; }
+void main() {
+	vec2 UV = vUV; vec2 px = UV * vec2(1280.0, 720.0); vec3 c; int k = int(kind + 0.5);
+	if (k == 0) {
+		float pid = floor(px.y / 120.0); vec2 q = px + vec2(hash(vec2(pid, 1.0)) * 900.0, 0.0);
+		float g = fbm(vec2(q.x * 0.004, q.y * 0.045));
+		float grain = sin(q.y * 0.09 + g * 16.0 + fbm(q * 0.012) * 4.0) * 0.5 + 0.5;
+		c = mix(vec3(0.87, 0.72, 0.52), vec3(0.72, 0.53, 0.33), grain * 0.55 + g * 0.35);
+		float kx = floor(q.x / 520.0);
+		vec2 kc = vec2((kx + 0.2 + 0.6 * hash(vec2(pid, kx))) * 520.0, pid * 120.0 + 30.0 + 60.0 * hash(vec2(kx, pid + 7.0)));
+		vec2 knot = (q - kc) * vec2(0.55, 1.0); float kd = length(knot) + fbm(q * 0.05) * 6.0;
+		float has_knot = step(0.72, hash(vec2(pid * 3.1, kx * 1.7)));
+		c = mix(c, vec3(0.5, 0.33, 0.18), smoothstep(20.0, 5.0, kd) * has_knot);
+		c = mix(c, c * 0.85, smoothstep(34.0, 20.0, kd) * has_knot * 0.6);
+		c *= 0.92 + 0.12 * hash(vec2(pid, 3.0));
+		float seam = mod(px.y, 120.0);
+		c *= 1.0 - 0.3 * smoothstep(3.0, 0.0, seam) - 0.1 * smoothstep(6.0, 3.0, 120.0 - seam);
+		c += (vnoise(px * 0.9) - 0.5) * 0.035;
+	} else if (k == 1) {
+		float brush = fbm(vec2(px.x * 0.002, px.y * 0.8)); c = vec3(0.6, 0.63, 0.66) + (brush - 0.5) * 0.14;
+		float sc = 0.0;
+		for (int i = 0; i < 3; i++) { float fk = float(i); vec2 dir = normalize(vec2(cos(fk * 2.1 + 0.4), sin(fk * 2.1 + 0.4)));
+			float lane = dot(px, vec2(-dir.y, dir.x)) / 9.0; float id = floor(lane); float along = dot(px, dir);
+			float on = step(0.93, hash(vec2(id, fk))) * step(0.5, vnoise(vec2(along * 0.01, id + fk * 13.0)));
+			sc += on * smoothstep(0.5, 0.0, abs(fract(lane) - 0.5)); }
+		c += sc * 0.07; c = mix(c, vec3(0.42, 0.46, 0.52), 0.25);
+		float rust = smoothstep(0.6, 0.78, fbm(px * 0.006 + 7.0));
+		c = mix(c, mix(vec3(0.55, 0.28, 0.12), vec3(0.4, 0.2, 0.1), vnoise(px * 0.2)), rust * 0.6);
+		c *= 0.88 + 0.18 * (1.0 - UV.y); c += 0.06 * smoothstep(0.35, 0.0, abs(UV.x - UV.y * 0.6 - 0.2));
+	} else if (k == 2) {
+		vec2 t = mod(px, 80.0); vec2 id = floor(px / 80.0);
+		float grout = min(min(t.x, 80.0 - t.x), min(t.y, 80.0 - t.y));
+		vec3 tile = mix(vec3(0.9, 0.95, 0.97), vec3(0.82, 0.92, 0.95), hash(id));
+		if (mod(id.x + id.y, 2.0) < 1.0) tile = mix(tile, vec3(0.74, 0.87, 0.9), 0.55);
+		tile += (fbm(px * 0.05 + id) - 0.5) * 0.05; tile += 0.08 * smoothstep(40.0, 0.0, t.x + t.y - 20.0);
+		tile -= 0.05 * smoothstep(60.0, 80.0, max(t.x, t.y));
+		c = mix(vec3(0.55, 0.62, 0.65), tile, smoothstep(1.5, 3.5, grout));
+		c = mix(c, vec3(0.62, 0.7, 0.72), smoothstep(0.62, 0.8, fbm(px * 0.004 + 2.0)) * 0.35);
+	} else if (k == 4) {
+		vec2 cs = vec2(320.0, 360.0); vec2 cid = floor(px / cs); vec2 cp = mod(px, cs);
+		float wall = min(min(cp.x, cs.x - cp.x), min(cp.y, cs.y - cp.y));
+		float green = step(0.72, hash(cid + 3.0));
+		vec3 velvet = mix(vec3(0.38, 0.075, 0.09), vec3(0.08, 0.25, 0.19), green);
+		float pile = fbm(px * vec2(0.012, 0.016) + cid * 5.0); velvet *= 0.72 + 0.5 * pile; velvet += (vnoise(px * 1.4) - 0.5) * 0.04;
+		float ang = (hash(cid) - 0.5) * 0.9 + (mod(cid.x, 2.0) < 1.0 ? 0.0 : 3.14159);
+		vec2 q = cp - cs * 0.5; q = vec2(q.x * cos(ang) + q.y * sin(ang), -q.x * sin(ang) + q.y * cos(ang));
+		float fd = fork_sdf(q * 1.25); float recess = smoothstep(2.0, -2.0, fd);
+		c = velvet * (1.0 - 0.45 * recess);
+		c += (velvet * 0.35 + vec3(0.03, 0.025, 0.02)) * smoothstep(0.0, 3.0, fd) * smoothstep(7.0, 3.0, fd) * step(0.0, q.y);
+		c *= 1.0 - 0.45 * smoothstep(30.0, 9.0, wall);
+		float grain = sin((cp.x + cp.y) * 0.35 + fbm(px * 0.03) * 9.0) * 0.5 + 0.5;
+		vec3 wood = mix(vec3(0.6, 0.37, 0.18), vec3(0.42, 0.23, 0.1), grain * 0.7);
+		wood += 0.12 * smoothstep(3.0, 0.0, abs(wall - 7.0)); c = mix(c, wood, smoothstep(10.0, 8.5, wall));
+		vec2 lv = (UV - vec2(0.32, 0.22)) * vec2(1.6, 1.0); c *= vec3(1.08, 0.98, 0.86) * (0.72 + 0.55 * exp(-dot(lv, lv) * 2.2));
+	} else {
+		vec2 cen = vec2(640.0, 360.0); vec2 dv = px - cen; float d = length(dv); float n = fbm(px * 0.06);
+		c = vec3(0.17, 0.16, 0.16) + (n - 0.5) * 0.1; c += 0.025 * sin(d * 0.21 + n * 3.0);
+		float oil = smoothstep(0.55, 0.78, fbm(px * 0.004 + 3.0)); c = mix(c, vec3(0.62, 0.48, 0.16), oil * 0.3);
+		float z = (d - 330.0) / 70.0;
+		c += 0.12 * exp(-z * z) * pow(0.5 + 0.5 * sin(atan(dv.y, dv.x) + 2.2), 3.0);
+		c += 0.06 * smoothstep(0.7, 0.9, vnoise(px * 0.08)) * oil;
+	}
+	vec2 v = UV - 0.5; c *= 1.0 - dot(v, v) * 0.6;
+	gl_FragColor = vec4(c, 1.0);
+}`;
+		const BLIT = "precision mediump float; uniform sampler2D tex; varying vec2 vUV; void main(){ gl_FragColor = texture2D(tex, vec2(vUV.x, 1.0 - vUV.y)); }";
+		function prog(fs) {
+			const p = gl.createProgram();
+			[[gl.VERTEX_SHADER, VS], [gl.FRAGMENT_SHADER, fs]].forEach(([t, src]) => {
+				const sh = gl.createShader(t); gl.shaderSource(sh, src); gl.compileShader(sh);
+				if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+				gl.attachShader(p, sh);
+			});
+			gl.bindAttribLocation(p, 0, "p"); gl.linkProgram(p); return p;
+		}
+		let floorP, blitP;
+		try { floorP = prog(FS); blitP = prog(BLIT); } catch (e) { out.textContent = "Шейдер не собрался: " + e.message; return; }
+		const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+		gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+		let kind = 0, mode = "live", res = 1, tex = null, fbo = null, dirty = true, samples = [], shown = "—";
+		const px1 = new Uint8Array(4);
+		function resize() {
+			cv.width = 1280 * res; cv.height = 720 * res;
+			if (tex) gl.deleteTexture(tex); if (fbo) gl.deleteFramebuffer(fbo);
+			tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, cv.width, cv.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+			[gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER].forEach(f => gl.texParameteri(gl.TEXTURE_2D, f, gl.LINEAR));
+			[gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T].forEach(f => gl.texParameteri(gl.TEXTURE_2D, f, gl.CLAMP_TO_EDGE));
+			fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+			gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+			gl.bindFramebuffer(gl.FRAMEBUFFER, null); dirty = true; samples = [];
+		}
+		let runs = 0, mpx = 0;
+		function drawFloor(target) {
+			runs++; mpx += cv.width * cv.height / 1e6;
+			gl.bindFramebuffer(gl.FRAMEBUFFER, target); gl.viewport(0, 0, cv.width, cv.height);
+			gl.useProgram(floorP); gl.uniform1f(gl.getUniformLocation(floorP, "kind"), kind); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+		}
+		function frame() {
+			const t0 = performance.now();
+			if (mode === "live") drawFloor(null);
+			else {
+				if (dirty) { drawFloor(fbo); dirty = false; }
+				gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, cv.width, cv.height);
+				gl.useProgram(blitP); gl.bindTexture(gl.TEXTURE_2D, tex); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+			}
+			gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px1);  // дождаться видеокарты — иначе время не измерить
+			samples.push(performance.now() - t0);
+			if (samples.length >= 30) {
+				samples.sort((a, b) => a - b);
+				const ms = samples[Math.floor(samples.length / 2)];
+				shown = "режим <b>" + (mode === "live" ? "каждый кадр" : "запечь") + "</b><br>пикселей <b>" + (cv.width * cv.height / 1e6).toFixed(1).replace(".", ",") + " млн</b><br>" +
+					"время кадра <b>" + ms.toFixed(2).replace(".", ",") + " мс</b><br>" +
+					"шейдер отработал <b>" + runs.toLocaleString("ru-RU") + "</b> раз<br>посчитано <b>" + Math.round(mpx).toLocaleString("ru-RU") + " млн</b> пикселей";
+				out.innerHTML = shown; samples = [];
+			}
+		}
+		function sel(attr, val) { document.querySelectorAll("[" + attr + "]").forEach(b => b.setAttribute("aria-pressed", b.getAttribute(attr) === String(val) ? "true" : "false")); }
+		document.querySelectorAll("[data-kind]").forEach(b => b.addEventListener("click", () => { kind = +b.dataset.kind; dirty = true; samples = []; sel("data-kind", kind); }));
+		document.querySelectorAll("[data-fmode]").forEach(b => b.addEventListener("click", () => { mode = b.dataset.fmode; dirty = true; samples = []; sel("data-fmode", mode); }));
+		document.querySelectorAll("[data-fres]").forEach(b => b.addEventListener("click", () => { res = +b.dataset.fres; resize(); sel("data-fres", res); }));
+		resize(); frame();
+		loopWhenVisible(cv, frame);
+	})();
+
+	/* =====================================================================
+	   Песочница змеи — порт entities/snake.gd и game/replay.gd
+	   ===================================================================== */
+	(function snakeSandbox() {
+		const cv = document.getElementById("snake-cv"); if (!cv) return;
+		const g = cv.getContext("2d");
+		const STEP = 3, PPS = 3, HEAD_R = 16, BODY_R = 13, BASE = 220, SPRINT = 370, TURN = 4.2, DRAIN = 0.45, REGEN = 0.22,
+			RECOVER = 0.35, SKIP = 14, INVULN = 1.5, MAX_STEP = 1 / 20, B = { x0: 24, y0: 24, x1: 1256, y1: 696 };
+		const RATE = 30, CAP = 90;
+		const out = document.getElementById("snake-readout"), stBar = document.getElementById("snake-stamina");
+		const dotsBox = document.getElementById("snake-dots"), clampBox = document.getElementById("snake-clamp");
+		const replayBtn = document.getElementById("snake-replay");
+		let head, heading, trail, length, lives, invuln, stamina, exhausted, sprinting, bears, eaten, target = null, down = false,
+			freeze = 0, flash = 0, flashText = "", frames = [], acc = 0, replay = null, lastHit = "";
+		function reset() {
+			head = { x: 640, y: 480 }; heading = -Math.PI / 2; length = 12; lives = 3; invuln = 0; stamina = 1; exhausted = false; eaten = 0;
+			trail = []; for (let i = 0; i <= length * PPS; i++) trail.push({ x: head.x, y: head.y + i * STEP });
+			bears = []; for (let i = 0; i < 5; i++) bears.push(spot());
+			frames = []; replayBtn.disabled = true;
+		}
+		function spot() { return { x: 90 + Math.random() * 1100, y: 90 + Math.random() * 540, a: Math.random() * 6 }; }
+		const segs = () => { const o = []; for (let i = 0; i < trail.length; i += PPS) o.push(trail[i]); return o; };
+		let auto = { x: 640, y: 200 };
+		function extend() {  // след: точка каждые 3 px, лишнее с хвоста — долой
+			let guard = 0;
+			while (Math.hypot(head.x - trail[0].x, head.y - trail[0].y) >= STEP && guard++ < 4000) {
+				const t0 = trail[0], d = Math.hypot(head.x - t0.x, head.y - t0.y);
+				trail.unshift({ x: t0.x + (head.x - t0.x) / d * STEP, y: t0.y + (head.y - t0.y) / d * STEP });
+			}
+			if (trail.length > length * PPS + 1) trail.length = length * PPS + 1;
+		}
+		function hurt(cause) {
+			if (invuln > 0) return;
+			lives--; invuln = INVULN; flash = 1; lastHit = cause; flashText = cause === "wall" ? "УДАР О БОРТИК" : "САМОУКУС";
+			sfx("hurt", 0.03, 0.5);
+			replayBtn.disabled = frames.length < 10;
+			if (lives <= 0) { flashText = "ЗМЕЯ ПОВЕРЖЕНА — ещё раз"; lives = 3; length = 12; }
+		}
+		function step(dt) {
+			if (replay) { replay.t += dt * 0.4 * RATE; if (replay.t >= replay.frames.length - 1) replay = null; draw(); return; }
+			if (freeze > 0) { dt += freeze; freeze = 0; }
+			if (clampBox.checked) dt = Math.min(dt, MAX_STEP);
+			invuln = Math.max(0, invuln - dt); flash = Math.max(0, flash - dt * 1.5);
+			if (!target) {  // пока игрок не навёл указатель — _autopilot() из snake.gd: ползёт к случайной точке, без урона
+				if (Math.hypot(auto.x - head.x, auto.y - head.y) < 50) auto = { x: 120 + Math.random() * 1040, y: 120 + Math.random() * 480 };
+				heading = rotateToward(heading, Math.atan2(auto.y - head.y, auto.x - head.x), TURN * dt);
+				head.x += Math.cos(heading) * 140 * dt; head.y += Math.sin(heading) * 140 * dt;
+				extend(); draw(); return;
+			}
+			{ const dx = target.x - head.x, dy = target.y - head.y; if (Math.hypot(dx, dy) > 24) heading = rotateToward(heading, Math.atan2(dy, dx), TURN * dt); }
+			sprinting = (down || spaceHeld) && !exhausted && stamina > 0;
+			let speed = BASE;
+			if (sprinting) { speed = SPRINT; stamina = Math.max(0, stamina - dt * DRAIN); if (stamina <= 0) exhausted = true; }
+			else { stamina = Math.min(1, stamina + dt * REGEN * (exhausted ? 0.7 : 1)); if (exhausted && stamina >= RECOVER) exhausted = false; }
+			if (exhausted) speed *= 0.8;
+			head.x += Math.cos(heading) * speed * dt; head.y += Math.sin(heading) * speed * dt;
+			// бортик: отражение курса и урон
+			const ix0 = B.x0 + HEAD_R, ix1 = B.x1 - HEAD_R, iy0 = B.y0 + HEAD_R, iy1 = B.y1 - HEAD_R;
+			let hit = false;
+			if (head.x < ix0 || head.x > ix1) { heading = Math.PI - heading; hit = true; }
+			if (head.y < iy0 || head.y > iy1) { heading = -heading; hit = true; }
+			if (hit) { head.x = Math.min(ix1, Math.max(ix0, head.x)); head.y = Math.min(iy1, Math.max(iy0, head.y)); hurt("wall"); }
+			extend();
+			const sg = segs();
+			for (let i = SKIP; i < sg.length; i++) if (Math.hypot(head.x - sg[i].x, head.y - sg[i].y) < BODY_R * 1.2) { hurt("self"); break; }
+			bears.forEach((b, i) => { b.a += dt; if (Math.hypot(head.x - b.x, head.y - b.y) < HEAD_R + 20) { length += 3; eaten++; bears[i] = spot(); sfx("eat", 0.03, 0.4); } });
+			acc += dt;
+			if (acc >= 1 / RATE) {
+				acc %= 1 / RATE;
+				const body = []; for (let i = 0; i < sg.length; i += 2) body.push({ x: sg[i].x, y: sg[i].y });
+				frames.push({ head: { x: head.x, y: head.y }, body, bears: bears.map(b => ({ x: b.x, y: b.y })), hurt: invuln > 0 });
+				if (frames.length > CAP) frames.shift();
+			}
+			out.innerHTML = "длина <b>" + length + "</b> · съедено <b>" + eaten + "</b><br>жизни <b>" + "♥".repeat(lives) + "</b><br>скорость <b>" + Math.round(speed) + " px/с</b>" +
+				(exhausted ? " · <span style='color:#e5533d'>выдохлась</span>" : sprinting ? " · <span class='on'>спринт</span>" : "") + "<br>точек следа <b>" + trail.length + "</b> · сегментов <b>" + sg.length + "</b>";
+			stBar.style.width = (stamina * 100).toFixed(1) + "%";
+			draw();
+		}
+		function bear(x, y) {
+			g.fillStyle = "rgba(0,0,0,.25)"; g.beginPath(); g.ellipse(x + 4, y + 8, 20, 12, 0, 0, 7); g.fill();
+			g.fillStyle = "#a0664a"; [[-12, -14], [12, -14]].forEach(([dx, dy]) => { g.beginPath(); g.arc(x + dx, y + dy, 7, 0, 7); g.fill(); });
+			g.beginPath(); g.arc(x, y, 16, 0, 7); g.fill();
+			g.fillStyle = "#e7c9a4"; g.beginPath(); g.arc(x, y + 4, 7, 0, 7); g.fill();
+			g.fillStyle = "#1f150f"; [[-5, -3], [5, -3], [0, 2]].forEach(([dx, dy]) => { g.beginPath(); g.arc(x + dx, y + dy, 2, 0, 7); g.fill(); });
+		}
+		function draw() {
+			const W = 1280, H = 720;
+			g.fillStyle = "#c79a64"; g.fillRect(0, 0, W, H);
+			for (let y = 0; y < H; y += 120) { g.fillStyle = y / 120 % 2 ? "rgba(90,50,20,.08)" : "rgba(255,230,190,.06)"; g.fillRect(0, y, W, 120); g.fillStyle = "rgba(60,30,10,.35)"; g.fillRect(0, y, W, 2); }
+			g.strokeStyle = "#6a4526"; g.lineWidth = 24; g.strokeRect(12, 12, W - 24, H - 24);
+			if (replay) return drawReplay();
+			bears.forEach(b => bear(b.x, b.y + Math.sin(b.a * 3) * 2));
+			const sg = segs(), n = sg.length, blink = invuln > 0 && Math.floor(invuln * 12) % 2 === 0;
+			g.globalAlpha = blink ? 0.35 : 1;
+			for (let i = n - 1; i > 0; i--) { const r = BODY_R * (1 - 0.55 * (i / (n - 1)) ** 2); g.fillStyle = "#0f3d14"; g.beginPath(); g.arc(sg[i].x, sg[i].y, r + 2.5, 0, 7); g.fill(); }
+			for (let i = n - 1; i > 0; i--) {
+				const r = BODY_R * (1 - 0.55 * (i / (n - 1)) ** 2);
+				g.fillStyle = Math.floor(i / 3) % 2 ? "#45ab3a" : "#54c247"; g.beginPath(); g.arc(sg[i].x, sg[i].y, r, 0, 7); g.fill();
+			}
+			g.fillStyle = "#0f3d14"; g.beginPath(); g.arc(head.x, head.y, HEAD_R + 2.5, 0, 7); g.fill();
+			g.fillStyle = "#66db57"; g.beginPath(); g.arc(head.x, head.y, HEAD_R, 0, 7); g.fill();
+			const dx = Math.cos(heading), dy = Math.sin(heading);
+			[-1, 1].forEach(sd => { const ex = head.x + dx * 4 - dy * 7.5 * sd, ey = head.y + dy * 4 + dx * 7.5 * sd;
+				g.fillStyle = "#faf5cc"; g.beginPath(); g.arc(ex, ey, 5, 0, 7); g.fill(); g.fillStyle = "#1f150f"; g.beginPath(); g.arc(ex + dx * 1.5, ey + dy * 1.5, 2.4, 0, 7); g.fill(); });
+			g.globalAlpha = 1;
+			if (dotsBox.checked) {
+				g.fillStyle = "rgba(255,255,255,.8)";
+				trail.forEach((p, i) => { if (i % PPS) { g.beginPath(); g.arc(p.x, p.y, 1.6, 0, 7); g.fill(); } });
+				g.strokeStyle = "#e5533d"; g.lineWidth = 2;
+				for (let i = 1; i < Math.min(SKIP, n); i++) { g.beginPath(); g.arc(sg[i].x, sg[i].y, 9, 0, 7); g.stroke(); }
+			}
+			if (!target) { g.fillStyle = "rgba(31,21,15,.72)"; g.fillRect(400, 26, 480, 44); g.fillStyle = "#f3d48a"; g.font = "600 22px 'Golos Text', sans-serif"; g.textAlign = "center"; g.fillText("Наведи указатель — змея твоя", 640, 56); g.textAlign = "left"; }
+			if (target) { g.strokeStyle = "rgba(255,255,255,.35)"; g.setLineDash([6, 8]); g.beginPath(); g.moveTo(head.x, head.y); g.lineTo(target.x, target.y); g.stroke(); g.setLineDash([]); }
+			if (flash > 0) {
+				g.fillStyle = "rgba(229,83,61," + (0.25 * flash) + ")"; g.fillRect(0, 0, W, H);
+				g.globalAlpha = Math.min(1, flash * 2); g.fillStyle = "#fff"; g.font = "900 44px Unbounded, sans-serif"; g.textAlign = "center";
+				g.fillText(flashText, W / 2, 110); g.globalAlpha = 1; g.textAlign = "left";
+			}
+		}
+		function drawReplay() {
+			const f = replay.frames[Math.floor(replay.t)], W = 1280, H = 720;
+			g.fillStyle = "#07110a"; g.fillRect(24, 24, W - 48, H - 48);
+			g.strokeStyle = "rgba(142,224,98,.08)"; g.lineWidth = 1;
+			for (let y = 24; y < H - 24; y += 4) { g.beginPath(); g.moveTo(24, y); g.lineTo(W - 24, y); g.stroke(); }
+			g.fillStyle = "#3e7a2c"; f.bears.forEach(b => { g.beginPath(); g.arc(b.x, b.y, 14, 0, 7); g.fill(); });
+			g.strokeStyle = f.hurt ? "#e5533d" : "#8ee062"; g.lineWidth = 12; g.lineCap = "round"; g.beginPath();
+			g.moveTo(f.head.x, f.head.y); f.body.forEach(p => g.lineTo(p.x, p.y)); g.stroke();
+			g.fillStyle = f.hurt ? "#e5533d" : "#8ee062"; g.beginPath(); g.arc(f.head.x, f.head.y, 13, 0, 7); g.fill();
+			g.fillStyle = "#8ee062"; g.font = "600 26px 'JetBrains Mono', monospace";
+			g.fillText("REC  00:0" + (replay.t / RATE).toFixed(2) + "  ×0.4   ЗАПИСЬ КАМЕРЫ №3", 50, 70);
+			g.fillText(lastHit === "wall" ? "УДАР О БОРТИК" : "САМОУКУС", 50, H - 50);
+			if (Math.floor(performance.now() / 500) % 2) { g.fillStyle = "#e5533d"; g.beginPath(); g.arc(W - 60, 60, 10, 0, 7); g.fill(); }
+		}
+		cv.addEventListener("pointermove", e => { target = pointerWorld(cv, e); });
+		cv.addEventListener("pointerdown", e => { audio(); down = true; target = pointerWorld(cv, e); cv.setPointerCapture(e.pointerId); });
+		cv.addEventListener("pointerup", () => { down = false; });
+		cv.addEventListener("pointercancel", () => { down = false; });
+		document.getElementById("snake-freeze").addEventListener("click", () => { freeze = 1.0; });
+		replayBtn.addEventListener("click", () => { if (frames.length >= 10) replay = { frames: frames.slice(), t: 0 }; });
+		reset(); draw();
+		loopWhenVisible(cv, step);
+	})();
+
+	/* =====================================================================
+	   Клещи вживую — порт squad.gd::pincer_slots и такта клещей
+	   ===================================================================== */
+	(function pincerDemo() {
+		const cv = document.getElementById("pincer-cv"); if (!cv) return;
+		const g = cv.getContext("2d"), out = document.getElementById("pincer-readout");
+		const R = 250, LOOK = 0.3, TIMEOUT = 2.6, GAP3 = 2.6, B = { x0: 60, y0: 60, x1: 1220, y1: 660 };
+		let n = 2, head = { x: 640, y: 380 }, heading = -Math.PI / 2, target = null, down = false, stamina = 1;
+		let forks = [], state = "roam", t = 0, cd = 1.2, msg = "", msgT = 0, hits = 0, breaks = 0;
+		const gap = c => c <= 2 ? Math.PI : GAP3;
+		function slots() {
+			const o = [], gp = gap(n);
+			for (let i = 0; i < n; i++) {
+				const k = n === 1 ? 0.5 : i / (n - 1), a = heading + gp / 2 + (2 * Math.PI - gp) * k;
+				o.push({ x: Math.min(B.x1, Math.max(B.x0, head.x + Math.cos(a) * R)), y: Math.min(B.y1, Math.max(B.y0, head.y + Math.sin(a) * R)) });
+			}
+			return o;
+		}
+		function spawn() { forks = []; for (let i = 0; i < n; i++) forks.push({ x: 150 + Math.random() * 980, y: 120 + Math.random() * 480, face: 0, vx: 0, vy: 0, knock: 0 }); state = "roam"; cd = 1.2; }
+		function say(s) { msg = s; msgT = 1.4; }
+		function step(dt) {
+			dt = Math.min(dt, 1 / 20);
+			msgT = Math.max(0, msgT - dt);
+			const sprint = (down || spaceHeld) && stamina > 0.3;
+			if (target) { const dx = target.x - head.x, dy = target.y - head.y; if (Math.hypot(dx, dy) > 20) heading = rotateToward(heading, Math.atan2(dy, dx), 4.2 * dt); }
+			const moving = target && Math.hypot(target.x - head.x, target.y - head.y) > 20;
+			const sp = moving ? (sprint ? 370 : 180) : 0;
+			head.x = Math.min(B.x1, Math.max(B.x0, head.x + Math.cos(heading) * sp * dt));
+			head.y = Math.min(B.y1, Math.max(B.y0, head.y + Math.sin(heading) * sp * dt));
+			if (!sprint) stamina = Math.min(1, stamina + dt * 0.22);
+			const sl = slots();
+			forks.forEach((f, i) => {
+				if (f.knock > 0) { f.knock -= dt; f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.94; f.vy *= 0.94; return; }
+				let tx = f.x, ty = f.y, v = 60;
+				if (state === "gather") { tx = sl[i].x; ty = sl[i].y; v = 300; }
+				else if (state === "strike") { tx = head.x; ty = head.y; v = 820; }
+				else { tx = head.x + Math.cos(i * 2.4 + t) * 380; ty = head.y + Math.sin(i * 2.4 + t) * 300; }
+				const dx = tx - f.x, dy = ty - f.y, d = Math.hypot(dx, dy);
+				if (d > 1 && state !== "look") { const m = Math.min(d, v * dt); f.x += dx / d * m; f.y += dy / d * m; }
+				f.face = state === "look" ? Math.atan2(forks[(i + 1) % n].y - f.y, forks[(i + 1) % n].x - f.x) : Math.atan2(head.y - f.y, head.x - f.x);
+				// прорыв: спринт сквозь вилку, пока клещи не ударили
+				if ((state === "gather" || state === "look") && sprint && Math.hypot(head.x - f.x, head.y - f.y) < 16 + 22) {
+					stamina = Math.max(0, stamina - 0.3); f.knock = 1.0; f.vx = (f.x - head.x) * 6; f.vy = (f.y - head.y) * 6;
+					breaks++; say("ПРОРЫВ!"); sfx("clang", 0.03, 0.5); state = "roam"; cd = 2.5; t = 0;
+				}
+			});
+			t += dt;
+			if (state === "roam") { cd -= dt; if (cd <= 0) { state = "gather"; t = 0; say("КЛЕЩИ!"); } }
+			else if (state === "gather") { const ok = forks.every((f, i) => Math.hypot(f.x - sl[i].x, f.y - sl[i].y) < 70); if (ok || t > TIMEOUT) { state = "look"; t = 0; } }
+			else if (state === "look") { if (t >= LOOK) { state = "strike"; t = 0; } }
+			else if (state === "strike") {
+				if (forks.some(f => f.knock <= 0 && Math.hypot(f.x - head.x, f.y - head.y) < 16 + 24)) { hits++; say("−1 ЖИЗНЬ"); sfx("hurt", 0.03, 0.4); state = "roam"; cd = 2.2; t = 0; forks.forEach(f => { f.knock = 0.5; f.vx = (f.x - head.x) * 3; f.vy = (f.y - head.y) * 3; }); }
+				else if (t > 0.35) { state = "roam"; cd = 2.2; t = 0; say("МИМО"); }
+			}
+			const names = { roam: "бродят · до клещей " + Math.max(0, cd).toFixed(1).replace(".", ",") + " с", gather: "заходят на точки", look: "переглядываются — бей!", strike: "выпад разом" };
+			out.innerHTML = "клещи: <b>" + names[state] + "</b><br>просвет по курсу <b>" + Math.round(gap(n) * 180 / Math.PI) + "°</b><br>стамина <b>" + Math.round(stamina * 100) + "%</b><br>прорывов <b>" + breaks + "</b> · попаданий <b>" + hits + "</b>";
+			draw(sl);
+		}
+		function draw(sl) {
+			g.fillStyle = "#1d4631"; g.fillRect(0, 0, 1280, 720);
+			g.fillStyle = "#6d1d22"; for (let x = 0; x < 1280; x += 320) for (let y = 0; y < 720; y += 360) if (((x / 320) + (y / 360)) % 2) g.fillRect(x, y, 320, 360);
+			g.strokeStyle = "#7a4a22"; g.lineWidth = 16; for (let x = 320; x < 1280; x += 320) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 720); g.stroke(); } g.beginPath(); g.moveTo(0, 360); g.lineTo(1280, 360); g.stroke();
+			g.fillStyle = "rgba(0,0,0,.25)"; g.fillRect(0, 0, 1280, 720);
+			const gp = gap(n);
+			g.setLineDash([4, 10]); g.strokeStyle = "rgba(243,212,138,.6)"; g.lineWidth = 2; g.beginPath(); g.arc(head.x, head.y, R, 0, 7); g.stroke(); g.setLineDash([]);
+			g.fillStyle = "rgba(142,224,98,.14)"; g.beginPath(); g.moveTo(head.x, head.y); g.arc(head.x, head.y, R, heading - gp / 2, heading + gp / 2); g.closePath(); g.fill();
+			g.strokeStyle = "#8ee062"; g.lineWidth = 4; g.beginPath(); g.arc(head.x, head.y, R, heading - gp / 2, heading + gp / 2); g.stroke();
+			if (state === "gather" || state === "look") sl.forEach(s => { g.strokeStyle = "rgba(243,212,138,.8)"; g.lineWidth = 2; g.beginPath(); g.arc(s.x, s.y, 20, 0, 7); g.stroke(); });
+			if (state === "look") { g.strokeStyle = "#e5533d"; g.lineWidth = 3; g.setLineDash([12, 10]); forks.forEach((f, i) => { const o = forks[(i + 1) % n]; g.beginPath(); g.moveTo(f.x, f.y); g.lineTo(o.x, o.y); g.stroke(); }); g.setLineDash([]); }
+			forks.forEach(f => {
+				g.save(); g.translate(f.x, f.y); g.rotate(f.face); g.scale(1.6, 1.6);
+				g.fillStyle = "#6b4a2e"; g.fillRect(-46, -5, 36, 10);
+				g.fillStyle = "#9aa0a8"; g.fillRect(-12, -9, 16, 18);
+				g.fillStyle = "#c8ccd2"; for (let k = 0; k < 4; k++) g.fillRect(4, -9 + k * 5.4, 26, 3);
+				g.restore();
+			});
+			g.fillStyle = "#0f3d14"; g.beginPath(); g.arc(head.x, head.y, 18.5, 0, 7); g.fill();
+			g.fillStyle = "#66db57"; g.beginPath(); g.arc(head.x, head.y, 16, 0, 7); g.fill();
+			g.strokeStyle = "#66db57"; g.lineWidth = 22; g.lineCap = "round"; g.beginPath(); g.moveTo(head.x, head.y); g.lineTo(head.x - Math.cos(heading) * 70, head.y - Math.sin(heading) * 70); g.stroke();
+			if (msgT > 0) { g.globalAlpha = Math.min(1, msgT * 2); g.fillStyle = msg === "ПРОРЫВ!" ? "#8ee062" : msg === "−1 ЖИЗНЬ" ? "#e5533d" : "#f3d48a"; g.font = "900 40px Unbounded, sans-serif"; g.textAlign = "center"; g.fillText(msg, head.x, head.y - 60); g.textAlign = "left"; g.globalAlpha = 1; }
+		}
+		cv.addEventListener("pointermove", e => { target = pointerWorld(cv, e); });
+		cv.addEventListener("pointerdown", e => { audio(); down = true; target = pointerWorld(cv, e); cv.setPointerCapture(e.pointerId); });
+		cv.addEventListener("pointerup", () => { down = false; });
+		cv.addEventListener("pointercancel", () => { down = false; });
+		document.querySelectorAll("[data-forks]").forEach(b => b.addEventListener("click", () => {
+			n = +b.dataset.forks; spawn();
+			document.querySelectorAll("[data-forks]").forEach(o => o.setAttribute("aria-pressed", o === b ? "true" : "false"));
+		}));
+		spawn(); draw(slots());
+		loopWhenVisible(cv, step);
+	})();
+
+	/* =====================================================================
+	   Потрогай пульт — крутилка, тумблер, клавиша, видимый отказ
+	   ===================================================================== */
+	(function panelDemo() {
+		const knob = document.getElementById("knob"); if (!knob) return;
+		const START = Math.PI * 0.75, SWEEP = Math.PI * 1.5, STEPS = 20, cx = 70, cy = 70;
+		let value = 0.8, last = Math.round(value * STEPS);
+		const lamps = [], ring = el("g", {}, knob);
+		for (let i = 0; i <= STEPS; i++) {
+			const a = START + SWEEP * i / STEPS;
+			lamps.push(el("circle", { cx: cx + Math.cos(a) * 60, cy: cy + Math.sin(a) * 60, r: 3.6, fill: "#2a1c14", stroke: "#8f6c30", "stroke-width": 1 }, ring));
+		}
+		el("circle", { cx: cx + 3, cy: cy + 5, r: 42, fill: "#000", opacity: 0.35 }, knob);
+		const defs = el("defs", {}, knob), gr = el("radialGradient", { id: "kg", cx: "35%", cy: "30%" }, defs);
+		el("stop", { offset: "0", "stop-color": "#fff0c0" }, gr); el("stop", { offset: ".45", "stop-color": "#d8a94f" }, gr); el("stop", { offset: "1", "stop-color": "#6b4d1c" }, gr);
+		const body = el("g", {}, knob);
+		el("circle", { cx, cy, r: 40, fill: "url(#kg)" }, body);
+		for (let i = 0; i < 36; i++) { const a = i / 36 * 2 * Math.PI; el("line", { x1: cx + Math.cos(a) * 36, y1: cy + Math.sin(a) * 36, x2: cx + Math.cos(a) * 40, y2: cy + Math.sin(a) * 40, stroke: "#5a3f14", "stroke-width": 1.2 }, body); }
+		el("circle", { cx, cy, r: 28, fill: "#c99a42" }, body);
+		const mark = el("line", { x1: cx, y1: cy, x2: cx + 24, y2: cy, stroke: "#2d1f0c", "stroke-width": 4, "stroke-linecap": "round" }, body);
+		const kOut = document.getElementById("knob-readout");
+		function renderKnob() {
+			const a = START + SWEEP * value;
+			mark.setAttribute("x2", cx + Math.cos(a) * 24); mark.setAttribute("y2", cy + Math.sin(a) * 24);
+			mark.setAttribute("x1", cx + Math.cos(a) * 8); mark.setAttribute("y1", cy + Math.sin(a) * 8);
+			const lit = Math.round(value * STEPS);
+			lamps.forEach((l, i) => { l.setAttribute("fill", i <= lit ? "#ffd66b" : "#2a1c14"); l.style.filter = i <= lit ? "drop-shadow(0 0 3px #ffb23d)" : ""; });
+			kOut.textContent = "громкость " + Math.round(value * 100) + "%";
+			knob.setAttribute("aria-valuenow", Math.round(value * 100));
+		}
+		function setValue(v) {
+			value = Math.min(1, Math.max(0, Math.round(v * STEPS) / STEPS));
+			const d = Math.round(value * STEPS);
+			if (d !== last) { last = d; sfx("ui_detent", 0.05, 0.8); }
+			renderKnob();
+		}
+		let drag = null;
+		knob.addEventListener("pointerdown", e => { audio(); drag = { y: e.clientY, v: value }; knob.setPointerCapture(e.pointerId); knob.focus(); });
+		knob.addEventListener("pointermove", e => { if (drag) setValue(drag.v + (drag.y - e.clientY) / 160); });
+		knob.addEventListener("pointerup", () => { drag = null; });
+		knob.addEventListener("wheel", e => { e.preventDefault(); audio(); setValue(value + (e.deltaY < 0 ? 1 : -1) / STEPS); }, { passive: false });
+		knob.addEventListener("keydown", e => { if (["ArrowUp", "ArrowRight"].includes(e.key)) { e.preventDefault(); setValue(value + 1 / STEPS); } if (["ArrowDown", "ArrowLeft"].includes(e.key)) { e.preventDefault(); setValue(value - 1 / STEPS); } });
+		knob.addEventListener("dblclick", () => setValue(0.8));
+		renderKnob();
+
+		// тумблер
+		const lever = document.getElementById("lever"), ls = document.getElementById("lever-svg"), lOut = document.getElementById("lever-readout");
+		el("circle", { cx: 60, cy: 76, r: 34, fill: "#8f6c30" }, ls); el("circle", { cx: 60, cy: 76, r: 28, fill: "#d8a94f" }, ls); el("circle", { cx: 60, cy: 76, r: 12, fill: "#3a271b" }, ls);
+		const arm = el("g", { style: "transition: transform .16s cubic-bezier(.3,1.6,.5,1); transform-origin: 60px 76px" }, ls);
+		el("rect", { x: 55, y: 22, width: 10, height: 56, rx: 5, fill: "#dfe3e8", stroke: "#7c8290" }, arm); el("circle", { cx: 60, cy: 22, r: 9, fill: "#f4f6f8", stroke: "#7c8290" }, arm);
+		const lamp = el("circle", { cx: 60, cy: 126, r: 7, fill: "#ffd66b" }, ls);
+		let on = true;
+		function renderLever() { arm.style.transform = "rotate(" + (on ? -24 : 24) + "deg)"; lamp.setAttribute("fill", on ? "#ffd66b" : "#2a1c14"); lamp.style.filter = on ? "drop-shadow(0 0 6px #ffb23d)" : ""; lOut.textContent = "подсказки: " + (on ? "вкл" : "выкл"); lever.setAttribute("aria-pressed", on); }
+		lever.addEventListener("click", () => { audio(); on = !on; sfx("ui_lever", 0, 0.8); renderLever(); });
+		renderLever();
+
+		// клавиша
+		const key = document.getElementById("bigkey"), kr = document.getElementById("bigkey-readout"); let presses = 0;
+		key.addEventListener("pointerdown", () => { audio(); sfx("ui_key_down", 0, 0.9); });
+		key.addEventListener("click", () => { presses++; sfx("ui_select", 0, 0.8); kr.textContent = "нажатий: " + presses; });
+
+		// видимый отказ: звук, рывок на 3 px, томатная вспышка 150 мс — одновременно
+		const no = document.getElementById("nokey"), nr = document.getElementById("nokey-readout"); let refused = 0;
+		no.addEventListener("click", () => {
+			audio(); refused++; nr.textContent = "отказов: " + refused;
+			sfx("ui_error", 0, 0.9);
+			if (no.animate) {
+				no.animate([{ filter: "brightness(1.8) saturate(1.4)" }, { filter: "none" }], { duration: 150, easing: "ease-in" });
+				if (!reduce) no.animate([{ transform: "translateX(0)" }, { transform: "translateX(3px)" }, { transform: "translateX(-2.4px)" }, { transform: "translateX(1.2px)" }, { transform: "translateX(0)" }], { duration: 150 });
+			}
+		});
+	})();
+
+	/* =====================================================================
+	   Как делалась игра — график по версиям (данные из git)
+	   ===================================================================== */
+	(function timeline() {
+		const svg = document.getElementById("tl-svg"); if (!svg) return;
+		const panel = document.getElementById("tl-panel");
+		const V = [
+			{ v: "4.0", at: "26.09 10:03", h: 0, loc: 4317, files: 13, tests: 0, items: ["Первая публичная версия", "Живое меню, пять видов медведей", "Враги дерутся между собой", "Змея перенимает атаки съеденных"] },
+			{ v: "5.0", at: "26.09 14:59", h: 4.93, loc: 7178, files: 18, tests: 0, items: ["Этапы ржавых вилок и прыгающих таблеток", "Прежние враги помогают яичнице в финальном бою"] },
+			{ v: "6.0", at: "26.09 16:25", h: 6.37, loc: 9984, files: 54, tests: 85, items: ["<b>Android:</b> тач-управление, безопасная зона, вибрация, экран загрузки", "Дизайн-язык «Ящик экспериментов»", "36 настроек на пяти вкладках, доступность", "<b>Первые 85 тестов</b>"] },
+			{ v: "6.1", at: "26.09 19:43", h: 9.67, loc: 10119, files: 54, tests: 85, items: ["Доводка версии для Android"] },
+			{ v: "7.0", at: "27.09 16:24", h: 30.35, loc: 13388, files: 68, tests: 188, items: ["Панель разработчика работает всегда", "Ящик для столовых приборов: три вида вилок, четыре приёма", "<b>Физическая симуляция пожара</b>", "Кооперативный ИИ, картотека, испытание дня, повтор гибели"] },
+			{ v: "7.1", at: "27.09 20:25", h: 34.37, loc: 13666, files: 71, tests: 191, items: ["Физический фокус вместо свечения", "Переработанные звуки: ручка, шаги, огнетушитель", "Таблетка-шайба, новое главное меню"] },
+			{ v: "7.2", at: "27.09 22:52", h: 36.82, loc: 14842, files: 71, tests: 240, items: ["<b>Версия по плейтесту:</b> только то, что игрок заметит за 5 минут", "Отклик 80 мс, видимый отказ, пульт настроек без прокрутки", "Пожар с гарантиями, ducking, 200 мс тишины", "ИИ не дёргается, у клещей есть выход"] },
+			{ v: "8.0", at: "28.09 11:23", h: 49.33, loc: 16095, files: 71, tests: 264, items: ["<b>Яичница 2.0:</b> фазы, телеграфы, чтение манеры", "Музыка 2.0 со слоем напряжения", "Дизайн-язык 2.2, приёмы вилок и таблеток", "Новая лаборатория"] },
+			{ v: "8.1", at: "28.09 12:39", h: 50.6, loc: 16260, files: 71, tests: 274, items: ["<b>Аудит:</b> девять находок, десять новых тестов", "Зашифрованное сохранение, атомарная запись", "Пол запекается один раз"] },
+		];
+		const X = h => 70 + h / 52 * 830, YL = l => 250 - l / 17000 * 200, YT = t => 250 - t / 300 * 200;
+		for (let k = 0; k <= 17000; k += 4000) { el("line", { x1: 60, x2: 910, y1: YL(k), y2: YL(k), stroke: "#2a1c14" }, svg); el("text", { x: 54, y: YL(k) + 4, fill: C.muted, "font-size": 10.5, "text-anchor": "end", class: "mono" }, svg, k / 1000 + "k"); }
+		for (let t = 0; t <= 300; t += 100) el("text", { x: 916, y: YT(t) + 4, fill: C.green, "font-size": 10.5, class: "mono" }, svg, t);
+		[["26.09", 0], ["27.09", 14], ["28.09", 38]].forEach(([d, h]) => { el("line", { x1: X(h), x2: X(h), y1: 44, y2: 256, stroke: "#4a3223", "stroke-dasharray": "2 5" }, svg); el("text", { x: X(h) + 4, y: 272, fill: C.muted, "font-size": 11, class: "mono" }, svg, d); });
+		el("text", { x: 60, y: 20, fill: C.brass, "font-size": 11.5 }, svg, "■ строки GDScript");
+		el("text", { x: 190, y: 20, fill: C.green, "font-size": 11.5 }, svg, "● автотесты");
+		el("path", { d: "M" + V.map(p => X(p.h).toFixed(1) + " " + YT(p.tests).toFixed(1)).join("L"), fill: "none", stroke: C.green, "stroke-width": 2 }, svg);
+		const groups = V.map((p, i) => {
+			const gv = el("g", { class: "tl-v", tabindex: 0, role: "button", "aria-label": "Версия " + p.v }, svg);
+			el("rect", { class: "hit", x: X(p.h) - 22, y: 30, width: 44, height: 232, fill: "transparent", rx: 6 }, gv);
+			el("rect", { x: X(p.h) - 9, y: YL(p.loc), width: 18, height: 250 - YL(p.loc), rx: 3, fill: C.brass, opacity: 0.8 }, gv);
+			el("circle", { cx: X(p.h), cy: YT(p.tests), r: 4.5, fill: C.green }, gv);
+			el("text", { x: X(p.h), y: YL(p.loc) - 8 - (i % 2) * 14, fill: C.hi, "font-size": 12, "font-weight": 700, "text-anchor": "middle", class: "mono" }, gv, p.v);
+			gv.addEventListener("click", () => pick(i));
+			gv.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(i); } });
+			return gv;
+		});
+		el("text", { x: X(20), y: 110, fill: C.muted, "font-size": 11.5, "text-anchor": "middle" }, svg, "ночь");
+		const plural = (n, one, few, many) => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many; };
+		function pick(i) {
+			const p = V[i], prev = V[i - 1];
+			groups.forEach((gv, k) => gv.querySelector("rect:nth-child(2)").setAttribute("opacity", k === i ? 1 : 0.55));
+			const dl = prev ? p.loc - prev.loc : p.loc, dt = prev ? p.tests - prev.tests : p.tests;
+			panel.innerHTML = '<div><div class="big">v' + p.v + '</div><div class="when">' + p.at + ' · ' + p.loc.toLocaleString("ru-RU") + ' ' + plural(p.loc, "строка", "строки", "строк") + ' (' + (dl >= 0 ? "+" : "") + dl.toLocaleString("ru-RU") + ')<br>' + p.files + ' ' + plural(p.files, "файл", "файла", "файлов") + ' · ' + p.tests + ' ' + plural(p.tests, "тест", "теста", "тестов") + ' (' + (dt >= 0 ? "+" : "") + dt + ')</div></div><ul>' + p.items.map(t => "<li>" + t + "</li>").join("") + "</ul>";
+		}
+		pick(V.length - 1);
 	})();
 
 	/* =====================================================================
