@@ -2088,11 +2088,53 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 		return { base: toStream(base, true), hi: toStream(hi, true), dur: total / SR };
 	}
 
-	let actx = null;
+	/* ---------- звук в браузере ----------
+	   iPhone: Safari выводит Web Audio через канал звонка, и беззвучный режим (переключатель сбоку)
+	   глушит его целиком. Поэтому по первому касанию:
+	   1) Safari 17+: navigator.audioSession.type = "playback" — штатный способ;
+	   2) старые iOS: беззвучный зацикленный <audio> переводит аудиосессию в «воспроизведение»;
+	   3) пустой буфер через контекст — окончательно «будит» его внутри жеста.
+	   audio() нужно звать в самом начале обработчика нажатия, пока жест ещё действует. */
+	let actx = null, unlocked = false, keepAlive = null;
+	function silentWav() {
+		const n = 4000, b = new ArrayBuffer(44 + n * 2), v = new DataView(b);
+		const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+		str(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); str(8, "WAVE"); str(12, "fmt ");
+		v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true);
+		v.setUint32(28, 16000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, "data"); v.setUint32(40, n * 2, true);
+		return URL.createObjectURL(new Blob([b], { type: "audio/wav" }));
+	}
+	function unlock(ctx) {
+		try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) { }
+		if (!keepAlive) {
+			keepAlive = document.createElement("audio");
+			keepAlive.src = silentWav();
+			keepAlive.loop = true;
+			keepAlive.setAttribute("playsinline", "");
+			keepAlive.setAttribute("x-webkit-airplay", "deny");
+			keepAlive.preload = "auto";
+		}
+		if (keepAlive.paused) { const pr = keepAlive.play(); if (pr && pr.catch) pr.catch(() => { }); }
+		if (!unlocked) {
+			unlocked = true;
+			const s = ctx.createBufferSource();
+			s.buffer = ctx.createBuffer(1, 1, 22050);
+			s.connect(ctx.destination);
+			s.start(0);
+		}
+	}
+	document.addEventListener("visibilitychange", () => {
+		if (document.hidden) { if (keepAlive) keepAlive.pause(); if (actx && actx.state === "running") actx.suspend(); }
+	});
 	function audio() {
 		if (!actx) { const A = window.AudioContext || window.webkitAudioContext; if (!A) return null; actx = new A(); }
-		if (actx.state === "suspended") actx.resume();
+		if (actx.state !== "running") { const pr = actx.resume(); if (pr && pr.catch) pr.catch(() => { }); }
+		unlock(actx);
 		return actx;
+	}
+	function play(ctx, fn) {  // запустить, как только контекст проснулся (на iOS resume асинхронный)
+		if (ctx.state === "running") fn();
+		else ctx.resume().then(fn, fn);
 	}
 	function buffer(ctx, data) { const b = ctx.createBuffer(1, data.length, SR); b.getChannelData(0).set(data); return b; }
 
@@ -2133,25 +2175,27 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 			hiLayer.setAttribute("opacity", (0.12 + 0.88 * shown).toFixed(2));
 		}
 		draw();
-		const play = document.getElementById("m-play"), fader = document.getElementById("m-int");
+		const playBtn = document.getElementById("m-play"), fader = document.getElementById("m-int");
 		const tEl = document.getElementById("m-target"), sEl = document.getElementById("m-shown"), dEl = document.getElementById("m-db"), meter = document.getElementById("m-meter");
 		const MUSIC_DB = -11, HI_SILENT_DB = -60, RATE = 0.8;
 		const hiDb = k => k <= 0.01 ? HI_SILENT_DB : -30 + (MUSIC_DB - 1 + 30) * Math.sqrt(Math.min(1, Math.max(0, k)));
-		function stop() { src.forEach(s => { try { s.stop(); } catch (e) { } }); src = []; playing = false; play.textContent = "▶ Играть"; head.setAttribute("opacity", 0); }
+		function stop() { src.forEach(s => { try { s.stop(); } catch (e) { } }); src = []; playing = false; playBtn.textContent = "▶ Играть"; head.setAttribute("opacity", 0); }
 		function start() {
-			const ctx = audio(); if (!ctx) { play.textContent = "Нет Web Audio"; return; }
-			play.textContent = "Синтез…";
+			const ctx = audio(); if (!ctx) { playBtn.textContent = "Нет Web Audio"; return; }
+			playBtn.textContent = "Синтез…";
 			setTimeout(() => {
 				if (!data || data.track !== track) { data = song(SONGS[track]); data.track = track; }
 				gains = [ctx.createGain(), ctx.createGain()];
 				gains[0].gain.value = 0.55;
 				gains[1].gain.value = 0.55 * Math.pow(10, (hiDb(shown) - MUSIC_DB) / 20);
-				const when = ctx.currentTime + 0.05;
-				[data.base, data.hi].forEach((d, i) => { const s = ctx.createBufferSource(); s.buffer = buffer(ctx, d); s.loop = true; s.connect(gains[i]).connect(ctx.destination); s.start(when); src.push(s); });
-				t0 = when; playing = true; play.textContent = "■ Стоп"; head.setAttribute("opacity", 0.9);
+				play(ctx, () => {
+					const when = ctx.currentTime + 0.05;
+					[data.base, data.hi].forEach((d, i) => { const s = ctx.createBufferSource(); s.buffer = buffer(ctx, d); s.loop = true; s.connect(gains[i]); gains[i].connect(ctx.destination); s.start(when); src.push(s); });
+					t0 = when; playing = true; playBtn.textContent = "■ Стоп"; head.setAttribute("opacity", 0.9);
+				});
 			}, 20);
 		}
-		play.addEventListener("click", () => playing ? stop() : start());
+		playBtn.addEventListener("click", () => playing ? stop() : start());
 		document.querySelectorAll("[data-track]").forEach(b => b.addEventListener("click", () => {
 			document.querySelectorAll("[data-track]").forEach(o => o.setAttribute("aria-pressed", o === b ? "true" : "false"));
 			const was = playing; stop(); track = b.dataset.track; draw(); if (was) start();
@@ -2219,14 +2263,17 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 			const b = document.createElement("button");
 			b.className = "key small"; b.type = "button"; b.textContent = label; b.title = id;
 			b.addEventListener("click", () => {
+				const ctx = audio();  // первым делом, пока жест действует (iPhone)
 				const buf = make();
 				const pitch = jit.checked && jitter > 0 ? 1 + (Math.random() * 2 - 1) * jitter : 1;
 				scope(buf, id, pitch);
 				code.innerHTML = '<span class="c"># sound_bank.gd</span>\n_bank[<span class="s">"' + id + '"</span>] = to_stream(' + rc.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/(#[^\n]*)/g, '<span class="c">$1</span>') + ")";
-				const ctx = audio(); if (!ctx) return;
-				const s = ctx.createBufferSource(), gn = ctx.createGain();
-				s.buffer = buffer(ctx, buf); s.playbackRate.value = pitch; gn.gain.value = 0.8;
-				s.connect(gn).connect(ctx.destination); s.start();
+				if (!ctx) return;
+				play(ctx, () => {
+					const s = ctx.createBufferSource(), gn = ctx.createGain();
+					s.buffer = buffer(ctx, buf); s.playbackRate.value = pitch; gn.gain.value = 0.8;
+					s.connect(gn); gn.connect(ctx.destination); s.start();
+				});
 			});
 			pads.appendChild(b);
 		});
