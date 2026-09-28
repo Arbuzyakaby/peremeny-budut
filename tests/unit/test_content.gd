@@ -120,6 +120,29 @@ func test_daily_specific_rules() -> void:
 	assert_true(int(by_id["forks"]["bears"]) < int(base["bears"]))
 
 
+func test_daily_pair_is_two_different() -> void:
+	for day in range(1, 31):
+		var pair := Daily.pair_for(Daily.day_key({"year": 2026, "month": 11, "day": day}))
+		assert_eq(pair.size(), 2)
+		assert_ne(pair[0]["id"], pair[1]["id"])
+	var c := Daily.combine([Daily.MODIFIERS[0], Daily.MODIFIERS[4]])  # ускорение + вилочное нашествие
+	assert_near(float(c["score"]), 1.5 * 1.5)
+	var cfg := Daily.apply(Balance.difficulty(1), c)
+	assert_eq(cfg["forks"], int(Balance.difficulty(1)["forks"]) * 2)
+	assert_gt(cfg["bear_speed"], Balance.difficulty(1)["bear_speed"])
+
+
+func test_daily_streak() -> void:
+	assert_eq(Daily.prev_key("2026-03-01"), "2026-02-28")
+	assert_eq(Daily.register_play("2026-05-01"), Daily.STREAK_SCALES)
+	assert_eq(Daily.register_play("2026-05-01"), 0, "второй забег дня без бонуса")
+	assert_eq(Daily.register_play("2026-05-02"), 2 * Daily.STREAK_SCALES)
+	assert_eq(Daily.streak("2026-05-03"), 2, "вчерашняя серия ещё жива")
+	assert_eq(Daily.streak("2026-05-05"), 0, "пропуск обрывает серию")
+	assert_eq(Daily.register_play("2026-05-05"), Daily.STREAK_SCALES)
+	assert_eq(Daily.best_streak(), 2)
+
+
 func test_daily_record() -> void:
 	var key := "2026-01-01"
 	assert_eq(Daily.best(key), 0)

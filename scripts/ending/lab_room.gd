@@ -67,6 +67,8 @@ var spraying := false
 var took_extinguisher := false  # шкаф пуст: огнетушитель в руке или уже использован
 ## Итоги забега мелом на доске: съедено медведей, сломано вилок, съедено таблеток.
 var tally: Array[int] = [0, 0, 0]
+## Протокол забега — строки мелом справа на доске (ending.gd → board_notes).
+var notes := PackedStringArray()
 
 
 func _draw_wall() -> void:
@@ -195,7 +197,7 @@ func _draw_chalkboard(r: Rect2) -> void:
 	for row in 3:
 		var y := o.y + 440.0 + row * 75.0
 		draw_string(font, Vector2(o.x + 60, y + 22), names[row], HORIZONTAL_ALIGNMENT_LEFT, -1, 44, CHALK)
-		var n := mini(tally[row], 40)
+		var n := mini(tally[row], 20)  # четыре пучка, дальше — «+N»: справа протокол
 		for k in n:
 			var group := k / 5
 			var x := o.x + 260.0 + group * 150.0 + (k % 5) * 24.0
@@ -203,8 +205,17 @@ func _draw_chalkboard(r: Rect2) -> void:
 				draw_line(Vector2(x - 110, y + 22), Vector2(x + 6, y - 22), CHALK, 7.0)
 			else:
 				draw_line(Vector2(x, y - 24), Vector2(x - 4, y + 24), CHALK, 7.0)
-	draw_string(font, o + Vector2(1150, 610), "п. 12-Б", HORIZONTAL_ALIGNMENT_LEFT, -1, 44, Color(1, 0.6, 0.55, 0.8))
-	draw_arc(o + Vector2(1230, 596), 110.0, 0, TAU, 28, Color(1, 0.6, 0.55, 0.6), 6.0)
+		if tally[row] > 20:
+			draw_string(font, Vector2(o.x + 860, y + 20), "+%d" % (tally[row] - 20), HORIZONTAL_ALIGNMENT_LEFT, -1, 40, CHALK)
+	# протокол забега: колонка справа, отчёркнута вертикальной чертой
+	draw_line(o + Vector2(1000, 380), o + Vector2(996, 640), CHALK, 5.0)
+	draw_string(font, o + Vector2(1030, 404), "ПРОТОКОЛ", HORIZONTAL_ALIGNMENT_LEFT, -1, 40, CHALK)
+	var shown := mini(notes.size(), 9)
+	for i in shown:
+		var line := notes[i] if i < 8 or notes.size() <= 9 else "  … ещё %d" % (notes.size() - 8)
+		draw_string(font, o + Vector2(1030, 450 + i * 25.0), line, HORIZONTAL_ALIGNMENT_LEFT, 510, 24, CHALK)
+	draw_string(font, o + Vector2(1270, 110), "п. 12-Б", HORIZONTAL_ALIGNMENT_LEFT, -1, 44, Color(1, 0.6, 0.55, 0.8))
+	draw_arc(o + Vector2(1350, 96), 100.0, 0, TAU, 28, Color(1, 0.6, 0.55, 0.6), 6.0)
 
 
 ## Табло «ИДЁТ ЭКСПЕРИМЕНТ»: горит, пока горит лампа; в панике мигает.

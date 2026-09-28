@@ -60,6 +60,7 @@ var forks_broken := 0
 var pills_eaten := 0
 var play_time := 0.0
 var run_scales := 0.0
+var streak_bonus := 0  # чешуйки за серию испытаний дня в этом забеге
 var scales_gained := 0
 var perks: Dictionary = {}
 var mods: Dictionary = {}
@@ -164,7 +165,7 @@ func _boot() -> void:
 		if args["skills"]:
 			hud.open_skills()
 		elif args["perks"]:
-			hud.show_perks(Skills.roll_perks(), Balance.STAGES[1]["name"])
+			hud.show_perks(Skills.roll_perks(Skills.perk_cards()), Balance.STAGES[1]["name"])
 		elif args.get("settings", false):
 			hud.push(hud.settings_screen)
 			hud.settings_screen.tabs.select(args.get("tab", 0))
@@ -185,7 +186,7 @@ func _open_for_debug(what: String) -> void:
 			score = 1234
 			_end(what == "win")
 		"perks":
-			hud.show_perks(Skills.roll_perks(), Balance.STAGES[1]["name"])
+			hud.show_perks(Skills.roll_perks(Skills.perk_cards()), Balance.STAGES[1]["name"])
 		"skills":
 			hud.open_skills()
 		"settings":
@@ -271,6 +272,7 @@ func start_game(diff: int) -> void:
 	snake.max_lives = cfg["lives"] + mods["lives"]
 	snake.lives = snake.max_lives
 	snake.apply_mods(mods)
+	snake.shield += int(mods["start_shield"])  # навык «Запасной хвост»
 	for k: String in daily.get("snake", {}):
 		snake.set(k, float(snake.get(k)) * float(daily["snake"][k]))
 	if daily.get("dark", false):
@@ -389,16 +391,18 @@ func _stage_cleared() -> void:
 	hud.show_banner("ЭТАП ПРОЙДЕН!", Color(0.6, 1, 0.5), 1.2)
 	_clear_field()
 	snake.stun_t = 0.0
+	if mods.get("stage_heal", false) and snake.heal():  # навык «Регенерация»
+		fx.popup(snake.head_pos + Vector2(0, -70), "РЕГЕНЕРАЦИЯ: +1 ЖИЗНЬ", Color(1, 0.5, 0.5))
 	var tw := create_tween()
 	tw.tween_interval(1.6)
 	if cfg["no_skills"]:
 		tw.tween_callback(func() -> void: enter_stage(stage + 1))
 	elif autopilot:  # отладка: улучшение выбирается само
-		tw.tween_callback(func() -> void: _on_perk(Skills.roll_perks()[0]["id"]))
+		tw.tween_callback(func() -> void: _on_perk(Skills.roll_perks(1, perks, mods["nose"])[0]["id"]))
 	else:
 		tw.tween_callback(func() -> void:
 			get_tree().paused = true
-			hud.show_perks(Skills.roll_perks(), Balance.STAGES[stage + 1]["name"]))
+			hud.show_perks(Skills.roll_perks(Skills.perk_cards(), perks, mods["nose"]), Balance.STAGES[stage + 1]["name"]))
 
 
 func _on_perk(id: String) -> void:
@@ -416,6 +420,7 @@ func _on_perk(id: String) -> void:
 			sfx.play("shield")
 	mods = Skills.mods(perks, cfg["no_skills"])
 	snake.apply_mods(mods)
+	update_berserk()
 	fx.popup(snake.head_pos + Vector2(0, -40), Skills.perk(id)["name"], Color(0.6, 1, 0.6))
 	enter_stage(stage + 1)
 
@@ -514,8 +519,14 @@ func _end(win: bool) -> void:
 		record = not debug_run and SaveData.submit_score(difficulty, score)
 	if record:
 		best = score
-	scales_gained = Skills.scales_for_run(run_scales, difficulty)
+	if win:
+		run_scales += float(mods.get("bounty", 0)) / Skills.SCALE_MULT[clampi(difficulty, 0, 3)]  # навык «Премия» — ровно +25
+	scales_gained = Skills.scales_for_run(run_scales, difficulty, float(mods.get("scales_mult", 1.0)))
 	print("run end: win=%s stage=%d score=%d scales=+%d" % [win, stage, score, scales_gained])
+	streak_bonus = 0
+	if daily_mode and not debug_run and score > 0:  # серия испытаний: бонус за первый забег дня
+		streak_bonus = Daily.register_play(Daily.day_key())
+		scales_gained += streak_bonus
 	if scales_gained > 0 and not debug_run:
 		Skills.add_scales(scales_gained)
 	var rows := RunReport.rows(self, win, record, best)
@@ -610,7 +621,7 @@ static func music_intensity(boss_fight: bool, phase: int, lives: int, max_lives:
 
 ## Очки с множителем сложности.
 func add_score(base_points: int, pos: Vector2, prefix := "") -> void:
-	add_score_raw(Combat.points(base_points, cfg), pos, prefix)
+	add_score_raw(roundi(Combat.points(base_points, cfg) * float(mods.get("score_mult", 1.0))), pos, prefix)
 
 
 func add_score_raw(points: int, pos: Vector2, prefix := "") -> void:
@@ -627,9 +638,18 @@ func vibrate(ms: int) -> void:
 	Platform.vibrate(ms, Settings.flag("vibration"))
 
 
+## Мутация «Берсерк» включается на последней жизни и гаснет, когда жизнь вернули.
+func update_berserk() -> void:
+	var on: bool = mods.get("berserk", false) and snake != null and snake.lives == 1
+	if on and not mods.get("berserk_on", false) and snake.alive:
+		fx.popup(snake.head_pos + Vector2(0, -60), "БЕРСЕРК!", Color(1, 0.35, 0.2))
+	mods["berserk_on"] = on
+
+
 func _on_snake_damaged(lives_left: int) -> void:
 	var healed := lives_left >= hud.lives()
 	hud.set_lives(lives_left)
+	update_berserk()
 	if healed:
 		return
 	shake = 14.0

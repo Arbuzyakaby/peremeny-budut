@@ -15,7 +15,7 @@ func test_menu_offers_daily_and_bestiary() -> void:
 	await boot()
 	var menu = game.hud.menu
 	assert_has(menu.daily_button.text, "ИСПЫТАНИЕ ДНЯ")
-	assert_has(menu.daily_button.text, Daily.today()["name"])
+	assert_has(menu.daily_button.text, "ИСПЫТАНИЕ ДНЯ")
 	assert_has(menu.bestiary_button.text, "0/%d" % Bestiary.total())
 	menu._show_daily_desc()
 	assert_has(menu.desc_label.text, Daily.day_key())

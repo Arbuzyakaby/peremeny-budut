@@ -14,6 +14,7 @@ const MAX_BAKE_SCALE := 2.0  # 2560×1440 — выше смысла нет, а �
 var floor_rect: TextureRect     # готовый пол на экране
 var floor_view: SubViewport     # здесь пол рисуется шейдером — один раз
 var floor_src: ColorRect        # полотно с шейдером пола внутри floor_view
+var floor_decor: Node2D         # рисунок поверх пола (детская у медведей) — запекается вместе с полом
 var floor_kind := -1
 var bake_scale := 0.0
 var frame: Node2D
@@ -42,6 +43,9 @@ func _ready() -> void:
 	floor_src = ColorRect.new()
 	floor_src.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	floor_view.add_child(floor_src)
+	floor_decor = Node2D.new()
+	floor_decor.draw.connect(_draw_decor)
+	floor_view.add_child(floor_decor)
 	floor_rect = TextureRect.new()
 	floor_rect.size = Balance.ARENA.size
 	floor_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -61,6 +65,7 @@ func set_floor(kind: int) -> void:
 		return
 	floor_kind = kind
 	floor_src.material = Tex.floor_material(kind)
+	floor_decor.queue_redraw()
 	_bake()
 
 
@@ -76,6 +81,8 @@ func _bake() -> void:
 	var px := Vector2i((Balance.ARENA.size * bake_scale).round())
 	floor_view.size = px
 	floor_src.size = Vector2(px)
+	floor_decor.scale = Vector2.ONE * bake_scale
+	floor_decor.queue_redraw()
 	floor_view.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
@@ -104,3 +111,74 @@ func _draw_frame() -> void:
 		frame.draw_circle(c + Vector2(1, 1.5), 4.5, Color(0, 0, 0, 0.35))
 		frame.draw_circle(c, 4.0, Color(0.5, 0.5, 0.52))
 		frame.draw_circle(c + Vector2(-1.2, -1.2), 1.6, Color(0.9, 0.9, 0.92))
+
+
+## Детская под этапом медведей: вязаный коврик, кубики с буквами, заплатки со швом, клубок,
+## пуговицы и солнечные пятна от окна. Рисунок плоский и приглушённый — это пол, а не препятствия.
+## Раскладка постоянная (свой сид), чтобы арена узнавалась.
+func _draw_decor() -> void:
+	if floor_kind != Tex.Floor.WOOD:
+		return
+	var d := floor_decor
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4711
+	var font := ThemeDB.fallback_font
+	for k in 3:  # солнечные пятна от окна — наискось через пол
+		var p := Vector2(260 + k * 330, 120 + k * 150)
+		d.draw_colored_polygon(PackedVector2Array([p, p + Vector2(170, -30), p + Vector2(240, 150), p + Vector2(70, 180)]),
+			Color(1, 0.9, 0.6, 0.05))
+	var c := Vector2(640, 380)  # вязаный коврик: кольца петель разных цветов
+	var rug := [Color(0.72, 0.36, 0.3), Color(0.9, 0.78, 0.55), Color(0.4, 0.55, 0.62), Color(0.85, 0.6, 0.35),
+		Color(0.55, 0.38, 0.5), Color(0.9, 0.78, 0.55)]
+	d.draw_set_transform(c, 0.0, Vector2(1.0, 0.62))
+	d.draw_circle(Vector2(4, 8), 262.0, Color(0, 0, 0, 0.12))
+	for i in rug.size():
+		var r := 250.0 - i * 40.0
+		d.draw_circle(Vector2.ZERO, r, Color(rug[i], 0.3))
+		for s in int(r / 6.0):  # петли вязки по кругу
+			var a := TAU * s / int(r / 6.0)
+			d.draw_line(Vector2.from_angle(a) * (r - 14.0), Vector2.from_angle(a + 0.04) * (r - 3.0),
+				Color(rug[i].darkened(0.3), 0.22), 2.0)
+	d.draw_set_transform(Vector2.ZERO)
+	for p: Vector2 in [Vector2(150, 150), Vector2(1130, 590), Vector2(1080, 140)]:  # заплатки с пунктирным швом
+		var sz := Vector2(rng.randf_range(90, 130), rng.randf_range(70, 100))
+		var rect := Rect2(p - sz / 2.0, sz)
+		var col: Color = [Color(0.6, 0.45, 0.3), Color(0.45, 0.5, 0.35), Color(0.62, 0.4, 0.42)][rng.randi() % 3]
+		d.draw_rect(rect, Color(col, 0.28))
+		for k in 5:  # клетка ткани
+			d.draw_line(rect.position + Vector2(sz.x * (k + 0.5) / 5.0, 0), rect.position + Vector2(sz.x * (k + 0.5) / 5.0, sz.y),
+				Color(col.darkened(0.3), 0.18), 3.0)
+		var seam := rect.grow(-6)
+		var corners := [seam.position, Vector2(seam.end.x, seam.position.y), seam.end, Vector2(seam.position.x, seam.end.y)]
+		for k in 4:
+			d.draw_dashed_line(corners[k], corners[(k + 1) % 4], Color(0.95, 0.9, 0.8, 0.35), 2.0, 7.0)
+	var letters := "АБВГДЕЖЗ"
+	for i in 6:  # кубики с буквами: вид сверху, повёрнуты как попало
+		var p: Vector2 = [Vector2(110, 560), Vector2(175, 610), Vector2(1170, 300), Vector2(470, 90), Vector2(820, 640),
+			Vector2(1200, 420)][i]
+		var rot := rng.randf_range(-0.6, 0.6)
+		var col: Color = [Color(0.85, 0.3, 0.25), Color(0.3, 0.55, 0.85), Color(0.95, 0.75, 0.25), Color(0.4, 0.7, 0.4)][i % 4]
+		d.draw_set_transform(p, rot)
+		d.draw_rect(Rect2(-19, -15, 42, 42), Color(0, 0, 0, 0.18))
+		d.draw_rect(Rect2(-21, -21, 42, 42), Color(col, 0.55))
+		d.draw_rect(Rect2(-16, -16, 32, 32), Color(0.97, 0.93, 0.85, 0.5))
+		d.draw_string(font, Vector2(-10, 10), letters[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color(col.darkened(0.3), 0.8))
+		d.draw_set_transform(Vector2.ZERO)
+	var ball := Vector2(1010, 560)  # клубок и нитка, убежавшая по полу
+	var thread := PackedVector2Array()
+	for i in 40:
+		thread.append(ball + Vector2(-i * 9.0, sin(i * 0.35) * 26.0 + i * 1.5))
+	d.draw_polyline(thread, Color(0.75, 0.3, 0.35, 0.4), 2.5, true)
+	d.draw_circle(ball + Vector2(3, 5), 24.0, Color(0, 0, 0, 0.2))
+	d.draw_circle(ball, 23.0, Color(0.78, 0.32, 0.36, 0.7))
+	for k in 5:
+		d.draw_arc(ball, 20.0 - k * 3.0, k * 0.7, k * 0.7 + 2.4, 12, Color(0.95, 0.6, 0.6, 0.45), 1.5)
+	for i in 7:  # оторванные пуговицы
+		var p := Vector2(rng.randf_range(80, 1200), rng.randf_range(80, 640))
+		if p.distance_to(c) < 200.0:
+			continue
+		var col := Color.from_hsv(rng.randf(), 0.5, 0.8, 0.55)
+		d.draw_circle(p, 9.0, col)
+		d.draw_arc(p, 6.5, 0, TAU, 14, Color(col.darkened(0.35), 0.8), 1.2)
+		for h in 4:
+			d.draw_circle(p + Vector2.from_angle(h * PI / 2 + 0.78) * 3.0, 1.2, Color(0, 0, 0, 0.45))

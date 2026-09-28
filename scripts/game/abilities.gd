@@ -36,7 +36,16 @@ func _init(game) -> void:
 	g = game
 
 
+const BURST_COOLDOWN := 4.0
+var burst_cd := 0.0
+var was_sprinting := false
+var kills := 0  # съедено и сломано за забег — для мутации «Вампир»
+
+
 func reset() -> void:
+	burst_cd = 0.0
+	was_sprinting = false
+	kills = 0
 	type = -1
 	charges = 0
 	cooldown = 0.0
@@ -46,6 +55,7 @@ func reset() -> void:
 
 ## Съеден медведь: его атака (особый) или стамина (обычный).
 func gain_bear(bear_type: int) -> void:
+	_count_kill()
 	if not Balance.ABILITIES.has(bear_type):  # обычный медведь восстанавливает силы
 		var snake: Snake = g.snake
 		snake.stamina = minf(snake.stamina + 0.3, 1.0)
@@ -55,8 +65,9 @@ func gain_bear(bear_type: int) -> void:
 
 ## Сломана вилка вида kind: каждая FORK_PILL_EVERY-я даёт атаку этого вида.
 func gain_fork(kind: int) -> void:
+	_count_kill()
 	fork_kills += 1
-	if fork_kills >= Balance.FORK_PILL_EVERY:
+	if fork_kills >= int(g.mods.get("fork_every", Balance.FORK_PILL_EVERY)):
 		if _slot_free_for(Balance.FORK_ABILITY[clampi(kind, 0, 2)]):
 			fork_kills = 0
 			gain(Balance.FORK_ABILITY[clampi(kind, 0, 2)])
@@ -64,8 +75,9 @@ func gain_fork(kind: int) -> void:
 
 ## Съедена таблетка: каждая FORK_PILL_EVERY-я даёт ударную волну.
 func gain_pill() -> void:
+	_count_kill()
 	pill_kills += 1
-	if pill_kills >= Balance.FORK_PILL_EVERY and _slot_free_for(Balance.PILL_ABILITY):
+	if pill_kills >= int(g.mods.get("fork_every", Balance.FORK_PILL_EVERY)) and _slot_free_for(Balance.PILL_ABILITY):
 		pill_kills = 0
 		gain(Balance.PILL_ABILITY)
 
@@ -106,6 +118,13 @@ func gain(t: int) -> void:
 
 func update(delta: float) -> void:
 	cooldown = maxf(cooldown - delta, 0.0)
+	burst_cd = maxf(burst_cd - delta, 0.0)
+	var snake: Snake = g.snake
+	if snake and g.mods.get("burst", false) and snake.alive:  # мутация «Взрывной рывок»
+		if snake.sprinting and not was_sprinting and burst_cd <= 0.0:
+			burst_cd = BURST_COOLDOWN
+			_pill_wave(snake.head_pos)
+		was_sprinting = snake.sprinting
 	update_dash()
 
 
@@ -266,3 +285,13 @@ func update_dash() -> void:
 		snake.push((snake.head_pos - boss.position).normalized() * 600.0)
 		snake.dash_t = 0.0
 
+
+
+## Мутация «Вампир»: каждый N-й съеденный или сломанный враг возвращает жизнь.
+func _count_kill() -> void:
+	kills += 1
+	var every := int(g.mods.get("leech", 0))
+	if every > 0 and kills % every == 0 and g.snake.heal():
+		g.fx.popup(g.snake.head_pos + Vector2(0, -40), "ВАМПИР: +1 ЖИЗНЬ", Color(1, 0.4, 0.45))
+		g.sfx.play("shield")
+		g.update_berserk()

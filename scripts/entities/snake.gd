@@ -74,6 +74,8 @@ var invuln_bonus := 0.0
 var resist := 1.0      # множитель длительности оглушения и замедления
 var extra_life := false  # «Линька»: пережить смертельный удар
 var molt_used := false
+var phoenix := false     # мутация «Феникс»: второй шанс с двумя жизнями
+var phoenix_used := false
 
 
 func apply_mods(m: Dictionary) -> void:
@@ -85,6 +87,7 @@ func apply_mods(m: Dictionary) -> void:
 	invuln_bonus = m.get("invuln", 0.0)
 	resist = m.get("resist", 1.0)
 	extra_life = m.get("molt", false) and not molt_used
+	phoenix = m.get("phoenix", false) and not phoenix_used
 
 
 func reset(pos: Vector2) -> void:
@@ -309,6 +312,14 @@ func take_damage(amount := 1, cause := "") -> bool:
 		molt_used = true
 		lives = 1
 		invuln = 2.5
+		shield_flash = 1.0
+	elif lives <= 0 and phoenix:  # феникс: восстать из пепла
+		phoenix = false
+		phoenix_used = true
+		lives = mini(2, max_lives)
+		stamina = 1.0
+		exhausted = false
+		invuln = 3.0
 		shield_flash = 1.0
 	damaged.emit(lives)
 	if lives <= 0:

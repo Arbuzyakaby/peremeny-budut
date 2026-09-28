@@ -13,6 +13,7 @@ extends Node
 
 signal finished
 
+const Skills = preload("res://scripts/core/skills.gd")
 const Lab = preload("res://scripts/ending/lab.gd")
 const Fire = preload("res://scripts/ending/fire.gd")
 const Snake = preload("res://scripts/entities/snake.gd")
@@ -104,6 +105,7 @@ func start(g) -> void:
 	lab = Lab.new()
 	lab.z_index = -10
 	lab.tally = [g.bears_eaten, g.forks_broken, g.pills_eaten]  # итоги забега — мелом на доске
+	lab.notes = board_notes(g)
 	g.add_child(lab)
 	fire = Fire.new()
 	fire.seed_value = randi()  # каждый пожар свой: раскладка обломков, прогрев углов, запас топлива
@@ -193,6 +195,29 @@ func start(g) -> void:
 		sfx.play("match"))
 	tw.tween_interval(1.0)
 	tw.tween_callback(_begin_choice)
+
+
+## Протокол забега мелом на доске: сложность, время, счёт, жизни, драки, мутации.
+static func board_notes(g) -> PackedStringArray:
+	var secs := int(g.play_time)
+	var out := PackedStringArray([
+		"РЕЖИМ: %s" % String(g.cfg["name"]).replace("ИСПЫТАНИЕ: ", "ИСП. "),
+		"ВРЕМЯ  %d:%02d" % [secs / 60, secs % 60],
+		"СЧЁТ  %d" % g.score,
+		"ЖИЗНИ  %d/%d" % [g.snake.lives, g.snake.max_lives] if g.snake else "ЖИЗНИ  ?",
+	])
+	if g.enemies and g.enemies.friendly_hits > 0:
+		out.append("ДРАКИ ВРАГОВ  %d" % g.enemies.friendly_hits)
+	var muts := PackedStringArray()
+	for id: String in g.perks:
+		var p: Dictionary = Skills.perk(id)
+		if not p.is_empty():
+			muts.append(String(p["name"]).to_lower() + (" ×%d" % g.perks[id] if g.perks[id] > 1 else ""))
+	if not muts.is_empty():
+		out.append("МУТАЦИИ:")
+		for m in muts:
+			out.append("  • " + m)
+	return out
 
 
 func _stats_line() -> String:

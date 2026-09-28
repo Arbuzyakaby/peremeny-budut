@@ -4,6 +4,7 @@ extends RefCounted
 const Balance = preload("res://scripts/core/balance.gd")
 const Skills = preload("res://scripts/core/skills.gd")
 const Credits = preload("res://scripts/ending/credits.gd")
+const Daily = preload("res://scripts/core/daily.gd")
 
 
 static func rows(g, win: bool, record: bool, best: int) -> Array:
@@ -23,6 +24,8 @@ static func rows(g, win: bool, record: bool, best: int) -> Array:
 	rows.append(["Время", "%d:%02d" % [secs / 60, secs % 60]])
 	rows.append(["Счёт", "%d%s" % [g.score, "  — НОВЫЙ РЕКОРД!" if record else ""], record])
 	rows.append(["Рекорд", str(best)])
+	if g.streak_bonus > 0:
+		rows.append(["Серия испытаний", "%d дн. подряд: +%d ч." % [Daily.streak(), g.streak_bonus], true])
 	rows.append(["Чешуйки", "+%d  (всего %d)" % [g.scales_gained, Skills.scales], g.scales_gained > 0])
 	if g.debug_run:
 		rows.append(["Отладочный забег", "результат не сохранён"])

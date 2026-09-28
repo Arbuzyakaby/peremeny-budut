@@ -186,9 +186,10 @@ func set_data(diffs: Array, best_scores: Array, selected: int, scales: int, touc
 		b.add_theme_color_override("font_focus_color", Color.WHITE)
 	first_focus = diff_buttons[selected]
 	update_scales(scales)
-	var mod := Daily.today()
 	var best_today := Daily.best(Daily.day_key())
-	daily_button.text = "ИСПЫТАНИЕ ДНЯ: %s%s" % [mod["name"], "  •  %d" % best_today if best_today > 0 else ""]
+	var run := Daily.streak()
+	daily_button.text = "ИСПЫТАНИЕ ДНЯ%s%s" % ["  •  %d" % best_today if best_today > 0 else "",
+		"  •  серия %d" % run if run > 1 else ""]
 	bestiary_button.text = "КАРТОТЕКА %d/%d" % [Bestiary.known_count(), Bestiary.total()]
 	quit_button.visible = not touch or not OS.has_feature("mobile")
 	var version := "v" + str(ProjectSettings.get_setting("application/config/version", ""))
@@ -237,8 +238,13 @@ func _show_desc(i: int) -> void:
 
 func _show_daily_desc() -> void:
 	var mod := Daily.today()
-	desc_label.text = "Испытание дня %s — одно на всех, Нормальная сложность.
-%s" % [Daily.day_key(), mod["desc"]]
+	var run := Daily.streak()
+	desc_label.text = "Испытание дня %s: %s. Нормальная сложность.
+%s
+Серия: %d дн. (рекорд %d) — за первый забег дня +%d ч." % [
+		Daily.day_key(), mod["name"], (mod["desc"] as String).replace("
+", " • "), run, Daily.best_streak(),
+		Daily.streak_bonus(run + (0 if Daily.best(Daily.day_key()) > 0 else 1))]
 	desc_label.label_settings.font_color = Design.STEEL.lightened(0.3)
 
 

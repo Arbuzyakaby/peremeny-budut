@@ -1,6 +1,10 @@
 extends "res://tests/test_case.gd"
 ## Древо навыков: цены, открытие веток, покупка, сброс, сохранение, модификаторы, улучшения.
 
+const Combat = preload("res://scripts/core/combat.gd")
+const Balance = preload("res://scripts/core/balance.gd")
+const Snake = preload("res://scripts/entities/snake.gd")
+
 
 func before_each() -> void:
 	use_temp_storage()
@@ -106,3 +110,64 @@ func test_roll_perks_gives_three_different() -> void:
 		var cards := Skills.roll_perks()
 		assert_eq(cards.size(), 3)
 		assert_true(cards[0]["id"] != cards[1]["id"] and cards[1]["id"] != cards[2]["id"] and cards[0]["id"] != cards[2]["id"])
+
+
+# ---------------------------------------------------------------- v8.2: ветка «Добыча» и мутации
+
+func test_tree_is_four_by_five() -> void:
+	assert_eq(Skills.TREE.size(), Skills.BRANCHES.size() * Skills.ROWS)
+	for i in Skills.TREE.size():
+		assert_eq(int(Skills.TREE[i]["branch"]), i / Skills.ROWS, Skills.TREE[i]["id"])
+	for id in ["hide", "flex", "hoard", "greed"]:
+		assert_true(Skills.unlocked(id), id + " открыт")
+
+
+func test_loot_branch_mods() -> void:
+	Skills.scales = 10000
+	Skills.buy("greed")
+	Skills.buy("gloat")
+	Skills.buy("nose")
+	Skills.buy("lucky")
+	var m := Skills.mods({"hoarder": 1}, false)
+	assert_near(m["scales_mult"], 1.15 * 1.5)
+	assert_near(m["score_mult"], 1.1)
+	assert_eq(m["nose"], 1)
+	assert_eq(Skills.perk_cards(), 4)
+	assert_eq(Skills.scales_for_run(20.0, 0, m["scales_mult"]), int(20.0 * 1.15 * 1.5))
+
+
+func test_unique_mutations_not_repeated() -> void:
+	for i in 30:
+		for p in Skills.roll_perks(4, {"berserk": 1, "leech": 1, "burst": 1, "phoenix": 1}, 2):
+			assert_false(p["id"] in ["berserk", "leech", "burst", "phoenix"], p["id"])
+
+
+func test_nose_raises_rare_weight() -> void:
+	var rare: Dictionary = Skills.perk("berserk")
+	assert_gt(Skills.perk_weight(rare, 2), Skills.perk_weight(rare, 0))
+	assert_near(Skills.perk_weight(Skills.perk("tank"), 2), Skills.perk_weight(Skills.perk("tank"), 0))
+
+
+func test_berserk_makes_attacks_free_and_stronger() -> void:
+	var on := {"berserk_on": true}
+	assert_near(Combat.ability_cost(2, on), 0.0)
+	assert_near(Combat.boss_chip("fork", on), Combat.boss_chip("fork", {}) * 1.5)
+
+
+func test_loot_adds_fork_charge() -> void:
+	assert_eq(Combat.ability_charges(10, {"loot": 1}), int(Balance.ABILITIES[10]["charges"]) + 1)
+	assert_eq(Combat.ability_charges(2, {"loot": 1}), int(Balance.ABILITIES[2]["charges"]), "медведям — нет")
+
+
+func test_phoenix_revives_once() -> void:
+	var s := Snake.new()
+	s.max_lives = 3
+	s.lives = 1
+	s.apply_mods({"phoenix": true})
+	s.take_damage(1)
+	assert_true(s.alive)
+	assert_eq(s.lives, 2)
+	s.invuln = 0.0
+	s.take_damage(2)
+	assert_false(s.alive, "второй раз не спасает")
+	s.free()

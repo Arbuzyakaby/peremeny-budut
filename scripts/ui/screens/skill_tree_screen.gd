@@ -1,12 +1,12 @@
 extends "res://scripts/ui/screens/screen.gd"
-## Экран «ДРЕВО НАВЫКОВ»: три ветки узлов-медальонов со светящимися связями, описание
+## Экран «ДРЕВО НАВЫКОВ»: четыре ветки по пять узлов-медальонов со светящимися связями, описание
 ## выбранного узла, счётчик чешуек, сброс навыков с возвратом чешуек.
 
 const Skills = preload("res://scripts/core/skills.gd")
 const Icons = preload("res://scripts/ui/icons.gd")
 
-const NODE_SIZE := Vector2(252, 64)
-const MEDALLION := 38.0
+const NODE_SIZE := Vector2(238, 58)
+const MEDALLION := 36.0
 
 var grid: GridContainer
 var node_buttons: Dictionary = {}  # id -> Button
@@ -35,7 +35,7 @@ func build() -> void:
 	head.add_child(chip_row)
 	content.add_child(head)
 	grid = GridContainer.new()
-	grid.columns = 3
+	grid.columns = Skills.BRANCHES.size()
 	grid.add_theme_constant_override("h_separation", Design.SPACE[5])
 	grid.add_theme_constant_override("v_separation", Design.SPACE[3])
 	grid.draw.connect(_draw_links)
@@ -51,9 +51,9 @@ func build() -> void:
 		head_col.add_child(bi)
 		head_col.add_child(Design.label(b["name"], "overline", b["color"], HORIZONTAL_ALIGNMENT_CENTER))
 		grid.add_child(head_col)
-	for row in 4:
-		for branch in 3:
-			var n: Dictionary = Skills.TREE[branch * 4 + row]
+	for row in Skills.ROWS:
+		for branch in Skills.BRANCHES.size():
+			var n: Dictionary = Skills.TREE[branch * Skills.ROWS + row]
 			grid.add_child(_build_node(n))
 	var card := PanelContainer.new()
 	card.add_theme_stylebox_override("panel", Design.well(Design.RADIUS_MD, Vector2(Design.SPACE[4], Design.SPACE[3])))
@@ -140,7 +140,8 @@ func _draw_branch_icon(bi: Control, branch: int) -> void:
 	match branch:
 		0: Icons.heart(bi, c, 6.0, col)
 		1: Icons.bolt(bi, c, col, 0.9)
-		_: Icons.fang(bi, c, col, 0.9)
+		2: Icons.fang(bi, c, col, 0.9)
+		_: Icons.scale_coin(bi, c, 0.8)
 
 
 func _draw_medallion(med: Control, id: String) -> void:
@@ -160,7 +161,8 @@ func _draw_medallion(med: Control, id: String) -> void:
 	match n["branch"]:
 		0: Icons.heart(med, c, 6.5, icon_col)
 		1: Icons.bolt(med, c, icon_col, 1.0)
-		_: Icons.fang(med, c, icon_col, 1.0)
+		2: Icons.fang(med, c, icon_col, 1.0)
+		_: Icons.scale_coin(med, c, 0.85 if unlocked else 0.6)
 	if not unlocked:
 		med.draw_circle(c, r, Color(0, 0, 0, 0.5))
 		Icons.lock(med, c, Design.MUTED, 0.8)
@@ -230,13 +232,13 @@ func refresh() -> void:
 
 ## Связь между узлом и следующим рангом ветки: светится и «бьётся жилками», если открыта.
 func _draw_links() -> void:
-	for branch in 3:
-		for row in range(1, 4):
-			var a: Button = node_buttons[Skills.TREE[branch * 4 + row - 1]["id"]]
-			var b: Button = node_buttons[Skills.TREE[branch * 4 + row]["id"]]
+	for branch in Skills.BRANCHES.size():
+		for row in range(1, Skills.ROWS):
+			var a: Button = node_buttons[Skills.TREE[branch * Skills.ROWS + row - 1]["id"]]
+			var b: Button = node_buttons[Skills.TREE[branch * Skills.ROWS + row]["id"]]
 			var from := a.position + Vector2(MEDALLION / 2.0 + Design.SPACE[3], a.size.y)
 			var to := b.position + Vector2(MEDALLION / 2.0 + Design.SPACE[3], 0)
-			var lit := Skills.rank(Skills.TREE[branch * 4 + row - 1]["id"]) > 0
+			var lit := Skills.rank(Skills.TREE[branch * Skills.ROWS + row - 1]["id"]) > 0
 			var col: Color = Skills.BRANCHES[branch]["color"] if lit else Design.LINE
 			if lit:
 				grid.draw_line(from, to, Color(col, 0.35), 9.0)
