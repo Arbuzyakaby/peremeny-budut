@@ -1,0 +1,2268 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Перемены будут</title>
+<meta name="description" content="Змея против Гигантской Яичницы — аркада на Godot 4.7, где графика, звук и пожар построены кодом. Как это устроено внутри.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root {
+	color-scheme: dark;
+	--walnut: #1f150f;
+	--walnut-2: #2a1c14;
+	--plank: #3a271b;
+	--plank-hi: #4a3223;
+	--brass: #d8a94f;
+	--brass-hi: #f3d48a;
+	--brass-dim: #8f6c30;
+	--paper: #efe5cf;
+	--paper-line: #c9d6e6;
+	--ink: #2b221c;
+	--ink-soft: #5a4a3c;
+	--text: #ecdfc8;
+	--muted: #b3a187;
+	--green: #8ee062;
+	--green-dim: #3e7a2c;
+	--fire: #ff8a2a;
+	--tomato: #e5533d;
+	--velvet-r: #6d1d22;
+	--velvet-g: #1d4631;
+	--tile: #cfe2ea;
+	--display: "Unbounded", "Arial Black", "Segoe UI", sans-serif;
+	--body: "Golos Text", "Segoe UI", Roboto, system-ui, sans-serif;
+	--mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+	--r-s: 8px; --r-m: 14px; --r-l: 22px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+body {
+	margin: 0;
+	background: var(--walnut);
+	background-image:
+		repeating-linear-gradient(92deg, rgba(255,220,170,.018) 0 2px, transparent 2px 11px),
+		repeating-linear-gradient(88deg, rgba(0,0,0,.12) 0 1px, transparent 1px 37px),
+		radial-gradient(1200px 600px at 70% -10%, rgba(255,190,90,.10), transparent 70%);
+	color: var(--text);
+	font: 400 17px/1.6 var(--body);
+	-webkit-font-smoothing: antialiased;
+	overflow-x: hidden;
+}
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--brass-hi); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--brass-hi); outline-offset: 3px; border-radius: 6px; }
+code, kbd, .mono { font-family: var(--mono); font-size: .88em; }
+code { background: rgba(0,0,0,.28); padding: .08em .35em; border-radius: 5px; color: var(--brass-hi); }
+h1, h2, h3 { font-family: var(--display); line-height: 1.12; text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(28px, 4.2vw, 46px); font-weight: 900; letter-spacing: -.01em; }
+h3 { font-size: clamp(18px, 2vw, 22px); font-weight: 700; }
+p { margin: 0; }
+.wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding-inline: 20px; }
+.prose { max-width: 66ch; }
+.prose p + p { margin-top: .8em; }
+.muted { color: var(--muted); }
+.stack { display: flex; flex-direction: column; gap: 18px; }
+
+/* --- латунная табличка-метка раздела --- */
+.plate {
+	display: inline-flex; align-items: center; gap: 10px;
+	font: 700 12px/1 var(--display); letter-spacing: .14em; text-transform: uppercase;
+	color: #2d1f0c; padding: 8px 14px 8px 12px; border-radius: 6px;
+	background: linear-gradient(180deg, var(--brass-hi), var(--brass) 55%, var(--brass-dim));
+	box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 2px 0 #3a2710, 0 6px 14px rgba(0,0,0,.45);
+}
+.plate::before, .plate::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff4cf, #7c5b22); box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+.plate::after { margin-left: 2px; }
+
+/* --- навигация --- */
+.nav {
+	position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+	background: rgba(24,16,11,.88); backdrop-filter: blur(8px);
+	border-bottom: 1px solid rgba(216,169,79,.25);
+}
+.nav .wrap { display: flex; align-items: center; gap: 18px; height: 56px; }
+.nav .logo { font: 900 15px/1 var(--display); color: var(--green); text-decoration: none; white-space: nowrap; }
+.nav .links { display: flex; gap: 16px; overflow-x: auto; scrollbar-width: none; flex: 1; }
+.nav .links::-webkit-scrollbar { display: none; }
+.nav .links a { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; white-space: nowrap; }
+.nav .links a:hover { color: var(--brass-hi); }
+@media (max-width: 720px) { .nav .links { display: none; } }
+
+/* --- клавиши как в игре --- */
+.key {
+	display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+	min-height: 52px; padding: 0 22px; border-radius: var(--r-m); border: 0; cursor: pointer;
+	font: 700 14px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; text-decoration: none;
+	color: var(--text);
+	background: linear-gradient(180deg, #5a4030, #3a281c);
+	box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 5px 0 #1a100a, 0 10px 18px rgba(0,0,0,.45);
+	transition: transform .08s, box-shadow .08s;
+}
+.key:hover { filter: brightness(1.08); }
+.key:active { transform: translateY(4px); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 1px 0 #1a100a, 0 4px 8px rgba(0,0,0,.4); }
+.key.primary { color: #2d1f0c; background: linear-gradient(180deg, var(--brass-hi), var(--brass) 60%, #b98a38); box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 5px 0 #6a4c1c, 0 10px 18px rgba(0,0,0,.45); }
+.key.small { min-height: 40px; padding: 0 14px; font-size: 11px; border-radius: 10px; }
+.key[aria-pressed="true"] { transform: translateY(4px); box-shadow: inset 0 2px 6px rgba(0,0,0,.5), 0 1px 0 #1a100a; color: var(--brass-hi); }
+.key[aria-pressed="true"]::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #ffd66b; box-shadow: 0 0 8px #ffb23d; }
+
+/* --- деревянная рамка скриншота --- */
+.shot {
+	margin: 0; position: relative; border-radius: 12px; padding: 7px;
+	background: linear-gradient(135deg, #6a4526, #3b2515 50%, #5a3a20);
+	box-shadow: inset 0 1px 0 rgba(255,220,160,.25), 0 14px 30px rgba(0,0,0,.5);
+}
+.shot img { border-radius: 6px; width: 100%; cursor: zoom-in; background: #120c08; }
+.shot figcaption { font-size: 13.5px; color: var(--muted); padding: 9px 4px 2px; line-height: 1.45; }
+
+/* --- бумага протокола --- */
+.paper {
+	background: var(--paper); color: var(--ink); border-radius: 4px; position: relative;
+	background-image: repeating-linear-gradient(180deg, transparent 0 27px, var(--paper-line) 27px 28px);
+	background-position: 0 14px;
+	box-shadow: 0 1px 0 #d9ccb1, 0 18px 34px rgba(0,0,0,.45);
+	padding: 26px 28px;
+}
+.paper .mono, .paper code { color: var(--ink); background: none; }
+.stamp {
+	display: inline-block; font: 900 15px/1 var(--display); letter-spacing: .08em; text-transform: uppercase;
+	color: #b3261e; border: 3px solid #b3261e; padding: 7px 10px; border-radius: 6px; transform: rotate(-7deg);
+	opacity: .82; mix-blend-mode: multiply;
+}
+
+/* --- секции --- */
+section { padding-block: 76px; position: relative; }
+section + section { border-top: 1px solid rgba(216,169,79,.14); }
+.head { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-bottom: 34px; }
+.lead { font-size: 19px; color: var(--muted); max-width: 62ch; }
+
+/* --- hero --- */
+.hero { padding-top: 54px; padding-bottom: 70px; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 44px; align-items: center; }
+@media (max-width: 900px) { .hero-grid { grid-template-columns: minmax(0,1fr); } }
+.hero h1 { font-size: clamp(42px, 5.2vw, 78px); font-weight: 900; line-height: .95; letter-spacing: -.02em; color: var(--green);
+	text-shadow: 0 3px 0 #2c5a1b, 0 6px 0 #1a3610, 0 14px 26px rgba(0,0,0,.6); }
+.hero .sub { font: 700 clamp(16px, 2vw, 22px)/1.2 var(--display); color: var(--brass); margin-top: 18px; letter-spacing: .01em; }
+.hero .lead { margin-top: 20px; }
+.hero .cta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 30px; }
+.hero .meta { margin-top: 22px; font: 400 13px/1.5 var(--mono); color: var(--muted); }
+.hero-shot { position: relative; }
+.hero-shot .stamp { position: absolute; right: -6px; bottom: 110px; background: rgba(239,229,207,.92); font-size: 13px; }
+
+/* --- «ноль файлов» --- */
+.zero { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 16px; }
+@media (max-width: 820px) { .zero { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.gauge {
+	border-radius: var(--r-m); padding: 20px 18px 18px;
+	background: linear-gradient(180deg, var(--plank-hi), var(--plank));
+	box-shadow: inset 0 1px 0 rgba(255,220,160,.12), 0 8px 18px rgba(0,0,0,.35);
+}
+.gauge .n { font: 900 clamp(30px, 4vw, 44px)/1 var(--display); color: var(--brass-hi); font-variant-numeric: tabular-nums; }
+.gauge .l { font-size: 14.5px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+
+/* --- этапы --- */
+.stages { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 26px; }
+@media (max-width: 760px) { .stages { grid-template-columns: minmax(0,1fr); } }
+.stage h3 { display: flex; align-items: baseline; gap: 12px; margin: 16px 2px 8px; }
+.stage h3 .idx { font: 600 13px/1 var(--mono); color: var(--brass); }
+.stage p { color: var(--muted); font-size: 15.5px; padding-inline: 2px; }
+
+/* --- диаграммы --- */
+.diagram { overflow-x: auto; border-radius: var(--r-l); padding: 22px; background: #150e0a; box-shadow: inset 0 2px 10px rgba(0,0,0,.6), 0 1px 0 rgba(255,220,160,.08); }
+.diagram svg { display: block; min-width: 720px; width: 100%; height: auto; }
+.diagram.fit svg { min-width: 0; }
+.diagram.narrow svg { min-width: 0; max-width: 520px; margin: 0 auto; }
+.diagram-cap { font-size: 13.5px; color: var(--muted); margin-top: 10px; }
+svg text { font-family: var(--body); }
+svg .mono { font-family: var(--mono); }
+
+.two { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 34px; align-items: start; }
+@media (max-width: 880px) { .two { grid-template-columns: minmax(0,1fr); } }
+
+/* --- таблицы --- */
+.table-box { overflow-x: auto; border-radius: var(--r-m); background: rgba(0,0,0,.22); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 560px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid rgba(216,169,79,.14); vertical-align: top; }
+th { font: 700 11px/1.2 var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--brass); }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 8px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
+
+/* --- фишки кода --- */
+.tricks { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 20px; }
+@media (max-width: 980px) { .tricks { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 640px) { .tricks { grid-template-columns: minmax(0,1fr); } }
+.trick { border-radius: var(--r-m); padding: 22px 22px 20px; background: linear-gradient(180deg, #2f2016, #261a12); box-shadow: inset 0 1px 0 rgba(255,220,160,.1), 0 6px 16px rgba(0,0,0,.3); display: flex; flex-direction: column; gap: 10px; }
+.trick .tag { font: 600 11.5px/1 var(--mono); color: var(--brass); }
+.trick h3 { font-size: 17px; }
+.trick p { font-size: 15px; color: var(--muted); line-height: 1.55; }
+pre.code {
+	margin: 0; overflow-x: auto; border-radius: 10px; padding: 14px 16px;
+	background: #120b07; color: #e6d7bb; font: 400 13px/1.55 var(--mono);
+	box-shadow: inset 0 2px 8px rgba(0,0,0,.6);
+}
+pre.code .c { color: #8d7b62; } pre.code .k { color: #f08d5a; } pre.code .s { color: var(--green); } pre.code .n { color: var(--brass-hi); }
+
+/* --- список правил --- */
+.rules { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.rules li { padding-left: 22px; position: relative; }
+.rules li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 8px; height: 8px; border-radius: 50%; background: var(--brass); box-shadow: 0 0 8px rgba(255,190,80,.5); }
+
+/* --- спойлер --- */
+.spoiler { position: relative; }
+.spoiler > .veil {
+	position: absolute; inset: -10px; z-index: 5; border-radius: var(--r-l);
+	display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 16px; text-align: center;
+	padding: 70px 22px;
+	background: rgba(22,14,10,.72); backdrop-filter: blur(22px) saturate(.6); -webkit-backdrop-filter: blur(22px) saturate(.6);
+	border: 1px dashed rgba(216,169,79,.45);
+}
+.spoiler > .veil p { max-width: 44ch; color: var(--muted); }
+.spoiler > .veil .stamp { background: rgba(239,229,207,.9); }
+.spoiler.open > .veil { display: none; }
+.spoiler:not(.open) > .inner { max-height: 780px; overflow: hidden; }
+
+/* --- лор --- */
+.lore-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 34px; align-items: start; }
+@media (max-width: 880px) { .lore-grid { grid-template-columns: minmax(0,1fr); } }
+.paper h3 { color: var(--ink); font-size: 20px; margin-bottom: 14px; }
+.paper p { line-height: 28px; }
+.paper p + p { margin-top: 0; }
+.paper .label { font: 700 11px/28px var(--mono); letter-spacing: .12em; color: #9b2a22; text-transform: uppercase; }
+.quote { font: 500 15px/28px var(--mono); color: var(--ink); }
+.quote b { color: #9b2a22; font-weight: 600; }
+.timeline { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 16px; margin-top: 30px; }
+@media (max-width: 980px) { .timeline { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+/* --- пожар --- */
+.fire-strip { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 10px; }
+@media (max-width: 900px) { .fire-strip { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+@media (max-width: 480px) { .fire-strip { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.fire-strip figure { margin: 0; }
+.fire-strip img { border-radius: 8px; cursor: zoom-in; }
+.fire-strip figcaption { font: 500 12px/1.35 var(--mono); color: var(--muted); margin-top: 6px; }
+.blackbody { height: 26px; border-radius: 13px; background: linear-gradient(90deg, #1c0503 0%, #7f0e02 10%, #ff5a0d 40%, #ffbf40 70%, #fff2d1 95%, #fff2d1 100%); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1), 0 0 30px rgba(255,120,30,.25); }
+.bb-scale { position: relative; height: 38px; font: 500 12px/1 var(--mono); color: var(--muted); }
+.bb-scale span { position: absolute; top: 8px; transform: translateX(-50%); white-space: nowrap; }
+.bb-scale span::before { content: ""; position: absolute; left: 50%; top: -8px; width: 1px; height: 6px; background: var(--muted); }
+
+.sim { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 22px; align-items: start; }
+@media (max-width: 880px) { .sim { grid-template-columns: minmax(0,1fr); } }
+.sim-screen { border-radius: 12px; padding: 7px; background: linear-gradient(135deg, #6a4526, #3b2515 50%, #5a3a20); box-shadow: 0 14px 30px rgba(0,0,0,.5); }
+.sim-screen canvas { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; background: #0e0906; cursor: crosshair; touch-action: none; }
+.sim-panel { display: flex; flex-direction: column; gap: 14px; }
+.sim-panel .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.readout { background: #0f0a07; border-radius: 10px; padding: 12px 14px; font: 400 13px/1.8 var(--mono); color: #d8c7a8; box-shadow: inset 0 2px 8px rgba(0,0,0,.7); font-variant-numeric: tabular-nums; }
+.readout b { color: var(--brass-hi); font-weight: 600; }
+.readout .on { color: var(--green); }
+
+/* --- просмотр картинки --- */
+dialog.lightbox { border: 0; padding: 0; background: transparent; max-width: min(96vw, 1600px); }
+dialog.lightbox::backdrop { background: rgba(10,6,4,.88); }
+dialog.lightbox img { border-radius: 8px; max-height: 88vh; width: auto; margin: 0 auto; }
+dialog.lightbox p { text-align: center; color: var(--muted); font-size: 14px; margin-top: 10px; }
+
+/* --- премиальные подписи: номер кадра, рубрика, заголовок, текст --- */
+body { counter-reset: shot; }
+.shot { counter-increment: shot; transition: transform .25s cubic-bezier(.2,.7,.2,1), box-shadow .25s; }
+.shot:hover { transform: translateY(-3px); box-shadow: inset 0 1px 0 rgba(255,220,160,.3), 0 20px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(243,212,138,.25); }
+.shot figcaption { display: grid; gap: 5px; margin-top: 7px; padding: 12px 8px 7px; border-top: 1px solid rgba(243,212,138,.16); }
+.shot figcaption::before {
+	content: "Кадр " counter(shot, decimal-leading-zero) "\00a0\00a0·\00a0\00a0" attr(data-tag);
+	font: 600 10.5px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--brass);
+	padding-left: 14px; background: radial-gradient(circle at 4px 50%, #ffd66b 0 3px, rgba(255,178,61,.35) 4px, transparent 6px) no-repeat;
+}
+.shot figcaption b { font: 700 15.5px/1.25 var(--display); color: var(--paper); letter-spacing: .005em; overflow-wrap: anywhere; hyphens: auto; }
+.shot figcaption span { font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+.shot figcaption em { font-style: normal; color: var(--brass-hi); }
+
+/* --- лента миниатюр --- */
+.reel { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 16px; }
+.reel.three { grid-template-columns: repeat(3, minmax(0,1fr)); }
+@media (max-width: 980px) { .reel { grid-template-columns: repeat(2, minmax(0,1fr)); } .reel.three { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+@media (max-width: 640px) { .reel, .reel.three { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; } }
+.reel .shot { padding: 5px; border-radius: 10px; }
+.reel .shot img { border-radius: 5px; }
+.reel .shot figcaption { padding: 10px 5px 4px; gap: 4px; }
+.reel .shot figcaption::before { font-size: 9.5px; letter-spacing: .14em; }
+.reel .shot figcaption b { font-size: 13px; }
+.reel .shot figcaption span { font-size: 12.5px; line-height: 1.45; }
+@media (max-width: 640px) { .reel .shot figcaption span { display: none; } }
+
+/* --- версия-бейдж и карточки 8.1 --- */
+.ver { display: inline-flex; align-items: center; gap: 8px; font: 700 11px/1 var(--mono); letter-spacing: .12em; color: var(--green);
+	padding: 6px 10px; border-radius: 99px; background: rgba(142,224,98,.08); box-shadow: inset 0 0 0 1px rgba(142,224,98,.35); }
+.ver::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); }
+.cols3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 20px; }
+@media (max-width: 900px) { .cols3 { grid-template-columns: minmax(0,1fr); } }
+.card { border-radius: var(--r-m); padding: 22px; background: linear-gradient(180deg, #2f2016, #261a12); box-shadow: inset 0 1px 0 rgba(255,220,160,.1), 0 6px 16px rgba(0,0,0,.3); }
+.card h3 { font-size: 17px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+.card h3 .n { font: 600 12px/1 var(--mono); color: var(--brass); }
+.card .rules { gap: 9px; font-size: 15px; color: var(--muted); }
+.card .rules b { color: var(--text); }
+
+/* --- подписи схем --- */
+.fig-title { font: 600 11px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--brass); margin-bottom: 12px; }
+.diagram .fig-title { margin-bottom: 14px; }
+
+/* --- чтение манеры яичницы --- */
+.habit { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 22px; align-items: stretch; }
+@media (max-width: 880px) { .habit { grid-template-columns: minmax(0,1fr); } }
+.bars { display: grid; gap: 7px; margin-top: 4px; }
+.bar { display: grid; grid-template-columns: 78px 1fr 40px; gap: 8px; align-items: center; font: 400 12px/1 var(--mono); color: #d8c7a8; }
+.bar i { display: block; height: 9px; border-radius: 5px; background: linear-gradient(90deg, var(--brass-dim), var(--brass-hi)); box-shadow: 0 0 8px rgba(243,212,138,.25); transition: width .35s; }
+.bar.off { opacity: .35; }
+.habit-now { font: 900 22px/1.1 var(--display); color: var(--green); margin: 2px 0 6px; }
+
+/* --- язык телеграфов --- */
+.tells { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+@media (max-width: 760px) { .tells { grid-template-columns: minmax(0,1fr); } }
+.tell { border-radius: var(--r-m); background: #150e0a; box-shadow: inset 0 2px 10px rgba(0,0,0,.6); padding: 16px 16px 18px; }
+.tell svg { display: block; width: 100%; height: auto; }
+.tell h3 { font-size: 16px; margin: 10px 0 6px; }
+.tell p { font-size: 14px; color: var(--muted); }
+.tell code { font-size: 12px; }
+@keyframes dash-run { to { stroke-dashoffset: -64; } }
+@keyframes clock { from { transform: scale(1); } to { transform: scale(.06); } }
+@keyframes rim { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.t-aim { animation: dash-run 1s linear infinite; }
+.t-clock { transform-box: fill-box; transform-origin: center; animation: clock 1.8s cubic-bezier(.5,0,.9,.6) infinite; }
+.t-rim { animation: rim 1.4s ease-in-out infinite; }
+
+/* --- лаборатория звука --- */
+.soundlab { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 880px) { .soundlab { grid-template-columns: minmax(0,1fr); } }
+.pads { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pads .key { min-height: 46px; font-size: 11px; padding: 0 10px; }
+.scope { border-radius: 12px; padding: 7px; background: linear-gradient(135deg, #6a4526, #3b2515 50%, #5a3a20); box-shadow: 0 14px 30px rgba(0,0,0,.5); }
+.scope canvas { display: block; width: 100%; height: 190px; border-radius: 6px; background: #07110a; }
+.toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); cursor: pointer; user-select: none; }
+.toggle input { width: 18px; height: 18px; accent-color: var(--brass); }
+.music { display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: 22px; align-items: start; }
+@media (max-width: 880px) { .music { grid-template-columns: minmax(0,1fr); } }
+input[type=range].fader { width: 100%; accent-color: var(--brass); height: 28px; }
+.meter { height: 10px; border-radius: 5px; background: #0f0a07; box-shadow: inset 0 1px 4px rgba(0,0,0,.8); overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #3e7a2c, var(--green), #ffd66b, var(--tomato)); }
+
+/* --- лайтбокс: листание --- */
+dialog.lightbox .lb-nav { position: fixed; top: 50%; transform: translateY(-50%); }
+dialog.lightbox .lb-prev { left: 14px; } dialog.lightbox .lb-next { right: 14px; }
+dialog.lightbox p b { color: var(--paper); font-family: var(--display); font-weight: 700; }
+dialog.lightbox p small { display: block; font: 600 10.5px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--brass); margin-bottom: 8px; }
+
+footer { padding-block: 50px 70px; border-top: 1px solid rgba(216,169,79,.14); color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: space-between; align-items: center; }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Разделы">
+	<div class="wrap">
+		<a class="logo" href="#top">ЗМЕЯ v8.1</a>
+		<div class="links">
+			<a href="#v81">Что нового</a>
+			<a href="#stages">Этапы</a>
+			<a href="#egg">Яичница</a>
+			<a href="#moves">Приёмы</a>
+			<a href="#lore">Лор</a>
+			<a href="#arch">Архитектура</a>
+			<a href="#snake">Змея</a>
+			<a href="#ai">ИИ</a>
+			<a href="#fire">Пожар</a>
+			<a href="#sound">Звук</a>
+			<a href="#design">Интерфейс</a>
+			<a href="#tricks">Хитрости</a>
+			<a href="#tests">Тесты</a>
+		</div>
+		<button class="key small" id="spoil-all" type="button" aria-pressed="false">Спойлеры</button>
+	</div>
+</nav>
+
+<header class="hero" id="top">
+	<div class="wrap hero-grid">
+		<div>
+			<span class="plate">Эксперимент №47</span> <span class="ver" style="margin-left:10px">v8.1 · аудит</span>
+			<h1 style="margin-top:22px">Перемены будут</h1>
+			<p class="sub">Змея против Гигантской Яичницы</p>
+			<p class="lead">Аркада на Godot 4.7 для Windows и Android. Змея ест плюшевых медведей, ломает ржавые вилки, глотает прыгающие таблетки и перенимает приёмы врагов, чтобы добраться до яичницы. Но всё не то, чем кажется.</p>
+			<div class="cta">
+				<a class="key primary" href="https://github.com/Arbuzyakaby/peremeny-budut/releases/latest">Скачать</a>
+				<a class="key" href="https://github.com/Arbuzyakaby/peremeny-budut">Исходники</a>
+			</div>
+			<p class="meta">v8.1 · Windows · Android 7.0+ · GDScript без аддонов</p>
+		</div>
+		<div class="hero-shot">
+			<figure class="shot">
+				<img src="img/menu.webp" width="1600" height="900" alt="Главное меню: доска с выбором сложности, по деревянному столу ползает змея, медведи и яичница в углу">
+				<figcaption data-tag="Главное меню"><b>Стол, на котором всё начинается</b><span>Меню живое: по фанере ползает змея, медведи разбегаются, яичница ждёт в углу. Ни один пиксель не загружен из файла.</span></figcaption>
+			</figure>
+			<span class="stamp">Ни одного файла</span>
+		</div>
+	</div>
+</header>
+
+<main>
+
+<section id="zero" style="padding-top:40px">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Главное правило</span>
+			<h2>Всё построено кодом</h2>
+			<p class="lead">В проекте нет ни одной картинки, аудиофайла или шрифта. Медведи рисуются вызовами <code>draw_*</code>, звук синтезируется при запуске, пожар считает физическая симуляция, шрифты берутся системные. Одна сцена на весь проект, всё остальное создаётся в <code>_ready()</code>.</p>
+		</div>
+		<div class="zero">
+			<div class="gauge"><div class="n">0</div><div class="l">картинок, звуков и шрифтов в репозитории</div></div>
+			<div class="gauge"><div class="n">16,3k</div><div class="l">строк GDScript в 71 файле; 28 из них рисуют себя сами в <code>_draw()</code></div></div>
+			<div class="gauge"><div class="n">274</div><div class="l">автотеста, 2326 проверок, прогон на каждый пуш</div></div>
+			<div class="gauge"><div class="n">1</div><div class="l">сцена: <code>main.tscn</code>, остальное собирается из кода</div></div>
+		</div>
+	</div>
+</section>
+
+<section id="v81">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Версия 8.1 · аудит</span>
+			<h2>Что нашёл аудит</h2>
+			<p class="lead">Восьмая версия переписала яичницу, музыку и лабораторию. 8.1 — не про новое, а про честное: код прочитали целиком, в поисках багов, лазеек для читов и лишней работы видеокарты. Нашлось девять проблем, и каждую теперь закрывает тест.</p>
+		</div>
+		<div class="cols3">
+			<article class="card">
+				<h3><span class="n">01</span>Ошибки</h3>
+				<ul class="rules">
+					<li><b>Победа превращалась в поражение.</b> Между последним укусом и финалом змея ещё получала урон — разбившись о бортик, открывала «Конец» поверх победы и писала рекорд дважды.</li>
+					<li><b>Лаг-спайк бил о бортик.</b> Окно перетащили — следующий кадр длился секунды, и змея за один шаг улетала в стену.</li>
+					<li><b>Двойные очки.</b> Этап заканчивался посреди кадра — уже убранные враги ещё раз давали очки и заряды.</li>
+				</ul>
+			</article>
+			<article class="card">
+				<h3><span class="n">02</span>Читы и обходы</h3>
+				<ul class="rules">
+					<li><b>Рекорд правился в блокноте.</b> Теперь сохранение зашифровано, а файл, отредактированный руками, игра не читает.</li>
+					<li><b>Запуск с <code>--open=win</code></b> записывал выдуманный счёт 1234 как настоящий рекорд.</li>
+					<li><b>«+100 чешуек»</b> в панели разработчика навсегда меняли сохранение даже в релизе. Теперь — только в сборке из редактора.</li>
+				</ul>
+			</article>
+			<article class="card">
+				<h3><span class="n">03</span>Производительность</h3>
+				<ul class="rules">
+					<li><b>Пол считался 60 раз в секунду.</b> Шейдер с шумом на каждом пикселе — для картинки, которая не меняется. Теперь он печётся один раз.</li>
+					<li><b>Частицы</b> делят одну кривую и градиент, а не создают их на каждый взрыв.</li>
+					<li><b>Сегменты змеи</b> считаются раз за кадр, а не в каждой проверке.</li>
+				</ul>
+			</article>
+		</div>
+
+		<div class="two" style="margin-top:34px">
+			<div class="diagram fit">
+				<p class="fig-title">Схема 1 · 60 кадров пола</p>
+				<svg id="bake-svg" viewBox="0 0 520 250" role="img" aria-label="Шестьдесят кадров: в 8.0 каждый кадр пересчитывает шейдер пола, в 8.1 только первый"></svg>
+			</div>
+			<div class="stack">
+				<h3>Пол печётся один раз</h3>
+				<p class="muted" style="font-size:15.5px">Пол каждого этапа — процедурный шейдер: доски с волокнами и сучками, поцарапанная сталь, бархат с вмятинами от вилок, кафель, сковорода. В нём по пять октав шума fbm на пиксель, и в 8.0 он честно считался заново в каждом кадре для всего экрана — на 1440p это 3,7 млн пикселей 60 раз в секунду.</p>
+				<p class="muted" style="font-size:15.5px">Теперь пол рисуется во внеэкранный <code>SubViewport</code> с <code>UPDATE_ONCE</code>, а на экран идёт готовая текстура. Масштаб печати — по размеру окна, шагами по 0,25 и не больше ×2. Перепекается только на смене этапа или если окно заметно выросло.</p>
+				<pre class="code"><span class="k">func</span> <span class="n">_bake</span>() -> void:
+	bake_scale = wanted_scale()          <span class="c"># 1.0 … 2.0</span>
+	floor_view.size = ARENA.size * bake_scale
+	floor_view.render_target_update_mode = \
+		SubViewport.<span class="n">UPDATE_ONCE</span>          <span class="c"># и всё</span></pre>
+			</div>
+		</div>
+
+		<div class="two" style="margin-top:34px">
+			<div class="stack">
+				<h3>Шаг не длиннее 1/20 секунды</h3>
+				<p class="muted" style="font-size:15.5px">Когда Windows тащит окно, игра стоит. Следующий кадр приходит с <code>delta</code> в несколько секунд, и змея на скорости 220 px/с за один шаг пролетает 660 px — прямо в бортик, сквозь снаряды. Теперь шаг симуляции ограничен <code>MAX_STEP = 1/20</code>: после фриза игра просто продолжает с того же места.</p>
+				<h3 style="margin-top:10px">Итоги подводятся один раз</h3>
+				<p class="muted" style="font-size:15.5px"><code>_end()</code> стал идемпотентным: если забег уже в <code>WIN</code> или <code>GAME_OVER</code>, второй вызов ничего не делает. А после победы змея получает флаг <code>safe</code> — до финала её ничто не ранит.</p>
+			</div>
+			<div class="diagram fit">
+				<p class="fig-title">Схема 2 · фриз окна на 3 секунды</p>
+				<svg id="clamp-svg" viewBox="0 0 520 260" role="img" aria-label="График положения змеи: без ограничения шага после фриза она влетает в бортик, с ограничением продолжает плавно"></svg>
+			</div>
+		</div>
+
+		<div class="diagram" style="margin-top:34px">
+			<p class="fig-title">Схема 3 · путь сохранения</p>
+			<svg viewBox="0 0 960 190" role="img" aria-label="Путь сохранения: старый save.cfg переносится один раз, запись идёт в save.dat.tmp и атомарно подменяет save.dat">
+				<defs><marker id="ar81" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
+				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar81)">
+					<path d="M178 60H236"/><path d="M420 60H478"/><path d="M660 60H718"/><path d="M570 140 C 640 140 700 100 736 84" stroke-dasharray="4 4"/>
+				</g>
+				<g font-size="12.5" text-anchor="middle">
+					<rect x="20" y="30" width="158" height="60" rx="10" fill="#241811" stroke="#4a3223"/>
+					<text x="99" y="56" fill="#ecdfc8" class="mono" font-size="13">save.cfg</text><text x="99" y="76" fill="#b3a187">текст, до 8.1</text>
+					<rect x="238" y="30" width="182" height="60" rx="10" fill="#3a271b"/>
+					<text x="329" y="56" fill="#f3d48a" class="mono" font-size="13">_migrate_legacy()</text><text x="329" y="76" fill="#b3a187">один раз, копия .old</text>
+					<rect x="480" y="30" width="180" height="60" rx="10" fill="#3a271b"/>
+					<text x="570" y="56" fill="#f3d48a" class="mono" font-size="13">save.dat.tmp</text><text x="570" y="76" fill="#b3a187">save_encrypted_pass()</text>
+					<rect x="720" y="30" width="220" height="60" rx="10" fill="#d8a94f"/>
+					<text x="830" y="56" fill="#2d1f0c" class="mono" font-size="13" font-weight="700">save.dat</text><text x="830" y="76" fill="#3d2a12">rename — атомарная подмена</text>
+					<rect x="440" y="118" width="130" height="44" rx="10" fill="#6d1d22"/>
+					<text x="505" y="137" fill="#ecdfc8" class="mono" font-size="12">правка вручную</text><text x="505" y="153" fill="#f3c9c0" font-size="11.5">не расшифруется</text>
+				</g>
+				<text x="20" y="130" fill="#b3a187" font-size="12.5">Сбой посреди записи оставляет старый save.dat целым:</text>
+				<text x="20" y="150" fill="#b3a187" font-size="12.5">подмена файла — одна операция файловой системы.</text>
+				<text x="620" y="182" fill="#b3a187" font-size="12">ключ в сборке: защита от блокнота, не от взлома</text>
+			</svg>
+		</div>
+	</div>
+</section>
+
+<section id="stages">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Четыре этапа</span>
+			<h2>Что происходит в ящике</h2>
+			<p class="lead">Змея движется свободно, не по клеткам. Каждый этап — новая поверхность ящика и новые враги со своими слабостями. Съеденный особый медведь отдаёт змее свою атаку.</p>
+		</div>
+		<div class="stages">
+			<article class="stage">
+				<figure class="shot"><img loading="lazy" src="img/bears.webp" width="1600" height="900" alt="Этап медведей: змея на деревянном столе, вокруг плюшевые медведи, круг удара с разбега"></figure>
+				<h3><span class="idx">этап 1</span>Медведи</h3>
+				<p>Восемь видов. Боксёр, медсестра, каратист, метатель пуговиц, швея с иголками, ниндзя с сюрикенами. Каждый особый медведь отдаёт змее свой приём: удар с разбега, вертушку, залп пуговиц. С v8.0 приёмы перенимаются и у вилок с таблетками — <a href="#moves">см. ниже</a>.</p>
+			</article>
+			<article class="stage">
+				<figure class="shot"><img loading="lazy" src="img/forks.webp" width="1600" height="900" alt="Этап вилок: ящик для столовых приборов с бордовым и зелёным бархатом, вилки заходят клещами"></figure>
+				<h3><span class="idx">этап 2</span>Ржавые вилки</h3>
+				<p>Ящик для столовых приборов. Столовая, десертная и вилы; четыре приёма: выпад, залп зубцов, вертушка, прыжок-укол. Бить только сбоку или сзади, в лоб нельзя.</p>
+			</article>
+			<article class="stage">
+				<figure class="shot"><img loading="lazy" src="img/pills.webp" width="1600" height="900" alt="Этап таблеток: кафельный пол, капсулы прыгают и оглушают ударной волной"></figure>
+				<h3><span class="idx">этап 3</span>Прыгающие таблетки</h3>
+				<p>Кафель. Капсула прыгает высоко и далеко, шайба катится к змее на ребре и прыгает низко, но часто. Приземление даёт ударную волну, которая оглушает.</p>
+			</article>
+			<article class="stage">
+				<figure class="shot"><img loading="lazy" src="img/boss.webp" width="1600" height="900" alt="Бой с Гигантской Яичницей на тёмной сковороде, полоса здоровья босса"></figure>
+				<h3><span class="idx">этап 4</span>Гигантская Яичница</h3>
+				<p>Сковорода. Три фазы — «Шкворчит», «Подгорает», «Пригорела», — рёв на каждой смене, телеграф перед каждой атакой, горящие лужи масла. Яичница читает манеру змеи и бьёт наперерез. Подробно — <a href="#egg">в разделе про неё</a>.</p>
+			</article>
+		</div>
+	</div>
+</section>
+
+<section id="egg">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Босс · v8.0</span>
+			<h2>Яичница, которая читает</h2>
+			<p class="lead">Гигантскую Яичницу переписали целиком. У неё три фазы со своим характером, телеграф перед каждой атакой и окна наказания, когда она открыта. А главное — она смотрит, как играет змея, и выбирает атаки против этой манеры.</p>
+		</div>
+		<div class="reel">
+			<figure class="shot"><img loading="lazy" src="img/egg-phase1.webp" width="1600" height="900" alt="Яичница в первой фазе на тёмной сковороде, змея рядом"><figcaption data-tag="Фаза 1 · шкворчит"><b>Масло живое</b><span>Вокруг белка шкворчит масло, пузыри вспухают и лопаются, яичница моргает.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/egg-charge.webp" width="1600" height="900" alt="Пунктир прицела от яичницы к змее перед тараном"><figcaption data-tag="Телеграф · прицел"><b>Таран наперерез</b><span>Пунктир бежит туда, где змея будет через 0,35 с, — не туда, где она сейчас.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/egg-puddles.webp" width="1600" height="900" alt="Пузыри будущих луж масла на полу рядом со змеёй"><figcaption data-tag="Фаза 2 · лужи"><b>Сначала пузыри</b><span>Лужа 0,9 с пузырится и не жжёт — время уйти. Потом горит 2,6 с.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/egg-slam.webp" width="1600" height="900" alt="Яичница в прыжке, на полу кольцо места приземления и горящие лужи"><figcaption data-tag="Фаза 2 · прыжок"><b>«Здесь ударит»</b><span>Кольцо на полу и стрелка часов внутри: сколько осталось до приземления.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/egg-dazed.webp" width="1600" height="900" alt="Оглушённая яичница у бортика, желток открыт и светится"><figcaption data-tag="Окно наказания"><b>Врезалась в бортик</b><span>Таран мимо — 1,6 с оглушения. Желток открыт, глаза-спирали, звёзды.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/egg-roar.webp" width="1600" height="900" alt="Яичница ревёт, баннер Яичница пригорела, в ярости"><figcaption data-tag="Смена фазы · рёв"><b>«Пригорела! В ярости!»</b><span>Секунда неуязвимости. Пар сдувает масло с поля, на табло — новое имя фазы.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/egg-spiral.webp" width="1600" height="900" alt="Спираль брызг масла вокруг яичницы в третьей фазе"><figcaption data-tag="Фаза 3 · спираль"><b>Крутится навстречу</b><span>Направление спирали берётся из того, в какую сторону кружит змея.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/egg-aim.webp" width="1600" height="900" alt="Веер брызг и перчинки по прогнозу, яичница в третьей фазе"><figcaption data-tag="Фаза 3 · веер"><b>Пять брызг по дуге</b><span>Веер летит в прогноз, перчинки ищут змею. Кружево подгорело до коричневого.</span></figcaption></figure>
+		</div>
+
+		<div class="habit" style="margin-top:40px">
+			<div class="diagram fit" style="padding:18px">
+				<p class="fig-title">Схема 4 · чтение манеры, живая модель</p>
+				<svg id="habit-svg" viewBox="0 0 520 440" role="img" aria-label="Яичница в центре, кольца ближней и дальней дистанции, змея кружит, уходит далеко и подходит близко"></svg>
+			</div>
+			<div class="stack" style="gap:12px">
+				<div class="readout" id="habit-readout">
+					<span class="muted">манера змеи</span>
+					<div class="habit-now" id="habit-now">—</div>
+					дистанция <b id="habit-dist">—</b><br>
+					кружение <b id="habit-orbit">—</b>
+				</div>
+				<div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
+					<button class="key small" type="button" data-phase="1" aria-pressed="false">Фаза 1</button>
+					<button class="key small" type="button" data-phase="2" aria-pressed="true">Фаза 2</button>
+					<button class="key small" type="button" data-phase="3" aria-pressed="false">Фаза 3</button>
+				</div>
+				<div class="readout"><span class="muted">шанс следующей атаки</span><div class="bars" id="habit-bars"></div></div>
+			</div>
+		</div>
+		<div class="two" style="margin-top:26px">
+			<div class="prose muted" style="font-size:15.5px">
+				<p>Каждый кадр яичница сглаживает три наблюдения: расстояние до головы змеи, угловую скорость змеи вокруг себя и скорость головы. Всё через <code>lerp</code> с коэффициентом от <code>delta</code>, так что манера — это привычка за последние секунды, а не рывок.</p>
+				<p><b style="color:var(--text)">Кружит</b> быстрее 0,8 рад/с — таран, веер и лужи вес ×2,2, всё наперерез. <b style="color:var(--text)">Далеко</b>, дальше 380 px, — прыжки, веер, лужи и перчинки ×2. <b style="color:var(--text)">Липнет</b> ближе 240 px — кольцо, спираль и прыжок ×2, чтобы отогнать. Последняя атака из выбора исключается, поэтому одно и то же дважды подряд не бывает.</p>
+			</div>
+			<pre class="code"><span class="c">## Куда голова придёт через time секунд — не дальше арены.</span>
+<span class="k">func</span> <span class="n">predict</span>(head: Vector2, time: float) -> Vector2:
+	<span class="k">var</span> inner := bounds.grow(<span class="s">-30.0</span>)
+	<span class="k">return</span> (head + head_vel * time).clamp(inner.position, inner.end)
+
+<span class="c"># таран — наперерез, прыжок — в точку через 0,6 полёта</span>
+aim_to = predict(head, <span class="s">0.35</span>)</pre>
+		</div>
+
+		<div class="diagram" style="margin-top:34px">
+			<p class="fig-title">Схема 5 · цикл яичницы</p>
+			<svg viewBox="0 0 960 280" role="img" aria-label="Цикл яичницы: покой, телеграф, атака, после серии открытый желток или окно наказания, рёв при смене фазы">
+				<defs><marker id="are" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
+				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#are)">
+					<path d="M140 90H196"/><path d="M340 90H396"/><path d="M560 76 C 610 50 650 44 700 50"/><path d="M560 104 C 610 130 650 140 700 142"/>
+					<path d="M912 50 C 960 0 120 -10 84 60" stroke-dasharray="4 4"/>
+					<path d="M912 142 C 970 250 120 250 84 122" stroke-dasharray="4 4"/>
+					<path d="M478 118 V 176" stroke="#e5533d"/>
+				</g>
+				<g font-size="12.5" text-anchor="middle">
+					<rect x="30" y="62" width="110" height="56" rx="10" fill="#3a271b"/><text x="85" y="86" fill="#f3d48a" class="mono">IDLE</text><text x="85" y="105" fill="#b3a187">подходит</text>
+					<rect x="198" y="62" width="142" height="56" rx="10" fill="#3a271b"/><text x="269" y="86" fill="#f3d48a" class="mono">TELL</text><text x="269" y="105" fill="#b3a187">телеграф 0,45–0,6 с</text>
+					<rect x="398" y="62" width="162" height="56" rx="10" fill="#d8a94f"/><text x="479" y="86" fill="#2d1f0c" class="mono" font-weight="700">атака</text><text x="479" y="105" fill="#3d2a12">кольцо · таран · веер…</text>
+					<rect x="702" y="24" width="210" height="52" rx="10" fill="#1d4631"/><text x="807" y="46" fill="#dff7d0" class="mono">YOLK_OPEN</text><text x="807" y="64" fill="#b8e0a4">после серии, 2,2–3,2 с</text>
+					<rect x="702" y="116" width="210" height="52" rx="10" fill="#1d4631"/><text x="807" y="138" fill="#dff7d0" class="mono">DAZED</text><text x="807" y="156" fill="#b8e0a4">бортик 1,6 с · прыжок 1,0 с</text>
+					<rect x="364" y="178" width="230" height="50" rx="10" fill="#6d1d22"/><text x="479" y="199" fill="#ecdfc8" class="mono">ROAR</text><text x="479" y="217" fill="#f3c9c0">новая фаза, неуязвима 1,2 с</text>
+				</g>
+				<text x="479" y="270" fill="#b3a187" font-size="12" text-anchor="middle">укус или урон снимает деление HP; если сменилась фаза — рёв, лужи гаснут, желток закрывается</text>
+				<text x="200" y="40" fill="#b3a187" font-size="12">цепочка: в фазе 2 — 40%, в фазе 3 — 65% атак идут подряд</text>
+			</svg>
+		</div>
+
+		<div class="head" style="margin-top:56px;margin-bottom:24px">
+			<span class="plate">Дизайн-язык 2.2</span>
+			<h2 style="font-size:clamp(24px,3.2vw,34px)">Три знака на всю арену</h2>
+			<p class="lead">Предупреждения у всех врагов говорят на одном языке. Игрок читает знак, не зная врага: форма — смысл, цвет — срочность. Режим для дальтоников меняет красный на оранжевый, высокая контрастность делает линии толще в 1,8 раза.</p>
+		</div>
+		<div class="tells">
+			<div class="tell">
+				<svg viewBox="0 0 300 150" aria-hidden="true">
+					<circle cx="50" cy="75" r="30" fill="#f4efe4"/><circle cx="50" cy="72" r="11" fill="#ffb23d"/>
+					<line x1="84" y1="75" x2="244" y2="75" stroke="#e5533d" stroke-width="4" stroke-dasharray="18 14" class="t-aim" stroke-linecap="round"/>
+					<circle cx="258" cy="75" r="10" fill="#8ee062" stroke="#2c5a1b" stroke-width="2"/>
+				</svg>
+				<h3>«Сюда полетит»</h3>
+				<p>Пунктир, штрихи бегут к цели и тают к концу. Таран, веер, залп зубцов. <code>Tell.AIM</code> · <code>draw_dashes()</code></p>
+			</div>
+			<div class="tell">
+				<svg viewBox="0 0 300 150" aria-hidden="true">
+					<circle cx="150" cy="75" r="56" fill="#ffb23d" fill-opacity=".14" stroke="#ffb23d" stroke-width="4"/>
+					<circle cx="150" cy="75" r="56" fill="none" stroke="#ffd98a" stroke-opacity=".7" stroke-width="3" class="t-clock"/>
+					<circle cx="232" cy="118" r="9" fill="#8ee062" stroke="#2c5a1b" stroke-width="2"/>
+				</svg>
+				<h3>«Здесь ударит»</h3>
+				<p>Кольцо с заливкой, внутри сжимается «стрелка часов» — сколько осталось. Прыжок, лужи, укол вилами. <code>Tell.AREA</code></p>
+			</div>
+			<div class="tell">
+				<svg viewBox="0 0 300 150" aria-hidden="true">
+					<circle cx="150" cy="75" r="58" fill="#f4efe4"/><circle cx="150" cy="71" r="26" fill="#ffc93d"/>
+					<circle cx="150" cy="71" r="31" fill="none" stroke="#8ee062" stroke-width="5" class="t-rim"/>
+				</svg>
+				<h3>«Окно, бей»</h3>
+				<p>Сплошная кромка безопасного цвета. Открытый желток, оглушённый враг. Табло в этот момент уходят в тень. <code>Tell.OPEN</code></p>
+			</div>
+		</div>
+	</div>
+</section>
+
+<section id="moves">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Приёмы · v8.0</span>
+			<h2>Змея учится у всех</h2>
+			<p class="lead">Раньше атаки давали только медведи. Теперь каждая вторая сломанная вилка отдаёт змее свой приём, а каждая вторая таблетка — ударную волну. Приёмы скромные, 1–2 заряда, и выдаются только в пустой слот: таблетки не отнимут у змеи удар боксёра.</p>
+		</div>
+		<div class="reel">
+			<figure class="shot"><img loading="lazy" src="img/fork-volley.webp" width="1600" height="900" alt="Вилка стреляет залпом зубцов в сторону змеи на бархате"><figcaption data-tag="Вилка · залп"><b>Так делает вилка</b><span>Три зубца веером. В лоб к вилке не подойти — только сбоку или сзади.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/fork-pogo.webp" width="1600" height="900" alt="Вилы в прыжке, на полу кольцо места удара возле змеи"><figcaption data-tag="Вилы · укол"><b>Прыжок-укол</b><span>Вилы подпрыгивают и бьют в пол. Кольцо показывает, куда.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/snake-tines.webp" width="1600" height="900" alt="Змея выпускает короткий залп зубцов, табличка атаки Залп зубцов с лампами"><figcaption data-tag="Змея · залп зубцов"><b>Так делает змея</b><span>Тот же залп, но короткий: зубцы живут 0,55 с. Заряды — лампами на табличке.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/snake-wave.webp" width="1600" height="900" alt="Змея выпускает ударную волну на кафеле, вокруг таблетки"><figcaption data-tag="Змея · ударная волна"><b>Приём таблетки</b><span>Волна оглушает врагов вокруг и сбивает снаряды. Змею не задевает.</span></figcaption></figure>
+		</div>
+		<div class="two" style="margin-top:34px">
+			<div class="diagram fit">
+				<p class="fig-title">Схема 6 · слот атаки за восемь событий</p>
+				<svg id="slot-svg" viewBox="0 0 560 300" role="img" aria-label="Лента событий: вилки, таблетки, атаки и медведь, под ними состояние слота атаки с лампами зарядов"></svg>
+			</div>
+			<div class="stack">
+				<h3>Правило одного слота</h3>
+				<ul class="rules">
+					<li><b>Медведь</b> всегда заменяет атаку в слоте — так было и до v8.0.</li>
+					<li><b>Вилка и таблетка</b> копят счётчик. На второй атака выдаётся, только если слот пуст или в нём та же атака и есть куда копить.</li>
+					<li><b>Слот занят</b> — счётчик не сбрасывается, приём достанется позже.</li>
+					<li><b>Навыки их не усиливают.</b> «Запасливость» добавляет заряды только медвежьим атакам.</li>
+				</ul>
+				<pre class="code"><span class="k">func</span> <span class="n">_slot_free_for</span>(t: int) -> bool:
+	<span class="k">if</span> type &lt; <span class="s">0</span> <span class="k">or</span> charges &lt;= <span class="s">0</span>:
+		<span class="k">return</span> <span class="k">true</span>
+	<span class="k">return</span> type == t <span class="k">and</span> charges &lt; ability_max(t)</pre>
+			</div>
+		</div>
+	</div>
+</section>
+
+<section id="lore">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Лор</span>
+			<h2>Ящик на столе учёного</h2>
+			<p class="lead">Змея думает, что сражается за свободу. На самом деле её ящик стоит на столе в лаборатории, а враги — игрушки и предметы, которые кто-то туда подкладывает.</p>
+		</div>
+
+		<div class="lore-grid">
+			<div class="paper">
+				<p class="label">Дело · открытая часть</p>
+				<h3>Что знает игрок в начале</h3>
+				<p>Деревянный ящик. Медведи, которые убегают. Вилки в бархатных ячейках. Таблетки на кафеле. Огромная яичница на сковороде, которая почему-то злится.</p>
+				<p>Интерфейс собран как приборная панель лабораторного стенда: латунь, бакелит, лампы, бумага протокола. Картотека врагов оформлена как папки «ДЕЛО №…» с печатью «ИЗУЧЕНО». Повтор гибели показывает «камера наблюдения». Подсказки разбросаны задолго до финала.</p>
+				<p class="quote" style="margin-top:14px">«Яичница повержена. Змея наконец-то свободна…»<br>«…или нет?»</p>
+			</div>
+			<figure class="shot"><img loading="lazy" src="img/bestiary.webp" width="1600" height="900" alt="Картотека врагов: сетка карточек, внизу дело №01 Плюшевый медведь с печатью Изучено"><figcaption data-tag="Картотека"><b>Восемнадцать дел</b><span>Каждое открывается при первой встрече: повадки, слабое место и совет. Печать «ИЗУЧЕНО» ставится сама.</span></figcaption></figure>
+		</div>
+
+		<div class="spoiler" id="sp-lore" style="margin-top:40px">
+			<div class="veil">
+				<span class="stamp">Совершенно секретно</span>
+				<p>Дальше — весь финал игры: кто стоит за экспериментом и чем всё заканчивается.</p>
+				<button class="key primary" type="button" data-reveal="sp-lore">Показать финал</button>
+			</div>
+			<div class="inner stack" style="gap:30px">
+				<div class="two">
+					<figure class="shot"><img loading="lazy" src="img/lab.webp" width="1600" height="900" alt="Лаборатория: учёный в белом халате у стола, на столе ящик со змеёй, меловая доска, приказ №47 на стене"><figcaption data-tag="Финал · лаборатория"><b>Камера отъезжает</b><span>Ящик стоит на столе НИИ ЭКСП. Кафель, шкаф с образцами, пожарный шкаф, монитор — и учёный в халате.</span></figcaption></figure>
+					<div class="paper">
+						<p class="label">Протокол эксперимента №47</p>
+						<p class="quote"><b>УЧЁНЫЙ-БЮРОКРАТ:</b> Эксперимент №47 завершён. Результаты внесены в протокол.</p>
+						<p class="quote"><b>УЧЁНЫЙ-БЮРОКРАТ:</b> Медведи. Вилки. Таблетки. Все прошли через этот ящик.</p>
+						<p class="quote"><b>УЧЁНЫЙ-БЮРОКРАТ:</b> Согласно пункту 12-Б, образец подлежит утилизации.</p>
+						<p class="quote"><b>УЧЁНЫЙ-БЮРОКРАТ:</b> Приступаю.</p>
+					</div>
+				</div>
+				<div class="timeline">
+					<figure class="shot"><img loading="lazy" src="img/lab-zoom.webp" width="1600" height="900" alt="Ящик на столе под лампой, над ним табло Идёт эксперимент"><figcaption data-tag="Финал · 00:05"><b>«Идёт эксперимент»</b><span>Табло загорается красным. На бирке ящика — «Образец №47».</span></figcaption></figure>
+					<figure class="shot"><img loading="lazy" src="img/chalkboard.webp" width="1600" height="900" alt="Меловая доска: Эксперимент №47, счёт медведей, вилок и таблеток палочками"><figcaption data-tag="Финал · доска"><b>Ваш забег — мелом</b><span>Медведи, вилки и таблетки посчитаны палочками. Цифры берутся из только что сыгранного забега.</span></figcaption></figure>
+					<figure class="shot"><img loading="lazy" src="img/shelves.webp" width="1600" height="900" alt="Шкаф с банками: образцы №21, №44, №45, №46, часы и окно с луной"><figcaption data-tag="Финал · шкаф"><b>Змея не первая</b><span>На полках — образцы прошлых экспериментов: №21, №44, №45, №46.</span></figcaption></figure>
+					<figure class="shot"><img loading="lazy" src="img/match.webp" width="1600" height="900" alt="Учёный держит зажжённую спичку над ящиком"><figcaption data-tag="Финал · выбор"><b>Спичка</b><span>«ЛКМ — бросить спичку… или ничего не делать». Если ждать, спичку роняет гром.</span></figcaption></figure>
+					<figure class="shot"><img loading="lazy" src="img/labfire.webp" width="1600" height="900" alt="Ящик на столе горит, дым поднимается к лампе"><figcaption data-tag="Финал · пожар"><b>Ящик горит</b><span>Каждая клетка считается отдельно — физика ниже, в разделе про пожар.</span></figcaption></figure>
+					<figure class="shot"><img loading="lazy" src="img/utilized.webp" width="1600" height="900" alt="Учёный держит протокол со штампом Утилизировано над ящиком в пене"><figcaption data-tag="Финал · протокол"><b>«Утилизировано»</b><span>Огнетушитель ОУ-2, пена и штамп. «Технику безопасности никто не отменял».</span></figcaption></figure>
+					<figure class="shot"><img loading="lazy" src="img/egg.webp" width="1600" height="900" alt="В темноте на пепелище лежит зелёное пятнистое яйцо"><figcaption data-tag="Финал · ночь"><b>Яйцо в золе</b><span>Лаборатория пуста. Пепел остывает.</span></figcaption></figure>
+					<figure class="shot"><img loading="lazy" src="img/changes.webp" width="1600" height="900" alt="Из яйца вылупилась маленькая змейка, надпись Перемены будут"><figcaption data-tag="Финал · №48"><b>Перемены будут</b><span>Из яйца вылупляется змейка. Круг замыкается — или начинается заново.</span></figcaption></figure>
+				</div>
+				<div class="two">
+					<div class="paper">
+						<p class="label">Как ни поступи</p>
+						<p>Бросил ты спичку или её уронил гром, итог один: <i>«Как ни поступи — ничего нельзя было изменить»</i>. Учёный подводит черту: «Внесу в отчёт: утилизация проведена успешно» или, если спичку уронил гром, «…Что ж. В отчёте укажу, что так и планировалось».</p>
+						<p>Название игры — ответ на эту фразу. Пункт 12-Б сработал, но из пепла вылупляется следующий образец. Титры оформлены как протокол: сколько съедено медведей, сломано вилок, <b>сколько клеток сгорело</b> и кто бросил спичку.</p>
+						<p style="margin-top:14px"><span class="stamp" style="font-size:12px">Утилизировано</span></p>
+					</div>
+					<figure class="shot"><img loading="lazy" src="img/credits.webp" width="1600" height="900" alt="Титры: протокол эксперимента №47, в ролях змея, яичница, учёный-бюрократ, змейка образец №48"><figcaption data-tag="Титры"><b>Протокол вместо титров</b><span>«В ролях: Учёный-бюрократ — пункт 12-Б. Змейка — образец №48». И сколько клеток сгорело.</span></figcaption></figure>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+<section id="arch">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Архитектура</span>
+			<h2>Одна сцена и диспетчер</h2>
+			<p class="lead"><code>game.gd</code> ничего не делает сам. Он хранит состояние забега и раздаёт работу помощникам. Каждый помощник — обычный объект, который получает ссылку на игру, так что его можно поднять в тесте без сцены.</p>
+		</div>
+		<div class="diagram">
+			<svg viewBox="0 0 960 400" role="img" aria-label="Схема: main.tscn запускает game.gd, который управляет помощниками">
+				<defs>
+					<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8f6c30"/></marker>
+				</defs>
+				<g stroke="#8f6c30" stroke-width="1.5" fill="none" marker-end="url(#ar)">
+					<path d="M480 64 V108"/>
+					<path d="M400 184 C400 210 112 205 112 234"/>
+					<path d="M400 184 C400 210 296 205 296 234"/>
+					<path d="M480 184 V234"/>
+					<path d="M560 184 C560 210 664 205 664 234"/>
+					<path d="M560 184 C560 210 848 205 848 234"/>
+					<path d="M112 290 V316"/><path d="M848 290 V316"/>
+				</g>
+				<rect x="400" y="18" width="160" height="46" rx="10" fill="#2a1c14" stroke="#8f6c30"/>
+				<text x="480" y="47" text-anchor="middle" fill="#ecdfc8" font-size="15" class="mono">main.tscn</text>
+				<rect x="360" y="110" width="240" height="74" rx="14" fill="#d8a94f"/>
+				<text x="480" y="142" text-anchor="middle" fill="#2d1f0c" font-size="18" font-weight="700" class="mono">game.gd</text>
+				<text x="480" y="166" text-anchor="middle" fill="#3d2a12" font-size="13">состояния · этапы · счёт</text>
+				<g font-size="12.5">
+					<rect x="30" y="236" width="164" height="54" rx="10" fill="#3a271b"/>
+					<text x="112" y="259" text-anchor="middle" fill="#f3d48a" class="mono" font-size="13">EnemyDirector</text>
+					<text x="112" y="279" text-anchor="middle" fill="#b3a187">появление врагов</text>
+					<rect x="214" y="236" width="164" height="54" rx="10" fill="#3a271b"/>
+					<text x="296" y="259" text-anchor="middle" fill="#f3d48a" class="mono" font-size="13">Squad</text>
+					<text x="296" y="279" text-anchor="middle" fill="#b3a187">кооперативный ИИ</text>
+					<rect x="398" y="236" width="164" height="54" rx="10" fill="#3a271b"/>
+					<text x="480" y="259" text-anchor="middle" fill="#f3d48a" class="mono" font-size="13">Projectiles</text>
+					<text x="480" y="279" text-anchor="middle" fill="#b3a187">снаряды, атаки змеи</text>
+					<rect x="582" y="236" width="164" height="54" rx="10" fill="#3a271b"/>
+					<text x="664" y="259" text-anchor="middle" fill="#f3d48a" class="mono" font-size="13">BossFight · Arena</text>
+					<text x="664" y="279" text-anchor="middle" fill="#b3a187">яичница и ящик</text>
+					<rect x="766" y="236" width="164" height="54" rx="10" fill="#3a271b"/>
+					<text x="848" y="259" text-anchor="middle" fill="#f3d48a" class="mono" font-size="13">Hud</text>
+					<text x="848" y="279" text-anchor="middle" fill="#b3a187">экраны и масштаб</text>
+					<rect x="30" y="318" width="164" height="54" rx="10" fill="#241811" stroke="#4a3223"/>
+					<text x="112" y="341" text-anchor="middle" fill="#ecdfc8" class="mono" font-size="12">Fx · Replay · MenuDemo</text>
+					<text x="112" y="361" text-anchor="middle" fill="#b3a187">частицы, повтор, фон меню</text>
+					<rect x="766" y="318" width="164" height="54" rx="10" fill="#241811" stroke="#4a3223"/>
+					<text x="848" y="341" text-anchor="middle" fill="#ecdfc8" class="mono" font-size="12">Ending</text>
+					<text x="848" y="361" text-anchor="middle" fill="#b3a187">лаборатория, пожар, титры</text>
+				</g>
+				<text x="480" y="352" text-anchor="middle" fill="#b3a187" font-size="13">Все цвета, шрифты и анимации UI — только через <tspan class="mono" fill="#f3d48a">ui/design.gd</tspan></text>
+			</svg>
+		</div>
+		<div class="diagram" style="margin-top:22px">
+			<svg viewBox="0 0 960 170" role="img" aria-label="Машина состояний забега">
+				<defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
+				<g font-size="12.5" class="mono" text-anchor="middle">
+					<g fill="#3a271b">
+						<rect x="10" y="40" width="92" height="36" rx="8"/><rect x="124" y="40" width="72" height="36" rx="8"/>
+						<rect x="218" y="40" width="76" height="36" rx="8"/><rect x="330" y="40" width="72" height="36" rx="8"/>
+						<rect x="436" y="40" width="112" height="36" rx="8"/><rect x="570" y="40" width="64" height="36" rx="8"/>
+						<rect x="656" y="40" width="74" height="36" rx="8"/><rect x="752" y="40" width="98" height="36" rx="8"/>
+						<rect x="872" y="40" width="70" height="36" rx="8" fill="#3e7a2c"/>
+						<rect x="560" y="120" width="120" height="36" rx="8" fill="#6d1d22"/>
+					</g>
+					<g fill="#ecdfc8">
+						<text x="56" y="63">LOADING</text><text x="160" y="63">MENU</text><text x="256" y="63">LEVEL</text>
+						<text x="366" y="63">PERK</text><text x="492" y="63">BOSS_INTRO</text><text x="602" y="63">BOSS</text>
+						<text x="693" y="63">OUTRO</text><text x="801" y="63">CUTSCENE</text><text x="907" y="63">WIN</text>
+						<text x="620" y="143">GAME_OVER</text>
+					</g>
+				</g>
+				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar2)">
+					<path d="M102 58H122"/><path d="M196 58H216"/><path d="M294 52H328"/><path d="M330 66H296"/>
+					<path d="M402 58H434"/><path d="M548 58H568"/><path d="M634 58H654"/><path d="M730 58H750"/><path d="M850 58H870"/>
+					<path d="M256 76 C256 138 400 138 556 138" stroke="#e5533d" stroke-dasharray="4 4"/>
+				</g>
+				<text x="312" y="30" text-anchor="middle" fill="#b3a187" font-size="12">между этапами — выбор улучшения</text>
+				<text x="140" y="128" fill="#b3a187" font-size="12">пауза — флаг дерева, не состояние</text>
+			</svg>
+		</div>
+		<p class="diagram-cap">Пауза — это <code>get_tree().paused</code>. HUD и панель разработчика работают в <code>PROCESS_MODE_ALWAYS</code>, поэтому отвечают и на паузе.</p>
+	</div>
+</section>
+
+<section id="snake">
+	<div class="wrap two">
+		<div class="stack">
+			<span class="plate" style="align-self:flex-start">Змея</span>
+			<h2>Тело из следа</h2>
+			<div class="prose">
+				<p>У змеи нет сегментов-объектов. Голова оставляет след из точек через каждые 3 px, и сегментом тела считается каждая третья точка. Змея движется плавно, поворачивает с конечной скоростью <code>TURN_SPEED = 4.2</code> рад/с, а длина — просто сколько точек следа хранить.</p>
+				<p>Самоукус проверяется по сегментам, кроме первых 14 за головой: иначе на крутом повороте змея кусала бы себя за шею. Спринт тратит стамину, а после полного истощения снова доступен только с 35%, чтобы игрок не «мигал» спринтом на нуле.</p>
+			</div>
+			<pre class="code"><span class="k">const</span> <span class="n">STEP</span> := <span class="s">3.0</span>            <span class="c"># расстояние между точками следа</span>
+<span class="k">const</span> <span class="n">POINTS_PER_SEGMENT</span> := <span class="s">3</span> <span class="c"># сегмент = каждая 3-я точка (9 px)</span>
+<span class="k">const</span> <span class="n">SELF_HIT_SKIP</span> := <span class="s">14</span>     <span class="c"># шею на самоукус не проверяем</span>
+<span class="k">const</span> <span class="n">EXHAUST_RECOVER</span> := <span class="s">0.35</span></pre>
+		</div>
+		<div class="diagram narrow">
+			<svg viewBox="0 0 520 330" role="img" aria-label="Схема тела змеи: точки следа и сегменты">
+				<path id="trailpath" d="M40 280 C120 280 150 180 230 170 S360 240 420 150 S470 70 470 50" fill="none" stroke="#3e7a2c" stroke-width="30" stroke-linecap="round" opacity=".35"/>
+				<g id="trail-dots"></g>
+				<circle cx="470" cy="50" r="17" fill="#8ee062" stroke="#2c5a1b" stroke-width="2"/>
+				<circle cx="464" cy="44" r="4" fill="#fff"/><circle cx="477" cy="45" r="4" fill="#fff"/>
+				<g font-size="13" fill="#b3a187">
+					<circle cx="40" cy="26" r="3" fill="#b3a187"/><text x="52" y="30">точка следа, шаг 3 px</text>
+					<circle cx="40" cy="50" r="6" fill="#8ee062"/><text x="52" y="54">сегмент тела — каждая 3-я</text>
+					<circle cx="40" cy="74" r="6" fill="none" stroke="#e5533d" stroke-width="2"/><text x="52" y="78">шея: первые 14 сегментов без самоукуса</text>
+				</g>
+			</svg>
+		</div>
+	</div>
+</section>
+
+<section id="ai">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Кооперативный ИИ</span>
+			<h2>Сговор, который можно прочитать</h2>
+			<p class="lead">На Сложной и Ультра-Хардкоре враги действуют сообща. Цель — не «те же враги, только больнее», а сговор, который видно заранее и можно сорвать. Весь отряд живёт в <code>squad.gd</code>.</p>
+		</div>
+		<div class="two">
+			<div class="diagram narrow">
+				<svg viewBox="0 0 520 470" role="img" aria-label="Схема клещей: вилки на окружности радиусом 250 вокруг головы змеи, просвет по курсу">
+					<defs>
+						<marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8ee062"/></marker>
+						<marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#e5533d"/></marker>
+					</defs>
+					<circle cx="260" cy="250" r="170" fill="none" stroke="#8f6c30" stroke-dasharray="3 6"/>
+					<!-- просвет 150° по курсу (вверх) -->
+					<path d="M260 250 L 424.2 206 A170 170 0 0 0 95.8 206 Z" fill="#8ee062" opacity=".12"/>
+					<path d="M424.2 206 A170 170 0 0 0 95.8 206" fill="none" stroke="#8ee062" stroke-width="3"/>
+					<g fill="none" stroke="#8ee062" stroke-width="3" stroke-linecap="round">
+						<path d="M246 60 l14 -12 l14 12"/><path d="M246 76 l14 -12 l14 12" opacity=".6"/>
+					</g>
+					<text x="260" y="36" text-anchor="middle" fill="#8ee062" font-size="13" font-weight="600">просвет по курсу ≈150°</text>
+					<!-- змея -->
+					<path d="M260 330 C250 300 270 280 260 250" stroke="#3e7a2c" stroke-width="18" stroke-linecap="round" fill="none"/>
+					<circle cx="260" cy="250" r="13" fill="#8ee062" stroke="#2c5a1b" stroke-width="2"/>
+					<path d="M260 236 V120" stroke="#8ee062" stroke-width="2" marker-end="url(#ar3)" stroke-dasharray="5 4"/>
+					<!-- вилки -->
+					<g>
+						<circle cx="113" cy="335" r="16" fill="#8a8f96"/><text x="113" y="340" text-anchor="middle" font-size="13" fill="#1f150f" font-weight="700">В</text>
+						<circle cx="407" cy="335" r="16" fill="#8a8f96"/><text x="407" y="340" text-anchor="middle" font-size="13" fill="#1f150f" font-weight="700">В</text>
+						<circle cx="260" cy="420" r="16" fill="#8a8f96" stroke="#d8a94f" stroke-width="2" stroke-dasharray="3 3"/><text x="260" y="425" text-anchor="middle" font-size="13" fill="#1f150f" font-weight="700">В</text>
+					</g>
+					<g stroke="#e5533d" stroke-width="2" fill="none" marker-end="url(#ar4)">
+						<path d="M128 326 L238 262"/><path d="M392 326 L282 262"/><path d="M260 402 L260 360"/>
+					</g>
+					<text x="260" y="458" text-anchor="middle" fill="#b3a187" font-size="12.5">третья вилка — только на Ультра</text>
+					<text x="436" y="252" fill="#b3a187" font-size="12.5" class="mono">R = 250</text>
+				</svg>
+			</div>
+			<div class="stack">
+				<h3>Три правила отряда</h3>
+				<ul class="rules">
+					<li><b>Ничего не дёргается.</b> Отряд думает раз в 0,25 с. Взятую роль враг держит минимум два такта, 0,5 с, пока не случится что-то видимое: смерть, оглушение, пропажа цели.</li>
+					<li><b>Каждый приём виден по анимации.</b> Вилки переглядываются и кивают, спасатель бежит с поднятой лапой, загонщик-таблетка наливается оранжевым. Значки «!!» остались только на Ультра.</li>
+					<li><b>У каждого приёма есть выход.</b> Клещи никогда не замыкаются: по курсу змеи всегда просвет. Их можно прорвать спринтом сквозь вилку на замахе.</li>
+				</ul>
+				<p class="muted" style="font-size:15px">Застрявший враг (три такта не приблизился к цели хотя бы на 3 px) теряет роль и 1,5 с не получает новую. Адаптации к стилю игрока нет: враги реагируют на то, что происходит на поле сейчас.</p>
+			</div>
+		</div>
+		<div class="table-box" style="margin-top:34px">
+			<table>
+				<thead><tr><th>Роль</th><th>Кто</th><th>Что делает</th></tr></thead>
+				<tbody>
+					<tr><td class="num">pincer</td><td>2–3 вилки</td><td>встают на окружность вокруг головы и бьют одновременно</td></tr>
+					<tr><td class="num">rescue</td><td>медведь</td><td>бежит к застрявшей вилке и выдёргивает её вдвое быстрее</td></tr>
+					<tr><td class="num">guard</td><td>медведь</td><td>встаёт между змеёй и оглушённой или «беззубой» вилкой</td></tr>
+					<tr><td class="num">crossfire</td><td>метатели</td><td>целятся туда, куда змею отбросит выпад вилки</td></tr>
+					<tr><td class="num">herd</td><td>таблетка</td><td>прыгает со стороны, противоположной вилкам, загоняет к ним</td></tr>
+					<tr><td class="num">boss_guard</td><td>медведь</td><td>заслоняет открытый желток яичницы</td></tr>
+					<tr><td class="num">decoy</td><td>медведь, Ультра</td><td>изображает оглушение на линии удара и удирает, если подойти</td></tr>
+				</tbody>
+			</table>
+		</div>
+		<div class="two" style="margin-top:34px">
+			<figure class="shot"><img loading="lazy" src="img/ultra.webp" width="1600" height="900" alt="Ультра-Хардкор: вилки на бархате заходят с нескольких сторон"><figcaption data-tag="ИИ · Ультра-Хардкор"><b>Вилки заходят парой</b><span>Медведи прикрывают, таблетка загоняет. Сговор виден заранее — и его можно сорвать.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/touch.webp" width="1600" height="900" alt="Мобильная версия: аркадные кнопки атаки и спринта, стик в левой половине"><figcaption data-tag="Android"><b>Тот же ящик в кармане</b><span>Аркадные кнопки, плавающий стик, мультитач. Лампы зарядов горят прямо под кнопкой атаки.</span></figcaption></figure>
+		</div>
+	</div>
+</section>
+
+<section id="fire">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Физическая симуляция</span>
+			<h2>Пожар, который считается</h2>
+			<p class="lead">Огонь в финале — это не частицы. Ящик разбит на сетку 96×54 клетки (на телефоне 64×36), у каждой есть температура, топливо, кислород, уголь и зола. Двенадцать раз в секунду сетка решает теплопроводность, конвекцию, излучение и горение, а один шейдер рисует всё по этим полям.</p>
+		</div>
+
+		<div class="spoiler" id="sp-fire">
+			<div class="veil">
+				<span class="stamp">Спойлер финала</span>
+				<p>Пожар — часть концовки. Внутри кадры горящего ящика и живая модель, которую можно поджечь самому.</p>
+				<button class="key primary" type="button" data-reveal="sp-fire">Показать пожар</button>
+			</div>
+			<div class="inner stack" style="gap:44px">
+
+				<div class="fire-strip">
+					<figure><img loading="lazy" src="img/fire1.webp" width="740" height="440" alt="Ящик до пожара: змея, капсулы, клочки бумаги"><figcaption>0 с · ящик до огня</figcaption></figure>
+					<figure><img loading="lazy" src="img/fire2.webp" width="740" height="440" alt="Фронт огня идёт дугой по масляной плёнке"><figcaption>~6 с · фронт по маслу</figcaption></figure>
+					<figure><img loading="lazy" src="img/fire3.webp" width="740" height="440" alt="Огонь уходит влево, за ним остаётся уголь"><figcaption>~7 с · за фронтом уголь</figcaption></figure>
+					<figure><img loading="lazy" src="img/fire4.webp" width="740" height="440" alt="Тлеют бортики, обломки вилок остывают"><figcaption>~9 с · тлеют бортики</figcaption></figure>
+					<figure><img loading="lazy" src="img/fire5.webp" width="740" height="440" alt="Пена огнетушителя покрывает ящик"><figcaption>~12 с · пена ОУ-2</figcaption></figure>
+					<figure><img loading="lazy" src="img/fire6.webp" width="740" height="440" alt="После тушения: пепелище из угля и золы"><figcaption>после · зола навсегда</figcaption></figure>
+				</div>
+
+				<div class="two">
+					<div class="stack">
+						<h3>Четыре процесса за шаг</h3>
+						<ul class="rules">
+							<li><b>Теплопроводность</b> по Фурье, явная схема. Коэффициент не больше 0,24 на подшаг, подшаг не длиннее 0,09 с — иначе схема разваливается.</li>
+							<li><b>Конвекция.</b> Перегрев соседа снизу поднимается вверх, <code>RISE = 1.6</code> 1/с.</li>
+							<li><b>Излучение пламени.</b> Горящая клетка греет холодных соседей в радиусе d² ≤ 9: поток 2200 °C/с × 1/d², вверх ×1.6, вниз ×0.7.</li>
+							<li><b>Остывание</b> излучением по Стефану–Больцману (~T⁴) и теплоотдачей воздуху по Ньютону, <code>NEWTON = 0.35</code> 1/с.</li>
+						</ul>
+						<p class="muted" style="font-size:15px">Выше точки воспламенения топливо тратится пропорционально кислороду и перегреву, выделяет тепло и съедает кислород, который подтекает из воздуха. Пластик выше 150 °C течёт вниз с сохранением массы. Пена охлаждает на 900 °C/с и перекрывает кислород.</p>
+					</div>
+					<div class="diagram narrow">
+						<svg viewBox="0 0 440 420" role="img" aria-label="Решётка 7 на 7 клеток: горящая клетка в центре греет соседей излучением, сильнее вверх">
+							<defs>
+								<marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#f3d48a"/></marker>
+								<marker id="ar6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8ee062"/></marker>
+							</defs>
+							<g id="reach-grid"></g>
+							<g stroke-width="2.5" fill="none">
+								<path d="M220 200 V100" stroke="#8ee062" marker-end="url(#ar6)"/>
+							</g>
+							<g font-size="12.5" fill="#b3a187">
+								<text x="232" y="112" fill="#8ee062">конвекция вверх</text>
+								<text x="20" y="400">яркость клетки ∝ 1/d² · вверх ×1.6 · вниз ×0.7</text>
+								<text x="20" y="378"><tspan fill="#ff8a2a">■</tspan> горит   <tspan fill="#d8a94f">■</tspan> в радиусе d² ≤ 9   <tspan fill="#3a271b">■</tspan> вне</text>
+							</g>
+						</svg>
+					</div>
+				</div>
+
+				<div class="table-box">
+					<table>
+						<thead><tr><th>Материал</th><th>Где в ящике</th><th>Воспламенение</th><th>Топливо</th><th>Скорость</th><th>Теплопроводность</th><th>Особое</th></tr></thead>
+						<tbody>
+							<tr><td><span class="sw" style="background:#6b4a2e"></span>Дерево</td><td>бортики</td><td class="num">290 °C</td><td class="num">0.85</td><td class="num">0.075</td><td class="num">0.9</td><td>обугливается трещинами «крокодиловой кожи»</td></tr>
+							<tr><td><span class="sw" style="background:#e9dfc8"></span>Бумага</td><td>протоколы, затравки</td><td class="num">233 °C</td><td class="num">0.45</td><td class="num">0.55</td><td class="num">0.8</td><td>вспыхивает первой</td></tr>
+							<tr><td><span class="sw" style="background:#d8413a"></span>Пластик</td><td>капсулы</td><td class="num">340 °C</td><td class="num">0.8</td><td class="num">0.13</td><td class="num">0.5</td><td>плавится с 150 °C и течёт вниз</td></tr>
+							<tr><td><span class="sw" style="background:#3a3122"></span>Масло</td><td>плёнка на дне</td><td class="num">255 °C</td><td class="num">0.35</td><td class="num">0.3</td><td class="num">2.4</td><td>несёт фронт огня по ящику</td></tr>
+							<tr><td><span class="sw" style="background:#a0664a"></span>Плюш</td><td>медведи</td><td class="num">255 °C</td><td class="num">0.6</td><td class="num">0.3</td><td class="num">0.7</td><td>сгорает быстро</td></tr>
+							<tr><td><span class="sw" style="background:#8a8f96"></span>Металл</td><td>обломки вилок</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">3.2</td><td>не горит, раскаляется докрасна</td></tr>
+							<tr><td><span class="sw" style="background:#f4efe4"></span>Скорлупа</td><td>яичница</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">0.6</td><td>не горит, коптится</td></tr>
+						</tbody>
+					</table>
+				</div>
+
+				<div class="stack" style="gap:10px">
+					<h3>Цвет огня — по кривой абсолютно чёрного тела</h3>
+					<p class="muted prose" style="font-size:15.5px">Шейдер переводит температуру клетки в цвет накала: тёмно-красный, оранжевый, жёлтый, бело-жёлтый. Сердцевина языков у самых горячих клеток уходит в бело-жёлтый — пожар реально набирает 1000–1300 °C. Та же функция на GDScript раскрашивает раскалённый металл.</p>
+					<div class="blackbody" style="margin-top:10px" aria-hidden="true"></div>
+					<div class="bb-scale" aria-hidden="true">
+						<span style="left:0%">400 °C</span><span style="left:30%">700</span><span style="left:60%">1000</span><span style="left:95%">1350</span>
+					</div>
+				</div>
+
+				<div class="stack" style="gap:16px">
+					<h3>Подожги сам</h3>
+					<p class="muted prose" style="font-size:15.5px">Упрощённая копия симуляции прямо в браузере: та же сетка 96×54, те же материалы и шаг 12 раз в секунду, но физика упрощена. Щёлкни по ящику, чтобы бросить спичку, переключись на пену, чтобы тушить. Один сид — одна и та же раскладка.</p>
+					<div class="sim">
+						<div class="sim-screen"><canvas id="sim" width="960" height="540" aria-label="Модель пожара: щелчок поджигает клетку"></canvas></div>
+						<div class="sim-panel">
+							<div class="row">
+								<button class="key small" type="button" id="tool-match" aria-pressed="true">Спичка</button>
+								<button class="key small" type="button" id="tool-foam" aria-pressed="false">Пена</button>
+							</div>
+							<div class="row">
+								<button class="key small" type="button" id="sim-reset">Новый ящик</button>
+								<button class="key small" type="button" id="sim-same">Тот же сид</button>
+							</div>
+							<div class="readout" id="sim-readout">сид —</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="two">
+					<div class="paper">
+						<p class="label">Гарантии · из плейтеста</p>
+						<p><b>За 5 секунд игрок должен увидеть, что огонь настоящий.</b> Симуляция записывает время трёх переходов: пластик потёк, металл раскалился до 520 °C, скорлупа закоптилась. Под каждой капсулой лежит затравка — обрывок протокола 34×18 px. Худший первый переход на 40 сидах — около 1,4 с.</p>
+						<p><b>Каждый раз горит по-разному.</b> Сид перемешивает обломки (Фишер–Йетс на своём ГСЧ), прогревает один из углов ящика до +110 °C и меняет запас топлива на ±6% пятнами.</p>
+						<p><b>Зола необратима.</b> Уголь, зола и копоть только растут, пена их не смывает. В титрах — «Сожжено: N клеток».</p>
+					</div>
+					<div class="stack">
+						<h3>Режиссура вспышки</h3>
+						<ul class="rules">
+							<li>Спичка упала — 200 мс полной тишины, музыка на паузе.</li>
+							<li>Белая вспышка экрана, удар <code>ignite</code> на +2 дБ, тряска.</li>
+							<li>Музыка возвращается через 100 мс. После паузы вспышка звучит вдвое громче — приём из кино.</li>
+							<li>Треск следует размеру пожара: от 0,7 щелчка в секунду у огонька до 14 у горящего ящика.</li>
+							<li>Интерфейс в панике: субтитры дрожат, лампы мигают, стрелки часов дёргаются. «Меньше анимации» оставляет только ровный отблеск.</li>
+						</ul>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+<section id="sound">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Звук</span>
+			<h2>Музыка и эффекты из формул</h2>
+			<p class="lead">70 эффектов и семь треков (пять — в двух слоях) синтезируются при запуске: синус, квадрат, пила и треугольник, шум, фильтры, огибающие. 22 050 Гц, моно, 16 бит. Синтез идёт в фоновом потоке, экран загрузки показывает прогресс, а результат живёт в <code>static</code>-кэше до выхода из игры.</p>
+		</div>
+		<div class="diagram">
+			<svg viewBox="0 0 960 260" role="img" aria-label="Звуковой тракт: рецепты, синтезатор в фоновом потоке, кэш, проигрыватель с ограничителем, четыре шины">
+				<defs><marker id="ar7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
+				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar7)">
+					<path d="M180 80H222"/><path d="M402 80H444"/><path d="M584 80H626"/>
+					<path d="M720 110 C720 150 560 160 540 186"/><path d="M740 110 V186"/><path d="M760 110 C760 150 900 160 900 186"/>
+					<path d="M540 222 C600 250 660 250 696 236" stroke-dasharray="3 4"/>
+				</g>
+				<g>
+					<rect x="20" y="50" width="160" height="60" rx="10" fill="#3a271b"/>
+					<text x="100" y="76" text-anchor="middle" fill="#f3d48a" class="mono" font-size="13">sound_bank.gd</text>
+					<text x="100" y="96" text-anchor="middle" fill="#b3a187" font-size="12.5">рецепты звуков</text>
+					<rect x="224" y="50" width="178" height="60" rx="10" fill="#d8a94f"/>
+					<text x="313" y="76" text-anchor="middle" fill="#2d1f0c" class="mono" font-size="13" font-weight="700">synth.gd</text>
+					<text x="313" y="96" text-anchor="middle" fill="#3d2a12" font-size="12.5">фоновый поток · PolyBLEP</text>
+					<rect x="446" y="50" width="138" height="60" rx="10" fill="#3a271b"/>
+					<text x="515" y="76" text-anchor="middle" fill="#f3d48a" class="mono" font-size="13">static-кэш</text>
+					<text x="515" y="96" text-anchor="middle" fill="#b3a187" font-size="12.5">живёт между забегами</text>
+					<rect x="628" y="50" width="220" height="60" rx="10" fill="#3a271b"/>
+					<text x="738" y="76" text-anchor="middle" fill="#f3d48a" class="mono" font-size="13">sfx.gd</text>
+					<text x="738" y="96" text-anchor="middle" fill="#b3a187" font-size="12.5">голоса · разброс · ограничитель</text>
+				</g>
+				<g class="mono" font-size="13" text-anchor="middle">
+					<rect x="470" y="186" width="140" height="36" rx="8" fill="#241811" stroke="#8f6c30"/><text x="540" y="209" fill="#ecdfc8">Ambient</text>
+					<rect x="680" y="186" width="120" height="36" rx="8" fill="#241811" stroke="#8f6c30"/><text x="740" y="209" fill="#ecdfc8">SFX</text>
+					<rect x="840" y="186" width="110" height="36" rx="8" fill="#241811" stroke="#8f6c30"/><text x="895" y="209" fill="#ecdfc8">Music</text>
+				</g>
+				<text x="20" y="176" fill="#b3a187" font-size="12.5">ducking: огнетушитель приглушает Ambient на 4 дБ</text>
+				<text x="20" y="198" fill="#b3a187" font-size="12.5">hush: 200 мс тишины на Master перед вспышкой</text>
+				<text x="20" y="220" fill="#b3a187" font-size="12.5">громкость шин — в настройках игрока</text>
+			</svg>
+		</div>
+		<div class="two" style="margin-top:40px">
+			<div class="stack">
+				<h3>Анатомия одного звука</h3>
+				<p class="muted" style="font-size:15.5px">Каждый звук — одна строка рецепта в <code>sound_bank.gd</code>. Укус змеи — это щелчок челюстей плюс падающий тон:</p>
+				<pre class="code">_bank[<span class="s">"bite"</span>] = to_stream(mix(
+	noise(<span class="s">0.1</span>, <span class="s">0.5</span>, <span class="s">3.0</span>, <span class="s">3000</span>),          <span class="c"># шум, ФНЧ 3 кГц, спад (1−k)³</span>
+	tone(<span class="s">0.25</span>, <span class="s">260</span>, <span class="s">90</span>, W.SQUARE, <span class="s">0.28</span>)), <span class="c"># квадрат 260→90 Гц</span>
+	<span class="k">false</span>, <span class="s">-2.0</span>)                                <span class="c"># −2 дБ после ограничителя</span></pre>
+				<ul class="rules" style="font-size:15px;color:var(--muted)">
+					<li><b style="color:var(--text)">Генератор</b> ведёт фазу <code>ph = fmod(ph + f/SR, 1)</code>, частота скользит линейно от f0 к f1. Атака — 4 мс, чтобы не щёлкало.</li>
+					<li><b style="color:var(--text)">Фильтр</b> — однополюсный ФНЧ: <code>y += a·(x − y)</code>, где <code>a = 1 − e^(−2π·fc/SR)</code>. Для шума он проходит дважды — склон круче. ФВЧ — это сигнал минус его ФНЧ.</li>
+					<li><b style="color:var(--text)">Огибающая</b> — <code>(1 − k)^p</code>: p = 3 для щелчка, 0,8 для нарастающего «заряда».</li>
+					<li><b style="color:var(--text)">to_stream</b>: пик больше 0,9 — весь звук ужимается (никакого жёсткого клиппинга), последние 6 мс гаснут, float → 16 бит.</li>
+				</ul>
+			</div>
+			<div class="diagram fit">
+				<p class="fig-title">Схема 7 · укус, посчитанный этим же кодом</p>
+				<svg id="chain-svg" viewBox="0 0 520 420" role="img" aria-label="Цепочка укуса: шум, фильтр, огибающая; квадрат с огибающей; смесь; ограничитель и затухание"></svg>
+			</div>
+		</div>
+
+		<div class="stack" style="gap:16px;margin-top:40px">
+			<h3>Лаборатория звука</h3>
+			<p class="muted prose" style="font-size:15.5px">Двенадцать рецептов из игры, переписанных с GDScript на JavaScript строка в строку: те же генераторы, PolyBLEP, фильтры и ограничитель. Нажми — звук синтезируется заново прямо сейчас, в браузере. С разбросом ±3% каждое нажатие звучит чуть иначе, как в игре.</p>
+			<div class="soundlab">
+				<div class="stack" style="gap:12px">
+					<div class="pads" id="pads"></div>
+					<label class="toggle"><input type="checkbox" id="jitter" checked> разброс высоты ±3%</label>
+				</div>
+				<div class="stack" style="gap:12px">
+					<div class="scope"><canvas id="scope" width="1200" height="380" aria-label="Осциллограмма последнего звука"></canvas></div>
+					<pre class="code" id="recipe">Нажми на любой звук слева.</pre>
+				</div>
+			</div>
+		</div>
+
+		<div class="two" style="margin-top:40px">
+			<div class="stack">
+				<h3>Правила проигрывания</h3>
+				<ul class="rules">
+					<li><b>Разброс высоты ±3%.</b> Одинаковый звук подряд утомляет за полминуты, поэтому шаги, укусы и удары каждый раз немного другие. Мелодичные звуки идут ровно, иначе фальшивят.</li>
+					<li><b>Не больше двух голосов</b> одного звука и не больше четырёх новых звуков за 100 мс. Пять таблеток, упавших разом, больше не сливаются в шум. Победа, урон и гром проходят всегда.</li>
+					<li><b>Без перегруза и щелчков.</b> Каждый звук нормализуется по пику и плавно затухает в конце. Это проверяет тест.</li>
+					<li><b>Сухой звук.</b> Реверберации нет сознательно: в аркаде она добавляет мутности.</li>
+				</ul>
+			</div>
+			<div class="stack">
+				<h3>PolyBLEP против металлического звона</h3>
+				<p class="muted" style="font-size:15.5px">Квадрат и пила в цифре дают алиасинг: резкий скачок формы волны порождает частоты выше Найквиста, и они отражаются вниз звоном. PolyBLEP сглаживает только окрестность скачка полиномом второго порядка — дёшево и чисто.</p>
+				<pre class="code"><span class="c">## PolyBLEP — сглаживание скачка формы волны.</span>
+<span class="k">func</span> <span class="n">_blep</span>(t: float, dt: float) -> float:
+	<span class="k">if</span> t &lt; dt:
+		t /= dt
+		<span class="k">return</span> t + t - t * t - <span class="s">1.0</span>
+	<span class="k">if</span> t > <span class="s">1.0</span> - dt:
+		t = (t - <span class="s">1.0</span>) / dt
+		<span class="k">return</span> t * t + t + t + <span class="s">1.0</span>
+	<span class="k">return</span> <span class="s">0.0</span></pre>
+				<div class="diagram fit" style="padding:16px">
+					<p class="fig-title">Схема 8 · пила 2 205 Гц, 10 отсчётов на период</p>
+					<svg id="blep-svg" viewBox="0 0 520 250" role="img" aria-label="Наивная пила со ступенькой и пила с PolyBLEP, у которой скачок сглажен в двух соседних отсчётах"></svg>
+				</div>
+			</div>
+		</div>
+		<div class="head" style="margin-top:56px;margin-bottom:24px">
+			<span class="plate">Музыка 2.0</span>
+			<h2 style="font-size:clamp(24px,3.2vw,34px)">Песня, которая слышит бой</h2>
+			<p class="lead">Трек этапа — песня из восьми тактов формы A–A′–A–A″–B–B′–B–A′ с пэдом, басом с проходящими нотами, свингом и сбивками малого в конце фраз. Каждая строится двумя слоями одинаковой длины: основа и слой напряжения. Оба стартуют в один момент и не расходятся, а игра подмешивает второй по ходу боя.</p>
+		</div>
+		<div class="music">
+			<div class="diagram fit" style="padding:18px">
+				<p class="fig-title">Схема 9 · форма трека и два слоя</p>
+				<svg id="form-svg" viewBox="0 0 640 250" role="img" aria-label="Восемь тактов песни по форме, дорожки мелодии, пэда и баса, ударных и слоя напряжения, бегущая позиция"></svg>
+			</div>
+			<div class="stack" style="gap:12px">
+				<div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
+					<button class="key primary small" type="button" id="m-play">▶ Играть</button>
+					<button class="key small" type="button" data-track="level" aria-pressed="true">Медведи</button>
+					<button class="key small" type="button" data-track="boss" aria-pressed="false">Яичница</button>
+				</div>
+				<label class="muted" for="m-int" style="font-size:14px">Напряжение: <b id="m-target" style="color:var(--brass-hi)">0,00</b></label>
+				<input class="fader" type="range" id="m-int" min="0" max="1" step="0.01" value="0">
+				<div class="readout" id="m-readout">слой догоняет цель со скоростью <b>0,8</b>/с<br>сейчас <b id="m-shown">0,00</b> · слой <b id="m-db">−60 дБ</b></div>
+				<div class="meter" aria-hidden="true"><i id="m-meter"></i></div>
+				<p class="muted" style="font-size:13.5px">Трек синтезируется в браузере тем же алгоритмом при первом нажатии — около 17 секунд музыки за доли секунды.</p>
+			</div>
+		</div>
+		<div class="table-box" style="margin-top:26px">
+			<table>
+				<thead><tr><th>Когда</th><th>Напряжение</th><th>Что слышно</th></tr></thead>
+				<tbody>
+					<tr><td>этап идёт</td><td class="num">0 → 0,3</td><td>растёт к концу этапа вместе с целью</td></tr>
+					<tr><td>вилки в клещах</td><td class="num">+0,35</td><td>арпеджио шестнадцатыми и открытые хэты</td></tr>
+					<tr><td>последняя жизнь</td><td class="num">+0,45</td><td>октавный бас и стэбы аккорда</td></tr>
+					<tr><td>яичница, фаза 1 / 2 / 3</td><td class="num">0,35 / 0,65 / 0,9</td><td>по фазе</td></tr>
+					<tr><td>желток открыт</td><td class="num">1,0</td><td>всё на полную: «бей сейчас»</td></tr>
+				</tbody>
+			</table>
+		</div>
+
+	</div>
+</section>
+
+<section id="design">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Дизайн-язык 2.2</span>
+			<h2>Ящик экспериментов</h2>
+			<p class="lead">Главное правило — никаких плоских «цифровых» кнопок. Всё, что нажимается или крутится, — предмет: у него есть материал, фаска, тень на столе, ход при нажатии и свой синтезированный механический звук.</p>
+		</div>
+		<div class="two">
+			<figure class="shot"><img loading="lazy" src="img/settings.webp" width="1600" height="900" alt="Экран настроек: вкладки-клавиши, латунные крутилки громкости, тумблер"><figcaption data-tag="Интерфейс · настройки"><b>Пульт на 35 параметров</b><span>Громкости — крутилками, числа — фейдерами, варианты — галетниками, флажки — тумблерами. Пять вкладок, без прокрутки.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/skills.webp" width="1600" height="900" alt="Древо навыков: три колонки Тело, Манёвр, Атака, клавиши-карточки с лампами"><figcaption data-tag="Интерфейс · навыки"><b>Древо за чешуйки</b><span>Выбранное горит лампой цвета желтка — единственный акцент на экране.</span></figcaption></figure>
+		</div>
+		<div class="table-box" style="margin-top:30px">
+			<table>
+				<thead><tr><th>Контрол</th><th>Материал</th><th>Как ведёт себя</th><th>Звук</th></tr></thead>
+				<tbody>
+					<tr><td>Клавиша</td><td>бакелит, латунь для главной</td><td>грань уходит вниз на 4 px, текст опускается вместе с ней</td><td class="num">ui_key_down → ui_select</td></tr>
+					<tr><td>Опасная клавиша</td><td>эмаль</td><td>под откидной крышкой: первое нажатие поднимает крышку, второе выполняет</td><td class="num">ui_cover</td></tr>
+					<tr><td>Тумблер</td><td>хром в латунной шайбе</td><td>перекидывается с упругим перелётом, горит лампа</td><td class="num">ui_lever</td></tr>
+					<tr><td>Крутилка</td><td>накатанная латунь</td><td>шкала 270°, детенты, двойной щелчок — по умолчанию</td><td class="num">ui_detent ±5%</td></tr>
+					<tr><td>Галетник</td><td>ручка-«клюв»</td><td>положения — лампы по дуге; в упоре — видимый отказ</td><td class="num">ui_rotary</td></tr>
+				</tbody>
+			</table>
+		</div>
+		<div class="two" style="margin-top:30px">
+			<div class="stack">
+				<h3>Отказ, который видно</h3>
+				<p class="muted" style="font-size:15.5px">Один звук отказа не работает: игрок решит, что клик не дошёл, и нажмёт ещё раз. Поэтому <code>Design.refuse()</code> делает три вещи сразу: дребезг реле, рывок контрола на 3 px вбок и вспышку томатным на 150 мс. Нажатие отрабатывает за 80 мс: при 120 мс мозг читал паузу как лаг управления.</p>
+				<h3 style="margin-top:14px">Драматургия</h3>
+				<p class="muted" style="font-size:15.5px">В двух моментах интерфейс нарочно нарушает свои правила. Когда яичница открывает желток, табло гаснут почти до бронзы. Во время пожара <code>Design.panic</code> растёт вместе с огнём, и приборы начинают паниковать.</p>
+			</div>
+			<figure class="shot"><img loading="lazy" src="img/perks.webp" width="1600" height="900" alt="Выбор улучшения между этапами: три карточки с цветными кромками"><figcaption data-tag="Интерфейс · улучшения"><b>Одно из трёх</b><span>Между этапами — карточки-клавиши с цветной кромкой. Клавиши 1/2/3, мышь или тап.</span></figcaption></figure>
+		</div>
+	</div>
+</section>
+
+<section id="tricks">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Хитрости в коде</span>
+			<h2>Приёмы, которые стоит украсть</h2>
+		</div>
+		<div class="tricks">
+			<article class="trick">
+				<span class="tag">core · static</span>
+				<h3>Кэш переживает перезапуск</h3>
+				<p>Настройки, звуки, шрифты и текстуры лежат в <code>static</code>-переменных. Новый забег перезагружает сцену, но синтезировать всё заново не нужно. При выходе кэши освобождаются в <code>Game._on_quit()</code>, иначе Godot ругается на утечки.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">ui/dev_panel.gd</span>
+				<h3>Панель, которая работает всегда</h3>
+				<p>F1 ловил главный узел, а на паузе он ввод не получает. Теперь клавиши слушает сама панель в <code>PROCESS_MODE_ALWAYS</code> через <code>_input</code>, а не <code>_unhandled_input</code>. Запасное сочетание Ctrl+Shift+D — на ноутбуках F1 занят яркостью.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">--shots · --open</span>
+				<h3>Скриншоты из командной строки</h3>
+				<p>Тесты не видят картинку, поэтому игра умеет открыть любой экран и сохранить кадры: <code>--open=settings --shots=90</code>. Все скриншоты на этой странице сняты так.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">game/replay.gd</span>
+				<h3>Повтор без видео</h3>
+				<p>Кольцевой буфер на 90 снимков: 3 секунды по 30 кадров. Снимок — лёгкий словарь позиций без ссылок на узлы. После гибели экран итогов проигрывает его замедленно и подсвечивает то, что ударило.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">ending/fire_sim.gd</span>
+				<h3>Детерминированный хаос</h3>
+				<p>У пожара свой ГСЧ от сида. Один сид — один и тот же пожар, поэтому тест прогоняет 10 сидов и проверяет, что фазовый переход случается быстрее 5 секунд на каждом.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">core/daily.gd</span>
+				<h3>Одно испытание на всех</h3>
+				<p>Модификатор дня (ускорение, одна жизнь, гололёд, темнота, вилочное нашествие) выбирается хэшем даты. Сервер не нужен: у всех игроков в один день одно и то же испытание.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">без class_name</span>
+				<h3>Чистое глобальное пространство</h3>
+				<p>Классы подключаются через <code>preload</code> констант в начале файла, а не через <code>class_name</code>. Нет конфликтов имён и неявных зависимостей: всё, что файл использует, видно в его шапке.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">core/platform.gd</span>
+				<h3>Одна кодовая база, два устройства</h3>
+				<p>На телефоне рендерер Compatibility, сетка пожара 64×36 без марева, вибрация, пауза при сворачивании, системная «Назад» работает как Esc. Флаг <code>--touch</code> превращает мышь на ПК в палец.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">читы честные · v8.1</span>
+				<h3>Отладочный забег помечен</h3>
+				<p>Любой чит, <code>--stage</code>, <code>--open=win</code> или автопилот помечают забег как отладочный: рекорды и чешуйки не сохраняются, на табло горит плашка DEV. Чит на чешуйки меняет сохранение навсегда — его в релизе нет вовсе.</p>
+			</article>
+
+			<article class="trick">
+				<span class="tag">v8.1 · game/arena.gd</span>
+				<h3>Печь, а не считать</h3>
+				<p>Всё статичное, что рисует шейдер, можно отрендерить один раз в <code>SubViewport</code> с <code>UPDATE_ONCE</code> и дальше показывать текстурой. Для пола это минус полноэкранный fbm в каждом кадре.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">v8.1 · MAX_STEP</span>
+				<h3>Шаг с потолком</h3>
+				<p><code>delta = minf(delta, MAX_STEP * Engine.time_scale)</code> — одна строка в начале <code>_process</code>. Фриз окна больше не превращается в телепорт, а замедление времени из панели разработчика продолжает работать.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">v8.1 · _end()</span>
+				<h3>Идемпотентный финиш</h3>
+				<p>Функции «подвести итоги» опасно звать дважды: рекорд, чешуйки и экран. Первая строка <code>_end()</code> — выход, если забег уже закончен. Так же устроены <code>eat_bear()</code> и <code>break_fork()</code>: убранного с поля врага не съесть второй раз.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">v8.1 · core/save_data.gd</span>
+				<h3>Атомарная запись</h3>
+				<p><code>ConfigFile.save()</code> не атомарен: сбой посреди записи оставит половину файла. Поэтому пишем в <code>.tmp</code> и подменяем настоящий файл одним <code>rename</code>. Старое сохранение либо целое, либо уже новое.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">v8.1 · snake.gd</span>
+				<h3>Кэш с грязным флагом</h3>
+				<p>Сегменты тела нужны самоукусу, отрисовке и повтору в одном кадре. Кэш пересчитывается, только когда след сдвинулся. В Godot 4 packed-массивы передаются по ссылке — снаружи кэш нельзя менять, только <code>duplicate()</code>.</p>
+			</article>
+			<article class="trick">
+				<span class="tag">v8.1 · тесты аудита</span>
+				<h3>Баг — сначала тест</h3>
+				<p>Каждая находка аудита закрыта тестом, который падал до исправления: <code>test_run_ends_only_once</code>, <code>test_huge_frame_is_clamped</code>, <code>test_hand_edited_save_is_ignored</code> и ещё семь.</p>
+			</article>
+		</div>
+		<div class="reel three" style="margin-top:34px">
+			<figure class="shot"><img loading="lazy" src="img/pause.webp" width="1600" height="900" alt="Пауза: доска с кнопками Продолжить, Настройки, В меню"><figcaption data-tag="Экран · пауза"><b>Пауза — флаг дерева</b><span>Не состояние игры, а get_tree().paused. HUD и панель работают поверх.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/gameover.webp" width="1600" height="900" alt="Экран Змея повержена с таблицей итогов и советом"><figcaption data-tag="Экран · поражение"><b>Совет по причине гибели</b><span>Игра помнит, что ударило последним, и советует именно про это.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/replay.webp" width="1600" height="900" alt="Запись камеры №3: схематичный повтор последних секунд, удар о бортик"><figcaption data-tag="Экран · повтор"><b>«Запись камеры №3»</b><span>90 снимков-словарей, ×0,4. Не видео — схема, как на камере наблюдения.</span></figcaption></figure>
+		</div>
+		<div class="two" style="margin-top:20px">
+			<figure class="shot"><img loading="lazy" src="img/dev.webp" width="1600" height="900" alt="Панель разработчика поверх главного меню: FPS, график кадров, вкладки Инфо, Читы, Мир, Дебаг, UI, Тесты"><figcaption data-tag="Отладка · F1"><b>Панель разработчика</b><span>FPS и график кадров, читы, спавн врагов, хитбоксы, превью всех 70 звуков, витрина UI и тесты прямо в игре.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/theend.webp" width="1600" height="900" alt="Экран итогов Конец: таблица с результатами забега"><figcaption data-tag="Итоги · победа"><b>«…но не своего создателя»</b><span>Экран итогов после финала: «Змея одолела яичницу… но не своего создателя».</span></figcaption></figure>
+		</div>
+	</div>
+</section>
+
+<section id="tests">
+	<div class="wrap two">
+		<div class="stack">
+			<span class="plate" style="align-self:flex-start">Тесты и сборка</span>
+			<h2>274 теста без аддонов</h2>
+			<div class="prose">
+				<p>Своя лёгкая система: раннер, базовый класс с проверками и ожидание кадров через <code>await</code>. Юнит-тесты покрывают баланс, навыки, синтез, симуляцию пожара и приборные контролы. Интеграционные проходят весь забег, финал, тач-управление и настоящие нажатия F1, ё и Ctrl+Shift+D на паузе. В 8.1 добавились проверки аудита: поражение не перекрывает победу, огромный кадр не бросает змею в бортик, отредактированное сохранение не читается.</p>
+				<p>Тесты пишут во временную папку и не трогают настоящие сохранения. На GitHub они идут при каждом пуше в Godot 4.7.2 под Linux.</p>
+			</div>
+		</div>
+		<div class="stack">
+			<pre class="code"><span class="c"># все тесты</span>
+godot --headless --path . -s res://tests/run_tests.gd
+
+<span class="c"># только пожар</span>
+godot --headless --path . -s res://tests/run_tests.gd -- --only=fire
+
+<span class="c"># сразу финал, кадры в user://shots</span>
+godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span class="s">3120,3300</span></pre>
+			<pre class="code"><span class="k">extends</span> <span class="s">"res://tests/test_case.gd"</span>
+
+<span class="k">func</span> <span class="n">test_что_проверяем</span>() -> void:
+	<span class="k">var</span> n: Node = add(Something.new())  <span class="c"># удалится после теста</span>
+	<span class="k">await</span> frames(<span class="s">2</span>)
+	assert_near(n.value, <span class="s">1.0</span>, <span class="s">0.01</span>, <span class="s">"подпись к провалу"</span>)</pre>
+		</div>
+	</div>
+</section>
+
+</main>
+
+<footer>
+	<div class="wrap">
+		<span>«Перемены будут» · Змея против Гигантской Яичницы v8.1 · Godot 4.7</span>
+		<span><a href="https://github.com/Arbuzyakaby/peremeny-budut">GitHub</a> · <a href="https://github.com/Arbuzyakaby/peremeny-budut/releases/latest">Скачать</a> · <a href="https://github.com/Arbuzyakaby/peremeny-budut/tree/main/docs">Документация</a></span>
+	</div>
+</footer>
+
+<dialog class="lightbox" id="lightbox" aria-label="Просмотр скриншота">
+	<img id="lb-img" src="" alt="">
+	<p id="lb-cap"></p>
+	<button class="key small lb-nav lb-prev" type="button" aria-label="Предыдущий кадр">‹</button>
+	<button class="key small lb-nav lb-next" type="button" aria-label="Следующий кадр">›</button>
+</dialog>
+
+<script>
+(function () {
+	"use strict";
+
+	/* ---------- спойлеры ---------- */
+	const spoilers = document.querySelectorAll(".spoiler");
+	const allBtn = document.getElementById("spoil-all");
+	function reveal(el) { el.classList.add("open"); if (el.id === "sp-fire") Sim.wake(); syncAll(); }
+	function syncAll() {
+		const open = [...spoilers].every(s => s.classList.contains("open"));
+		allBtn.setAttribute("aria-pressed", open ? "true" : "false");
+	}
+	document.querySelectorAll("[data-reveal]").forEach(b => b.addEventListener("click", () => reveal(document.getElementById(b.dataset.reveal))));
+	allBtn.addEventListener("click", () => {
+		const open = allBtn.getAttribute("aria-pressed") !== "true";
+		spoilers.forEach(s => open ? reveal(s) : s.classList.remove("open"));
+		syncAll();
+	});
+
+	/* просмотр картинок — ниже, во втором скрипте (листание, рубрики) */
+
+	/* ---------- точки следа змеи ---------- */
+	(function trail() {
+		const path = document.getElementById("trailpath"), g = document.getElementById("trail-dots");
+		if (!path || !path.getTotalLength) return;
+		const len = path.getTotalLength(), NS = "http://www.w3.org/2000/svg";
+		const step = 11, total = Math.floor(len / step);
+		for (let i = 0; i <= total; i++) {
+			const p = path.getPointAtLength(len - i * step);
+			const c = document.createElementNS(NS, "circle");
+			const seg = i % 3 === 0;
+			c.setAttribute("cx", p.x.toFixed(1)); c.setAttribute("cy", p.y.toFixed(1));
+			c.setAttribute("r", seg ? 6 : 2.5);
+			if (i > 0 && i <= 14 && seg) { c.setAttribute("fill", "none"); c.setAttribute("stroke", "#e5533d"); c.setAttribute("stroke-width", "2"); }
+			else c.setAttribute("fill", seg ? "#8ee062" : "#b3a187");
+			g.appendChild(c);
+		}
+	})();
+
+	/* ---------- решётка излучения d² ≤ 9 ---------- */
+	(function reach() {
+		const g = document.getElementById("reach-grid"); if (!g) return;
+		const NS = "http://www.w3.org/2000/svg", S = 44, cx = 220, cy = 200;
+		for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+			const d2 = dx * dx + dy * dy, r = document.createElementNS(NS, "rect");
+			r.setAttribute("x", cx - S / 2 + dx * S + 2); r.setAttribute("y", cy - S / 2 + dy * S + 2);
+			r.setAttribute("width", S - 4); r.setAttribute("height", S - 4); r.setAttribute("rx", 5);
+			let fill = "#3a271b", op = 1;
+			if (d2 === 0) fill = "#ff8a2a";
+			else if (d2 <= 9) { fill = "#d8a94f"; const dir = dy < 0 ? 1.6 : dy > 0 ? 0.7 : 1; op = Math.min(1, 0.18 + 0.9 * dir / d2); }
+			r.setAttribute("fill", fill); r.setAttribute("opacity", op.toFixed(2));
+			g.appendChild(r);
+			if (d2 > 0 && d2 <= 9 && Math.abs(dx) <= 3) {
+				const t = document.createElementNS(NS, "text");
+				t.setAttribute("x", cx + dx * S); t.setAttribute("y", cy + dy * S + 4); t.setAttribute("text-anchor", "middle");
+				t.setAttribute("font-size", "11"); t.setAttribute("fill", "#1f150f"); t.setAttribute("class", "mono");
+				t.textContent = d2; g.appendChild(t);
+			}
+		}
+	})();
+
+	/* ---------- живая модель пожара ---------- */
+	const Sim = (function () {
+		const cv = document.getElementById("sim"); if (!cv) return { wake() {} };
+		const ctx = cv.getContext("2d");
+		const W = 96, H = 54, N = W * H;
+		const FLOOR = 0, WOOD = 1, PAPER = 2, PLASTIC = 3, OIL = 4, METAL = 5;
+		// ignite, fuel, rate, heat, k — как в fire_sim.gd
+		const P = [
+			{ ig: 1e9, fuel: 0,    rate: 0,     heat: 0,    k: 0.6, col: [27, 21, 18] },
+			{ ig: 290, fuel: 0.85, rate: 0.075, heat: 5200, k: 0.9, col: [107, 74, 46] },
+			{ ig: 233, fuel: 0.45, rate: 0.55,  heat: 3600, k: 0.8, col: [233, 223, 200] },
+			{ ig: 340, fuel: 0.8,  rate: 0.13,  heat: 5600, k: 0.5, col: [216, 65, 58] },
+			{ ig: 255, fuel: 0.35, rate: 0.3,   heat: 6200, k: 2.4, col: [46, 39, 26] },
+			{ ig: 1e9, fuel: 0,    rate: 0,     heat: 0,    k: 3.2, col: [138, 143, 150] },
+		];
+		const RISE = 1.6, NEWTON = 0.35, RADIATE = 2.6e-10, FLUX = 1200, REACH = 9, O2_USE = 5, O2_REFILL = 0.7, MAX_T = 1400;
+		const T = new Float32Array(N), T2 = new Float32Array(N), fuel = new Float32Array(N), fuel0 = new Float32Array(N),
+			oxy = new Float32Array(N), chr = new Float32Array(N), ash = new Float32Array(N), scorch = new Float32Array(N),
+			foam = new Float32Array(N), burn = new Float32Array(N), amb = new Float32Array(N), mat = new Uint8Array(N), grain = new Float32Array(N);
+		let seed = 0, time = 0, running = false, visible = false, tool = "match", glowAt = -1, firstAt = -1, maxT = 20;
+		const offs = [];
+		for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+			const d2 = dx * dx + dy * dy; if (d2 === 0 || d2 > REACH) continue;
+			offs.push([dx, dy, (dy < 0 ? 1.6 : dy > 0 ? 0.7 : 1) / d2]);
+		}
+		function rng(s) { return function () { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+		function build(s) {
+			seed = s >>> 0; const R = rng(seed);
+			time = 0; glowAt = -1; firstAt = -1; maxT = 20;
+			for (let i = 0; i < N; i++) { mat[i] = FLOOR; chr[i] = ash[i] = scorch[i] = foam[i] = burn[i] = 0; oxy[i] = 1; grain[i] = R(); }
+			const put = (x, y, m) => { if (x >= 0 && y >= 0 && x < W && y < H) mat[y * W + x] = m; };
+			// масляная плёнка пятнами
+			for (let b = 0; b < 11; b++) {
+				const cx = 6 + R() * (W - 12), cy = 8 + R() * (H - 16), rx = 7 + R() * 12, ry = 4 + R() * 7;
+				for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const u = (x - cx) / rx, v = (y - cy) / ry; if (u * u + v * v < 1) put(x, y, OIL); }
+			}
+			// бумага
+			for (let b = 0; b < 9; b++) { const x = 4 + (R() * (W - 10)) | 0, y = 4 + (R() * (H - 9)) | 0; for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 3; dx++) put(x + dx, y + dy, PAPER); }
+			// капсулы с затравкой под ними
+			for (let b = 0; b < 5; b++) {
+				const x = 5 + (R() * (W - 12)) | 0, y = 4 + (R() * (H - 12)) | 0;
+				for (let dx = 0; dx < 4; dx++) put(x + dx, y, PLASTIC);
+				for (let dx = 0; dx < 3; dx++) put(x + dx, y + 2, PAPER);
+			}
+			// обломки вилок
+			for (let b = 0; b < 6; b++) {
+				let x = 4 + R() * (W - 8), y = 4 + R() * (H - 8); const a = R() * Math.PI, L = 4 + (R() * 4) | 0;
+				for (let j = 0; j < L; j++) put(Math.round(x + Math.cos(a) * j), Math.round(y + Math.sin(a) * j), METAL);
+			}
+			// бортики
+			for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (x < 2 || y < 2 || x >= W - 2 || y >= H - 2) put(x, y, WOOD);
+			// тёплый угол и разброс топлива
+			const warm = [R(), R(), R(), R()].map(v => v * v * 110);
+			for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+				const i = y * W + x, u = x / (W - 1), v = y / (H - 1);
+				amb[i] = 20 + warm[0] * (1 - u) * (1 - v) + warm[1] * u * (1 - v) + warm[2] * (1 - u) * v + warm[3] * u * v;
+				T[i] = amb[i];
+				const jit = 1 + 0.06 * (2 * (Math.sin(x * 0.4 + seed) * Math.cos(y * 0.5 - seed * 0.7)) );
+				fuel0[i] = fuel[i] = P[mat[i]].fuel * jit;
+			}
+			running = false;
+		}
+
+		function substep(dt) {
+			maxT = 0;
+			for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+				const i = y * W + x, m = mat[i], p = P[m];
+				let t = T[i], nt = t;
+				// теплопроводность (Фурье), коэффициент ≤ 0.24
+				let lap = 0;
+				if (x > 0) lap += (T[i - 1] - t) * Math.min(p.k, P[mat[i - 1]].k);
+				if (x < W - 1) lap += (T[i + 1] - t) * Math.min(p.k, P[mat[i + 1]].k);
+				if (y > 0) lap += (T[i - W] - t) * Math.min(p.k, P[mat[i - W]].k);
+				if (y < H - 1) lap += (T[i + W] - t) * Math.min(p.k, P[mat[i + W]].k);
+				nt += lap * 0.24 / 3.2;
+				// конвекция: перегрев снизу поднимается
+				if (y < H - 1 && T[i + W] > t) nt += (T[i + W] - t) * RISE * dt;
+				// горение
+				let b = 0;
+				if (fuel[i] > 0 && t >= p.ig && foam[i] < 0.6) {
+					b = Math.min(fuel[i], p.rate * oxy[i] * Math.min(1.5, 0.35 + (t - p.ig) / 300) * dt);
+					fuel[i] -= b;
+					nt += b * p.heat / Math.max(0.3, p.fuel) ;
+					oxy[i] = Math.max(0, oxy[i] - b * O2_USE);
+					if (firstAt < 0) firstAt = time;
+				}
+				oxy[i] += (1 - oxy[i]) * O2_REFILL * dt * (1 - foam[i]);
+				burn[i] = b / dt;
+				// остывание: излучение T⁴ и Ньютон
+				const tk = nt + 273.15;
+				nt -= (RADIATE * (tk * tk * tk * tk - 7.385e9) + NEWTON * (nt - amb[i])) * dt;
+				nt -= foam[i] * 900 * dt;
+				if (nt < amb[i] && foam[i] > 0) nt = Math.max(nt, 15);
+				T2[i] = Math.min(MAX_T, Math.max(10, nt));
+				if (fuel0[i] > 0) chr[i] = Math.max(chr[i], 1 - fuel[i] / fuel0[i]);
+				if (m === PAPER) ash[i] = Math.max(ash[i], (chr[i] - 0.75) * 4);
+				else if (m === OIL) ash[i] = Math.max(ash[i], Math.min(0.35, (chr[i] - 0.9) * 3));
+				if (t > 180) scorch[i] = Math.max(scorch[i], Math.min(1, (t - 180) / 420));
+				foam[i] = Math.max(0, foam[i] - 0.05 * dt);
+				if (t > maxT) maxT = t;
+				if (m === METAL && t >= 520 && glowAt < 0) glowAt = time;
+			}
+			// излучение пламени: горящая клетка греет холодных соседей
+			for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+				const i = y * W + x; if (burn[i] <= 0) continue;
+				const src = T2[i], power = Math.min(1, burn[i] * 6);
+				for (const [dx, dy, w] of offs) {
+					const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+					const j = ny * W + nx; if (T2[j] >= src) continue;
+					T2[j] = Math.min(src, T2[j] + FLUX * w * power * dt * (1 - T2[j] / src) * (1 - foam[j]));
+				}
+			}
+			T.set(T2);
+			time += dt;
+		}
+
+		function bb(t) { // кривая абсолютно чёрного тела
+			const k = [[400, 40, 4, 2], [600, 140, 18, 4], [800, 255, 90, 13], [1000, 255, 170, 50], [1150, 255, 215, 110], [1350, 255, 242, 209]];
+			if (t <= k[0][0]) return [k[0][1], k[0][2], k[0][3]];
+			for (let i = 1; i < k.length; i++) if (t <= k[i][0]) { const a = k[i - 1], b = k[i], f = (t - a[0]) / (b[0] - a[0]); return [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f]; }
+			return [255, 242, 209];
+		}
+		const small = document.createElement("canvas"); small.width = W; small.height = H;
+		const sctx = small.getContext("2d"), img = sctx.createImageData(W, H);
+		const flame = document.createElement("canvas"); flame.width = W; flame.height = H;
+		const fctx = flame.getContext("2d"), fimg = fctx.createImageData(W, H);
+		function render() {
+			const d = img.data, fd = fimg.data; fd.fill(0);
+			for (let i = 0; i < N; i++) {
+				const m = mat[i], c = P[m].col, g = 0.9 + grain[i] * 0.2;
+				let r = c[0] * g, gg = c[1] * g, b = c[2] * g;
+				const sc = 1 - 0.55 * scorch[i]; r *= sc; gg *= sc; b *= sc;
+				const ch = Math.min(0.97, chr[i]);
+				r += (12 - r) * ch; gg += (9 - gg) * ch; b += (8 - b) * ch;
+				if (ash[i] > 0) { const a = Math.min(1, ash[i]), v = 48 + grain[i] * (m === PAPER ? 70 : 30); r += (v - r) * a; gg += (v - 3 - gg) * a; b += (v - 6 - b) * a; }
+				const t = T[i];
+				if (t > 450 && (m === METAL || ch > 0.3)) { const k = bb(t - 150), a = Math.min(0.9, (t - 450) / 500); r += (k[0] - r) * a; gg += (k[1] - gg) * a; b += (k[2] - b) * a; }
+				if (foam[i] > 0.02) { const a = Math.min(0.92, foam[i]), v = 225 + grain[i] * 30; r += (v - r) * a; gg += (v - gg) * a; b += (v + 5 - b) * a; }
+				d[i * 4] = r; d[i * 4 + 1] = gg; d[i * 4 + 2] = b; d[i * 4 + 3] = 255;
+				if (burn[i] > 0 && t > 250) {
+					const k = bb(t + 150), a = Math.min(200, (t - 250) * 0.28 + 40);
+					for (let up = 0; up < 3; up++) {
+						const j = i - up * W; if (j < 0) break;
+						const aa = a * (1 - up * 0.3) * (0.7 + 0.3 * Math.random());
+						if (fd[j * 4 + 3] < aa) { fd[j * 4] = k[0]; fd[j * 4 + 1] = k[1]; fd[j * 4 + 2] = k[2]; fd[j * 4 + 3] = aa; }
+					}
+				}
+			}
+			sctx.putImageData(img, 0, 0); fctx.putImageData(fimg, 0, 0);
+			ctx.imageSmoothingEnabled = false; ctx.drawImage(small, 0, 0, cv.width, cv.height);
+			ctx.imageSmoothingEnabled = true; ctx.globalCompositeOperation = "lighter";
+			ctx.filter = "blur(6px)"; ctx.globalAlpha = 0.7; ctx.drawImage(flame, 0, -8, cv.width, cv.height);
+			ctx.filter = "none"; ctx.globalAlpha = 0.55; ctx.drawImage(flame, 0, -4, cv.width, cv.height);
+			ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
+			if (!running && firstAt < 0) {
+				ctx.fillStyle = "rgba(239,229,207,.92)"; ctx.font = "600 22px 'Golos Text', sans-serif"; ctx.textAlign = "center";
+				ctx.fillText("Щёлкни по ящику, чтобы бросить спичку", cv.width / 2, cv.height / 2);
+			}
+			readout();
+		}
+		const ro = document.getElementById("sim-readout");
+		function readout() {
+			let burning = 0, burnt = 0;
+			for (let i = 0; i < N; i++) { if (burn[i] > 0) burning++; if (chr[i] > 0.5) burnt++; }
+			ro.innerHTML =
+				"сид <b>" + seed.toString(16).padStart(8, "0") + "</b><br>" +
+				"время <b>" + time.toFixed(1) + " с</b><br>" +
+				"горит <b>" + burning + "</b> клеток<br>" +
+				"T макс <b>" + Math.round(maxT) + " °C</b><br>" +
+				"металл ≥ 520 °C: " + (glowAt >= 0 ? "<span class='on'>" + Math.max(0, glowAt - firstAt).toFixed(1) + " с</span>" : "—") + "<br>" +
+				"Сожжено: <b>" + burnt + "</b> клеток";
+		}
+
+		let acc = 0, last = 0;
+		function frame(ts) {
+			if (!visible) { last = 0; return; }
+			if (last) acc += Math.min(0.25, (ts - last) / 1000);
+			last = ts;
+			if (running) while (acc >= 1 / 12) { substep(1 / 12); acc -= 1 / 12; }
+			else acc = 0;
+			render();
+			requestAnimationFrame(frame);
+		}
+		function start() { if (visible) return; visible = true; requestAnimationFrame(frame); }
+
+		function at(e) {
+			const r = cv.getBoundingClientRect();
+			return [Math.floor((e.clientX - r.left) / r.width * W), Math.floor((e.clientY - r.top) / r.height * H)];
+		}
+		let down = false;
+		function apply(e) {
+			const [x, y] = at(e);
+			if (tool === "match") {
+				for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = x + dx, ny = y + dy; if (nx >= 0 && ny >= 0 && nx < W && ny < H) T[ny * W + nx] = Math.max(T[ny * W + nx], 650); }
+			} else {
+				for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) { const nx = x + dx, ny = y + dy, d = dx * dx + dy * dy; if (d <= 25 && nx >= 0 && ny >= 0 && nx < W && ny < H) foam[ny * W + nx] = Math.min(1, foam[ny * W + nx] + 0.5 * (1 - d / 26)); }
+			}
+			running = true;
+		}
+		cv.addEventListener("pointerdown", e => { down = true; cv.setPointerCapture(e.pointerId); apply(e); });
+		cv.addEventListener("pointermove", e => { if (down && tool === "foam") apply(e); });
+		cv.addEventListener("pointerup", () => { down = false; });
+		const bm = document.getElementById("tool-match"), bf = document.getElementById("tool-foam");
+		function setTool(t) { tool = t; bm.setAttribute("aria-pressed", t === "match"); bf.setAttribute("aria-pressed", t === "foam"); }
+		bm.addEventListener("click", () => setTool("match"));
+		bf.addEventListener("click", () => setTool("foam"));
+		document.getElementById("sim-reset").addEventListener("click", () => { build((Math.random() * 4294967296) >>> 0); setTool("match"); render(); });
+		document.getElementById("sim-same").addEventListener("click", () => { build(seed); setTool("match"); render(); });
+
+		build(0x0047b00b);
+		const io = "IntersectionObserver" in window ? new IntersectionObserver(es => {
+			es.forEach(en => { if (en.isIntersecting && document.getElementById("sp-fire").classList.contains("open")) start(); else visible = false; });
+		}) : null;
+		render();
+		return { wake() { if (io) io.observe(cv); else start(); render(); } };
+	})();
+})();
+</script>
+<script>
+(function () {
+	"use strict";
+	const NS = "http://www.w3.org/2000/svg";
+	const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+	const C = { brass: "#d8a94f", hi: "#f3d48a", dim: "#8f6c30", muted: "#b3a187", text: "#ecdfc8", green: "#8ee062",
+		tomato: "#e5533d", plank: "#3a271b", fire: "#ff8a2a", warn: "#ffb23d", teal: "#5fd4c4", copper: "#d96b29", fur: "#d9a066" };
+	function el(tag, attrs, parent, text) {
+		const e = document.createElementNS(NS, tag);
+		for (const k in attrs) e.setAttribute(k, attrs[k]);
+		if (text != null) e.textContent = text;
+		if (parent) parent.appendChild(e);
+		return e;
+	}
+	function onVisible(node, fn) {
+		if (!("IntersectionObserver" in window)) { fn(true); return; }
+		new IntersectionObserver(es => es.forEach(e => fn(e.isIntersecting))).observe(node);
+	}
+	const fmt = (v, d = 2) => v.toFixed(d).replace(".", ",").replace("-", "−");
+
+	/* =====================================================================
+	   Синтезатор — порт scripts/audio/synth.gd строка в строку
+	   ===================================================================== */
+	const SR = 22050, SINE = 0, SQ = 1, SAW = 2, TRI = 3;
+	let rnd = Math.random;
+	function seeded(s) { return function () { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+	function blep(t, dt) {
+		if (dt <= 0) return 0;
+		if (t < dt) { t /= dt; return t + t - t * t - 1; }
+		if (t > 1 - dt) { t = (t - 1) / dt; return t * t + t + t + 1; }
+		return 0;
+	}
+	function wave(w, ph, dt) {
+		switch (w) {
+			case SINE: return Math.sin(ph * 2 * Math.PI);
+			case SQ: return (ph < 0.5 ? 1 : -1) + blep(ph, dt) - blep((ph + 0.5) % 1, dt);
+			case SAW: return ph * 2 - 1 - blep(ph, dt);
+			case TRI: return 4 * Math.abs(ph - 0.5) - 1;
+		}
+		return rnd() * 2 - 1;
+	}
+	function tone(dur, f0, f1, w, vol, nm = 0, dp = 2) {
+		const n = Math.floor(dur * SR), o = new Float32Array(n), at = 0.004 * SR;
+		let ph = 0;
+		for (let i = 0; i < n; i++) {
+			const k = i / n, dt = (f0 + (f1 - f0) * k) / SR;
+			ph = (ph + dt) % 1;
+			let v = wave(w, ph, dt);
+			if (nm > 0) v += (rnd() * 2 - 1 - v) * nm;
+			o[i] = v * vol * Math.min(i / at, 1) * Math.pow(1 - k, dp);
+		}
+		return o;
+	}
+	function lowpass(b, fc) {
+		const a = 1 - Math.exp(-2 * Math.PI * fc / SR), o = new Float32Array(b.length);
+		let y = 0;
+		for (let i = 0; i < b.length; i++) { y += a * (b[i] - y); o[i] = y; }
+		return o;
+	}
+	function highpass(b, fc) { const l = lowpass(b, fc), o = new Float32Array(b.length); for (let i = 0; i < b.length; i++) o[i] = b[i] - l[i]; return o; }
+	function bandpass(b, lo, hi) { return highpass(lowpass(b, hi), lo); }
+	function normalize(b, peak) { let m = 0; for (const v of b) m = Math.max(m, Math.abs(v)); if (m < 1e-5) return; const g = peak / m; for (let i = 0; i < b.length; i++) b[i] *= g; }
+	function noiseRaw(n) { const r = new Float32Array(n); for (let i = 0; i < n; i++) r[i] = rnd() * 2 - 1; return r; }
+	function noise(dur, vol, dp = 2, lp = 0, hp = 0, swell = 0) {
+		const n = Math.floor(dur * SR);
+		let r = noiseRaw(n);
+		if (lp > 0) r = lowpass(lowpass(r, lp), lp);
+		if (hp > 0) r = highpass(r, hp);
+		normalize(r, 1);
+		const at = Math.max(0.004, swell) * SR;
+		for (let i = 0; i < n; i++) {
+			const k = i / n;
+			let env = Math.min(i / at, 1);
+			if (swell > 0) env = Math.sin(Math.min(i / at, 1) * Math.PI * 0.5);
+			r[i] *= vol * env * Math.pow(1 - k, dp);
+		}
+		return r;
+	}
+	function am(b, rate, depth) { const o = Float32Array.from(b); for (let i = 0; i < o.length; i++) o[i] *= 1 - depth * (0.5 + 0.5 * Math.sin(2 * Math.PI * rate * i / SR)); return o; }
+	function mixAt(a, b, off) { const o0 = Math.floor(off * SR), o = new Float32Array(Math.max(a.length, o0 + b.length)); o.set(a); for (let i = 0; i < b.length; i++) o[o0 + i] += b[i]; return o; }
+	function mix(a, b) { return mixAt(a, b, 0); }
+	function seq(parts) { let n = 0; parts.forEach(p => n += p.length); const o = new Float32Array(n); let at = 0; parts.forEach(p => { o.set(p, at); at += p.length; }); return o; }
+	function silence(d) { return new Float32Array(Math.floor(d * SR)); }
+	function notes(fs, dur, w, vol, last = 0) { return seq(fs.map((f, i) => tone(i === fs.length - 1 && last > 0 ? last : dur, f, f, w, vol, 0, 1))); }
+	function whoosh(dur, vol, lo, hi) { const b = bandpass(noise(dur, 1, 0), lo, hi); normalize(b, 1); for (let i = 0; i < b.length; i++) b[i] *= vol * Math.pow(Math.sin(Math.PI * i / b.length), 1.5); return b; }
+	function pop(dur, vol, lo, hi) { const b = bandpass(noise(dur, 1, 5), lo, hi); normalize(b, vol); return b; }
+	function metal(fs, dur, vol) { let o = silence(dur); fs.forEach((f, i) => { o = mix(o, tone(dur * (1 - i * 0.15), f, f * 0.995, SINE, vol / (1 + i * 0.5), 0, 3)); }); return o; }
+	function toStream(buf, loop = false, gainDb = 0) {
+		const b = Float32Array.from(buf);
+		let m = 0; for (const v of b) m = Math.max(m, Math.abs(v));
+		let g = m > 0.9 ? 0.9 / m : 1;          // ограничитель: никакого жёсткого клиппинга
+		g *= Math.pow(10, gainDb / 20);
+		for (let i = 0; i < b.length; i++) b[i] *= g;
+		if (!loop) { const f = Math.min(Math.floor(0.006 * SR), b.length); for (let i = 0; i < f; i++) b[b.length - 1 - i] *= i / f; }
+		for (let i = 0; i < b.length; i++) b[i] = Math.max(-1, Math.min(1, b[i]));
+		return b;
+	}
+
+	/* ---------- рисование волны: минимум и максимум на столбец ---------- */
+	function wavePath(buf, x, y, w, h, gain = 1) {
+		let d = "";
+		const per = buf.length / w;
+		for (let c = 0; c < w; c++) {
+			let lo = 0, hi = 0;
+			const a = Math.floor(c * per), b = Math.max(a + 1, Math.floor((c + 1) * per));
+			for (let i = a; i < b && i < buf.length; i++) { const v = buf[i] * gain; if (v < lo) lo = v; if (v > hi) hi = v; }
+			d += "M" + (x + c + 0.5).toFixed(1) + " " + (y + h / 2 - hi * h / 2).toFixed(1) + "V" + (y + h / 2 - lo * h / 2 + 0.6).toFixed(1);
+		}
+		return d;
+	}
+
+	/* =====================================================================
+	   Схема 1 · 60 кадров пола
+	   ===================================================================== */
+	(function bake() {
+		const svg = document.getElementById("bake-svg"); if (!svg) return;
+		const x0 = 96, W = 400, n = 60, bw = W / n;
+		const lanes = [{ y: 30, t: "v8.0", sub: "шейдер пола каждый кадр", heavy: () => true, col: C.fire },
+			{ y: 140, t: "v8.1", sub: "печётся один раз", heavy: i => i === 0, col: C.green }];
+		lanes.forEach(L => {
+			el("text", { x: 10, y: L.y + 40, fill: L.col, "font-size": 15, "font-weight": 700, class: "mono" }, svg, L.t);
+			el("text", { x: 10, y: L.y + 58, fill: C.muted, "font-size": 11 }, svg, L.sub.split(" ").slice(0, 2).join(" "));
+			el("text", { x: 10, y: L.y + 71, fill: C.muted, "font-size": 11 }, svg, L.sub.split(" ").slice(2).join(" "));
+			el("line", { x1: x0, x2: x0 + W, y1: L.y + 78, y2: L.y + 78, stroke: "#4a3223" }, svg);
+			for (let i = 0; i < n; i++) {
+				const heavy = L.heavy(i), h = heavy ? 70 : 5;
+				el("rect", { x: (x0 + i * bw + 0.8).toFixed(1), y: L.y + 78 - h, width: (bw - 1.6).toFixed(1), height: h, rx: 1.2,
+					fill: heavy ? L.col : "#3e7a2c", opacity: heavy ? 0.85 : 0.9 }, svg);
+			}
+		});
+		el("text", { x: x0 + 16, y: 150, fill: C.green, "font-size": 11.5 }, svg, "← запекание в SubViewport");
+		el("text", { x: x0 + 70, y: 208, fill: C.muted, "font-size": 11.5 }, svg, "дальше — готовая текстура, почти даром");
+		el("text", { x: x0, y: 242, fill: C.muted, "font-size": 11, class: "mono" }, svg, "кадр 1");
+		el("text", { x: x0 + W, y: 242, fill: C.muted, "font-size": 11, class: "mono", "text-anchor": "end" }, svg, "кадр 60 · 1 с");
+		const head = el("rect", { x: x0, y: 22, width: bw, height: 200, fill: C.hi, opacity: 0.12, rx: 2 }, svg);
+		if (reduce) { head.remove(); return; }
+		let vis = false, t0 = 0;
+		function tick(ts) { if (!vis) return; if (!t0) t0 = ts; const i = Math.floor(((ts - t0) / 1000 % 1) * n); head.setAttribute("x", (x0 + i * bw).toFixed(1)); requestAnimationFrame(tick); }
+		onVisible(svg, v => { const was = vis; vis = v; if (v && !was) requestAnimationFrame(tick); });
+	})();
+
+	/* =====================================================================
+	   Схема 2 · фриз окна: без потолка шага и с ним
+	   ===================================================================== */
+	(function clampGraph() {
+		const svg = document.getElementById("clamp-svg"); if (!svg) return;
+		const X = t => 50 + t / 6 * 450, Y = x => 215 - (x - 450) / (1290 - 450) * 185, WALL = 1256, V = 220;
+		el("rect", { x: X(1.5), y: 20, width: X(4.5) - X(1.5), height: 200, fill: "#ffffff", opacity: 0.04 }, svg);
+		el("text", { x: (X(1.5) + X(4.5)) / 2, y: 206, fill: C.muted, "font-size": 12, "text-anchor": "middle" }, svg, "окно тащат 3 с — кадров нет");
+		el("line", { x1: 50, x2: 500, y1: Y(WALL), y2: Y(WALL), stroke: C.tomato, "stroke-dasharray": "5 4" }, svg);
+		el("text", { x: 54, y: Y(WALL) - 7, fill: C.tomato, "font-size": 12 }, svg, "бортик");
+		el("line", { x1: 50, x2: 500, y1: 220, y2: 220, stroke: "#4a3223" }, svg);
+		for (let t = 0; t <= 6; t++) el("text", { x: X(t), y: 238, fill: C.muted, "font-size": 11, "text-anchor": "middle", class: "mono" }, svg, t + " с");
+		el("text", { x: 50, y: 256, fill: C.muted, "font-size": 11 }, svg, "по вертикали — где голова змеи (x, px)");
+		function path(clamp) {
+			const pts = []; let x = 500, dir = 1, t = 0, hit = null;
+			const frames = [];
+			for (let tt = 0; tt < 1.5; tt += 1 / 60) frames.push(1 / 60);
+			frames.push(3.0 + 1 / 60);
+			for (let tt = 4.5; tt < 6; tt += 1 / 60) frames.push(1 / 60);
+			pts.push([t, x]);
+			for (const f of frames) {
+				const d = clamp ? Math.min(f, 1 / 20) : f;
+				if (f > 1) pts.push([t + f - 1 / 60, x]);        // фриз: стоим на месте
+				t += f; x += dir * V * d;
+				if (x > WALL) { x = WALL; dir = -1; hit = hit || [t, x]; }
+				pts.push([t, x]);
+			}
+			return { d: "M" + pts.map(p => X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join("L"), hit };
+		}
+		const bad = path(false), good = path(true);
+		el("path", { d: bad.d, fill: "none", stroke: C.tomato, "stroke-width": 2.5, "stroke-linejoin": "round" }, svg);
+		el("path", { d: good.d, fill: "none", stroke: C.green, "stroke-width": 2.5, "stroke-linejoin": "round" }, svg);
+		if (bad.hit) {
+			el("circle", { cx: X(bad.hit[0]), cy: Y(bad.hit[1]), r: 6, fill: C.tomato }, svg);
+			el("text", { x: X(bad.hit[0]) - 12, y: Y(bad.hit[1]) + 22, fill: C.tomato, "font-size": 12.5, "font-weight": 600, "text-anchor": "end" }, svg, "8.0: +660 px за один кадр → −1 жизнь");
+		}
+		el("text", { x: X(4.55), y: Y(840) + 24, fill: C.green, "font-size": 12.5, "font-weight": 600 }, svg, "8.1: шаг ≤ 1/20 с");
+	})();
+
+	/* =====================================================================
+	   Схема 4 · яичница читает манеру змеи (формулы из fried_egg_boss.gd)
+	   ===================================================================== */
+	(function habit() {
+		const svg = document.getElementById("habit-svg"); if (!svg) return;
+		const cx = 260, cy = 220, k = 0.34;
+		const ORBIT_READ = 0.8, FAR = 380, CLOSE = 240;
+		el("circle", { cx, cy, r: (FAR + 120) * k, fill: "none", stroke: "#4a3223", "stroke-dasharray": "2 6" }, svg);
+		el("circle", { cx, cy, r: FAR * k, fill: "none", stroke: C.brass, "stroke-dasharray": "4 6", opacity: 0.8 }, svg);
+		el("circle", { cx, cy, r: CLOSE * k, fill: C.green, "fill-opacity": 0.05, stroke: C.green, "stroke-dasharray": "4 6", opacity: 0.8 }, svg);
+		el("text", { x: cx + FAR * k + 6, y: cy - 4, fill: C.brass, "font-size": 11.5, class: "mono" }, svg, "380 · далеко");
+		el("text", { x: cx + CLOSE * k + 6, y: cy + 16, fill: C.green, "font-size": 11.5, class: "mono" }, svg, "240 · близко");
+		el("text", { x: cx, y: cy - (FAR + 120) * k - 8, fill: C.muted, "font-size": 11.5, "text-anchor": "middle" }, svg, "кружит: > 0,8 рад/с и ближе 500");
+		el("circle", { cx: cx + 5, cy: cy + 8, r: 150 * k * 1.05, fill: "#000", opacity: 0.3 }, svg);
+		el("circle", { cx, cy, r: 150 * k, fill: "#f4efe4" }, svg);
+		el("circle", { cx, cy: cy - 3, r: 48 * k, fill: "#ffb23d" }, svg);
+		const trail = el("g", {}, svg), head = el("circle", { r: 9, fill: C.green, stroke: "#2c5a1b", "stroke-width": 2 }, svg);
+		const aim = el("line", { stroke: C.tomato, "stroke-width": 2.5, "stroke-dasharray": "10 8", opacity: 0 }, svg);
+		const dots = []; for (let i = 0; i < 16; i++) dots.push(el("circle", { r: 6 - i * 0.25, fill: "#3e7a2c", opacity: 1 - i * 0.05 }, trail));
+		const NAMES = ["Кольцо", "Таран", "Веер", "Спираль", "Прыжок", "Перчинки", "Лужи"], RING = 0, CHARGE = 1, AIMED = 2, SPIRAL = 3, SLAM = 4, PEPPER = 5, SIZZLE = 6;
+		let phase = 2;
+		function weights(p, read) {
+			const w = {}; w[RING] = 1; w[CHARGE] = 1; w[AIMED] = 1;
+			if (p >= 2) { w[SPIRAL] = 0.8; w[SLAM] = 0.9; w[SIZZLE] = 0.9; }
+			if (p >= 3) w[PEPPER] = 0.8;
+			const boost = { orbit: [[CHARGE, AIMED, SIZZLE], 2.2], far: [[AIMED, SLAM, SIZZLE, PEPPER], 2.0], close: [[RING, SPIRAL, SLAM], 2.0] }[read];
+			if (boost) boost[0].forEach(a => { if (a in w) w[a] *= boost[1]; });
+			return w;
+		}
+		const barsBox = document.getElementById("habit-bars"), bars = [];
+		NAMES.forEach(n => { const r = document.createElement("div"); r.className = "bar"; r.innerHTML = "<span>" + n + "</span><i></i><b>0%</b>"; barsBox.appendChild(r); bars.push(r); });
+		const nowEl = document.getElementById("habit-now"), distEl = document.getElementById("habit-dist"), orbEl = document.getElementById("habit-orbit");
+		document.querySelectorAll("[data-phase]").forEach(b => b.addEventListener("click", () => {
+			phase = +b.dataset.phase;
+			document.querySelectorAll("[data-phase]").forEach(o => o.setAttribute("aria-pressed", o === b ? "true" : "false"));
+			draw(true);
+		}));
+		// сценарий: 8 с кружит, 8 с держится далеко, 8 с липнет
+		let T = 0, ang = -Math.PI / 2, dist = 300, orbit = 0, prev = null, read = "", last = 0;
+		const smooth = x => x * x * (3 - 2 * x);
+		function target(t) {
+			const seg = Math.floor(t / 8) % 3, u = (t % 8) / 8;
+			const R = [320, 520 + 40 * Math.sin(t * 1.3), 170 + 25 * Math.sin(t * 1.7)], W = [1.35, 0.12, 0.3];
+			const pr = (seg + 2) % 3, blend = smooth(Math.min(1, u * 8 / 1.5));
+			return { r: R[pr] + (R[seg] - R[pr]) * blend, w: W[pr] + (W[seg] - W[pr]) * blend };
+		}
+		const hist = [];
+		function step(dt) {
+			T += dt;
+			const tg = target(T);
+			ang += tg.w * dt;
+			const pos = { x: Math.cos(ang) * tg.r, y: Math.sin(ang) * tg.r * 0.9 };
+			if (prev) {
+				const a0 = Math.atan2(prev.y, prev.x), a1 = Math.atan2(pos.y, pos.x);
+				let da = a1 - a0; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+				orbit += (da / dt - orbit) * Math.min(1, dt * 0.8);
+			}
+			prev = pos;
+			dist += (Math.hypot(pos.x, pos.y) - dist) * Math.min(1, dt * 0.6);
+			read = Math.abs(orbit) > ORBIT_READ && dist < FAR + 120 ? "orbit" : dist > FAR ? "far" : dist < CLOSE ? "close" : "";
+			hist.unshift(pos); if (hist.length > 16 * 4) hist.pop();
+		}
+		function draw(forceBars) {
+			const p = hist[0] || { x: 0, y: -300 };
+			head.setAttribute("cx", cx + p.x * k); head.setAttribute("cy", cy + p.y * k);
+			dots.forEach((d, i) => { const q = hist[Math.min(hist.length - 1, i * 4)] || p; d.setAttribute("cx", cx + q.x * k); d.setAttribute("cy", cy + q.y * k); });
+			nowEl.textContent = { orbit: "кружит", far: "далеко", close: "липнет", "": "ничего явного" }[read];
+			nowEl.style.color = { orbit: C.warn, far: C.brass, close: C.green, "": C.muted }[read];
+			distEl.textContent = Math.round(dist) + " px";
+			orbEl.textContent = fmt(orbit) + " рад/с";
+			aim.setAttribute("opacity", read === "orbit" ? 0.9 : 0);
+			if (read === "orbit") {  // таран наперерез: прогноз на 0,35 с вперёд
+				const ahead = ang + 1.35 * 0.35, r = Math.hypot(p.x, p.y);
+				aim.setAttribute("x1", cx); aim.setAttribute("y1", cy); aim.setAttribute("x2", cx + Math.cos(ahead) * r * k); aim.setAttribute("y2", cy + Math.sin(ahead) * r * 0.9 * k);
+			}
+			if (forceBars || T - last > 0.25) {
+				last = T;
+				const w = weights(phase, read); let tot = 0, top = 0; for (const a in w) { tot += w[a]; top = Math.max(top, w[a]); }
+				bars.forEach((b, i) => {
+					const on = i in w, pc = on ? w[i] / tot * 100 : 0;
+					b.classList.toggle("off", !on);
+					b.querySelector("i").style.width = (on ? w[i] / top * 100 : 0).toFixed(1) + "%";
+					b.querySelector("b").textContent = on ? Math.round(pc) + "%" : "—";
+				});
+			}
+		}
+		for (let i = 0; i < 60; i++) step(1 / 60);
+		draw(true);
+		let vis = false, lt = 0;
+		function tick(ts) { if (!vis) { lt = 0; return; } const dt = lt ? Math.min(0.05, (ts - lt) / 1000) : 1 / 60; lt = ts; step(dt); draw(false); requestAnimationFrame(tick); }
+		onVisible(svg, v => { const was = vis; vis = v; if (v && !was) requestAnimationFrame(tick); });
+	})();
+
+	/* =====================================================================
+	   Схема 6 · слот атаки (правила из abilities.gd)
+	   ===================================================================== */
+	(function slot() {
+		const svg = document.getElementById("slot-svg"); if (!svg) return;
+		const AB = { tines: { n: "ЗАЛП", c: 2, max: 4, col: C.copper }, wave: { n: "ВОЛНА", c: 1, max: 2, col: C.teal }, boxer: { n: "РАЗБЕГ", c: 2, max: 6, col: C.fur } };
+		const EV = [["fork", "вилка"], ["fork", "вилка"], ["pill", "таблетка"], ["pill", "таблетка"], ["use", "атака"], ["use", "атака"], ["pill", "таблетка"], ["bear", "боксёр"]];
+		let type = null, ch = 0, fk = 0, pk = 0;
+		const free = t => type === null || ch <= 0 || (type === t && ch < AB[t].max);
+		function gain(t) { if (t === type) ch = Math.min(ch + AB[t].c, AB[t].max); else { type = t; ch = AB[t].c; } }
+		const col = { fork: C.copper, pill: C.teal, use: C.green, bear: C.fur };
+		el("text", { x: 8, y: 48, fill: C.muted, "font-size": 11 }, svg, "событие");
+		el("text", { x: 8, y: 118, fill: C.muted, "font-size": 11 }, svg, "счётчик");
+		el("text", { x: 8, y: 196, fill: C.muted, "font-size": 11 }, svg, "слот");
+		EV.forEach((e, i) => {
+			const x = 92 + i * 60;
+			let note = "";
+			if (e[0] === "fork") { fk++; if (fk >= 2 && free("tines")) { fk = 0; gain("tines"); note = "→ залп"; } else note = fk + " / 2"; }
+			if (e[0] === "pill") { pk++; if (pk >= 2 && free("wave")) { pk = 0; gain("wave"); note = "→ волна"; } else note = pk >= 2 ? "занято" : pk + " / 2"; }
+			if (e[0] === "use") { ch--; note = "−1"; if (ch <= 0) { type = null; ch = 0; } }
+			if (e[0] === "bear") { gain("boxer"); note = "замена"; }
+			el("circle", { cx: x, cy: 44, r: 17, fill: col[e[0]], opacity: 0.9 }, svg);
+			el("text", { x, y: 49, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: "#1f150f" }, svg, e[1][0].toUpperCase());
+			el("text", { x, y: 78, "text-anchor": "middle", "font-size": 10.5, fill: C.text }, svg, e[1]);
+			el("text", { x, y: 118, "text-anchor": "middle", "font-size": 11, "font-weight": 600, fill: note.startsWith("→") || note === "замена" ? C.green : note === "занято" ? C.tomato : C.muted }, svg, note);
+			el("line", { x1: x, x2: x, y1: 128, y2: 160, stroke: "#4a3223" }, svg);
+			el("rect", { x: x - 27, y: 162, width: 54, height: 78, rx: 8, fill: "#241811", stroke: type ? AB[type].col : "#4a3223", "stroke-width": type ? 2 : 1 }, svg);
+			el("text", { x, y: 184, "text-anchor": "middle", "font-size": 10.5, "font-weight": 700, fill: type ? AB[type].col : "#6a5a48" }, svg, type ? AB[type].n : "пусто");
+			if (type) for (let l = 0; l < AB[type].max; l++) {
+				const lx = x - 17 + (l % 3) * 17, ly = 202 + Math.floor(l / 3) * 16;
+				el("circle", { cx: lx, cy: ly, r: 5.5, fill: l < ch ? "#ffd66b" : "#2a1c14", stroke: "#8f6c30", "stroke-width": 1 }, svg);
+			}
+		});
+		el("text", { x: 8, y: 280, fill: C.muted, "font-size": 11.5 }, svg, "лампы — заряды из максимума: залп 2 из 4, волна 1 из 2, разбег 2 из 6");
+	})();
+
+	/* =====================================================================
+	   Схема 7 · анатомия укуса (рецепт bite)
+	   ===================================================================== */
+	(function chain() {
+		const svg = document.getElementById("chain-svg"); if (!svg) return;
+		rnd = seeded(47);
+		const n = Math.floor(0.1 * SR);
+		const raw = noiseRaw(n);
+		let f = lowpass(lowpass(raw, 3000), 3000); normalize(f, 1);
+		rnd = seeded(47);
+		const env = noise(0.1, 0.5, 3.0, 3000);
+		const sq = tone(0.25, 260, 90, SQ, 0.28, 0, 0);
+		const sqe = tone(0.25, 260, 90, SQ, 0.28);
+		const out = toStream(mix(env, sqe), false, -2.0);
+		rnd = Math.random;
+		const defs = el("defs", {}, svg);
+		const mk = el("marker", { id: "arc7", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+		el("path", { d: "M0 0L10 5L0 10z", fill: C.brass }, mk);
+		function box(x, y, w, h, title, sub, buf, gain, color, total) {
+			el("rect", { x, y, width: w, height: h, rx: 10, fill: "#241811", stroke: "#4a3223" }, svg);
+			el("text", { x: x + 10, y: y + 18, fill: C.hi, "font-size": 11.5, class: "mono" }, svg, title);
+			if (sub) el("text", { x: x + w - 10, y: y + 18, fill: C.muted, "font-size": 10.5, "text-anchor": "end" }, svg, sub);
+			el("line", { x1: x + 8, x2: x + w - 8, y1: y + 26 + (h - 34) / 2, y2: y + 26 + (h - 34) / 2, stroke: "#3a271b" }, svg);
+			const len = total ? Math.floor(total * SR) : buf.length;
+			const pad = new Float32Array(len); pad.set(buf.subarray(0, len));
+			el("path", { d: wavePath(pad, x + 8, y + 26, w - 16, h - 34, gain), stroke: color, "stroke-width": 1, fill: "none" }, svg);
+		}
+		box(10, 10, 158, 88, "noise()", "0,1 с", raw, 0.9, C.muted, 0.1);
+		box(181, 10, 158, 88, "ФНЧ 3 кГц ×2", "", f, 0.9, C.teal, 0.1);
+		box(352, 10, 158, 88, "× (1−k)³ · 0,5", "", env, 1.7, C.teal, 0.1);
+		box(10, 128, 158, 88, "квадрат", "260→90 Гц", sq, 3.2, C.warn, 0.25);
+		box(181, 128, 158, 88, "× (1−k)² · 0,28", "", sqe, 3.2, C.warn, 0.25);
+		el("rect", { x: 352, y: 128, width: 158, height: 88, rx: 10, fill: "#3a271b" }, svg);
+		el("text", { x: 431, y: 160, fill: C.hi, "font-size": 12, "text-anchor": "middle", class: "mono" }, svg, "mix()");
+		el("text", { x: 431, y: 180, fill: C.muted, "font-size": 11, "text-anchor": "middle" }, svg, "сумма отсчётов,");
+		el("text", { x: 431, y: 195, fill: C.muted, "font-size": 11, "text-anchor": "middle" }, svg, "длина — большая");
+		box(10, 262, 500, 124, "to_stream(…, false, −2 дБ)", "пик → 0,9 · −2 дБ · фейд 6 мс · 16 бит · 0,25 с", out, 1, C.green, 0.25);
+		const g = el("g", { stroke: C.brass, "stroke-width": 1.5, fill: "none", "marker-end": "url(#arc7)" }, svg);
+		el("path", { d: "M168 54H179" }, g); el("path", { d: "M339 54H350" }, g);
+		el("path", { d: "M168 172H179" }, g); el("path", { d: "M339 172H350" }, g);
+		el("path", { d: "M431 98V126" }, g); el("path", { d: "M431 216 C 431 240 300 240 290 260" }, g);
+		el("text", { x: 10, y: 410, fill: C.muted, "font-size": 11.5 }, svg, "Все волны на схеме посчитаны портом synth.gd прямо в браузере, сид 47.");
+	})();
+
+	/* =====================================================================
+	   Схема 8 · PolyBLEP: наивная пила против сглаженной
+	   ===================================================================== */
+	(function blepSvg() {
+		const svg = document.getElementById("blep-svg"); if (!svg) return;
+		const dt = 2205 / SR, N = 26, x0 = 60, sx = 17;
+		[["наивная", 70, false, C.tomato], ["PolyBLEP", 180, true, C.green]].forEach(([name, cy, smooth, col]) => {
+			el("text", { x: 8, y: cy + 4, fill: col, "font-size": 12, "font-weight": 600 }, svg, name);
+			el("line", { x1: x0, x2: x0 + (N - 1) * sx, y1: cy, y2: cy, stroke: "#3a271b" }, svg);
+			let d = "", ph = 0;
+			const pts = [];
+			for (let i = 0; i < N; i++) {
+				ph = (ph + dt) % 1;
+				const v = ph * 2 - 1 - (smooth ? blep(ph, dt) : 0);
+				pts.push([x0 + i * sx, cy - v * 42]);
+			}
+			d = "M" + pts.map(p => p[0].toFixed(1) + " " + p[1].toFixed(1)).join("L");
+			el("path", { d, fill: "none", stroke: col, "stroke-width": 1.6, opacity: 0.55 }, svg);
+			pts.forEach(p => { el("line", { x1: p[0], x2: p[0], y1: cy, y2: p[1], stroke: col, opacity: 0.35 }, svg); el("circle", { cx: p[0], cy: p[1], r: 3.2, fill: col }, svg); });
+		});
+		el("text", { x: 8, y: 240, fill: C.muted, "font-size": 11.5 }, svg, "PolyBLEP правит только два отсчёта у скачка — остальные не трогает.");
+		el("text", { x: 8, y: 124, fill: C.muted, "font-size": 11.5 }, svg, "Скачок из +1 в −1 за один отсчёт даёт частоты выше 11 кГц — они отражаются вниз звоном.");
+	})();
+
+	/* =====================================================================
+	   Музыка 2.0 — порт synth_music.gd::_song и слоя напряжения
+	   ===================================================================== */
+	const FORM = [0, 1, 0, 2, 3, 4, 3, 1], FILL_BARS = [3, 7], LETTERS = ["A", "A′", "A", "A″", "B", "B′", "B", "A′"];
+	const SONGS = {
+		level: { step: 0.13, lead: SQ, lead_vol: 0.065, swing: 0.12, pad: 0.035, arp: TRI, kicks: [0, 8], snares: [4, 12],
+			chords: [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62], [60, 64, 67], [57, 60, 64], [50, 53, 57], [55, 59, 62]],
+			bass: [48, 45, 41, 43, 48, 45, 38, 43],
+			patterns: [[0, -1, 1, 2, -1, 1, 0, -1, 2, -1, 3, -1, 2, 1, -1, -1], [3, -1, 2, -1, 1, -1, 2, 3, -1, 4, -1, 3, 2, -1, 1, -1],
+				[0, -1, 1, 2, -1, 3, 4, -1, 5, -1, 4, 3, -1, 2, -1, -1], [4, -1, -1, 3, -1, 2, -1, -1, 3, -1, 1, -1, 2, -1, -1, -1],
+				[2, -1, 3, -1, 4, -1, 3, 2, -1, 1, -1, 2, 3, -1, -1, -1]] },
+		boss: { step: 0.1, lead: SAW, lead_vol: 0.06, swing: 0, pad: 0.04, arp: SQ, kicks: [0, 4, 8, 12], snares: [4, 12],
+			chords: [[57, 60, 64], [53, 57, 60], [55, 59, 62], [52, 56, 59], [57, 60, 64], [53, 57, 60], [50, 53, 57], [52, 56, 59]],
+			bass: [45, 41, 43, 40, 45, 41, 38, 40],
+			patterns: [[0, 0, 3, 0, 2, 0, 1, 0, 0, 0, 3, 0, 4, 3, 2, 1], [3, -1, 3, 2, -1, 2, 1, -1, 1, 0, -1, 0, 2, -1, 5, 4],
+				[0, 0, 3, 0, 2, 0, 1, 0, 5, 4, 3, 2, 1, 2, 3, 4], [5, -1, -1, 4, -1, -1, 3, -1, 4, -1, -1, 3, -1, 2, -1, -1],
+				[3, -1, 4, -1, 5, -1, 4, 3, 2, -1, 3, -1, 4, -1, -1, -1]] },
+	};
+	const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+	function add(buf, start, snd, k = 1) { const n = Math.min(snd.length, buf.length - start); for (let i = 0; i < n; i++) buf[start + i] += snd[i] * k; }
+	function song(s) {
+		const step = s.step, bars = s.chords.length, total = Math.floor(step * 16 * bars * SR);
+		const base = new Float32Array(total), hi = new Float32Array(total);
+		const kick = tone(0.14, 150, 45, SINE, 0.55, 0, 1.5);
+		const snare = mix(noise(0.12, 0.2, 2.5, 6000, 900), tone(0.08, 220, 160, TRI, 0.08, 0, 2));
+		const hat = noise(0.035, 0.06, 3, 0, 6000), openHat = noise(0.16, 0.05, 1.6, 0, 5000), crash = noise(0.9, 0.09, 1.3, 0, 3500);
+		for (let b = 0; b < bars; b++) {
+			const chord = s.chords[b], pat = s.patterns[FORM[b % 8] % s.patterns.length], bar0 = b * 16;
+			chord.forEach(n => add(base, Math.floor(bar0 * step * SR), tone(step * 16, hz(n), hz(n) * 1.003, TRI, s.pad, 0, 0.35)));
+			if (b === 0 || b === 4) add(hi, Math.floor(bar0 * step * SR), crash);
+			for (let st = 0; st < 16; st++) {
+				const start = Math.floor((bar0 + st + (st % 2 === 1 ? s.swing : 0)) * step * SR);
+				const idx = pat[st];
+				if (idx >= 0) {
+					const note = chord[idx % 3] + 12 * Math.floor(idx / 3), vel = (0.85 + rnd() * 0.15) * (st % 4 === 0 ? 1.1 : 1);
+					add(base, start, tone(step * 0.95, hz(note), hz(note), s.lead, s.lead_vol * vel, 0, 0.7));
+				}
+				if (st % 2 === 0) {
+					let bn = s.bass[b] + (st % 4 === 2 ? 12 : 0);
+					if (st === 14) bn = s.bass[b] + (s.bass[(b + 1) % bars] > s.bass[b] ? 2 : -1);
+					add(base, start, tone(step * 1.9, hz(bn), hz(bn), TRI, 0.28, 0, 0.8));
+				}
+				const fill = FILL_BARS.includes(b) && st >= 12;
+				if (s.kicks.includes(st)) add(base, start, kick);
+				if (fill) add(base, start, snare, 0.5 + 0.17 * (st - 12));
+				else if (s.snares.includes(st)) add(base, start, snare);
+				else if (st % 2 === 1) add(base, start, hat, 0.6 + rnd() * 0.4);
+				const arp = chord[[0, 1, 2, 1][st % 4]] + 12 * (1 + Math.floor(st / 8) % 2);
+				add(hi, start, tone(step * 0.8, hz(arp), hz(arp), s.arp, 0.045, 0, 1.2));
+				if (st % 2 === 0) add(hi, start, hat, 0.7);
+				if (st % 4 === 2) add(hi, start, openHat);
+				if (st % 4 === 0) { const sub = s.bass[b] - 12; add(hi, start, tone(step * 3, hz(sub), hz(sub), SQ, 0.07, 0, 1)); }
+				if ([0, 6, 10].includes(st)) chord.forEach(n => add(hi, start, tone(step * 0.6, hz(n + 12), hz(n + 12), SAW, 0.025, 0, 1.5)));
+			}
+		}
+		return { base: toStream(base, true), hi: toStream(hi, true), dur: total / SR };
+	}
+
+	let actx = null;
+	function audio() {
+		if (!actx) { const A = window.AudioContext || window.webkitAudioContext; if (!A) return null; actx = new A(); }
+		if (actx.state === "suspended") actx.resume();
+		return actx;
+	}
+	function buffer(ctx, data) { const b = ctx.createBuffer(1, data.length, SR); b.getChannelData(0).set(data); return b; }
+
+	/* ---------- схема формы трека и плеер ---------- */
+	(function music() {
+		const svg = document.getElementById("form-svg"); if (!svg) return;
+		const x0 = 96, bw = 67, rows = [["форма", 22], ["мелодия", 62], ["пэд · бас", 110], ["ударные", 152], ["напряжение", 196]];
+		let track = "level", data = null, src = [], gains = null, t0 = 0, playing = false, target = 0, shown = 0;
+		const hiLayer = el("g", {}, null), head = el("rect", { x: x0, y: 8, width: 2, height: 222, fill: C.hi, opacity: 0 }, null);
+		function draw() {
+			svg.textContent = "";
+			const s = SONGS[track];
+			rows.forEach(r => el("text", { x: 6, y: r[1] + 14, fill: C.muted, "font-size": 11 }, svg, r[0]));
+			for (let b = 0; b < 8; b++) {
+				const x = x0 + b * bw, isB = FORM[b] >= 3;
+				el("rect", { x: x + 1, y: 20, width: bw - 2, height: 24, rx: 5, fill: isB ? "#1d4631" : C.plank }, svg);
+				el("text", { x: x + bw / 2, y: 37, "text-anchor": "middle", fill: isB ? C.green : C.hi, "font-size": 13, "font-weight": 700, class: "mono" }, svg, LETTERS[b]);
+				const pat = s.patterns[FORM[b] % s.patterns.length];
+				pat.forEach((idx, st) => { if (idx >= 0) el("rect", { x: x + 3 + st * 3.9, y: 96 - idx * 6, width: 3, height: 4, rx: 1, fill: C.hi }, svg); });
+				const bn = s.bass[b];
+				el("rect", { x: x + 3, y: 136 - (bn - 36) * 1.2, width: bw - 6, height: 3, rx: 1.5, fill: C.brass, opacity: 0.8 }, svg);
+				s.chords[b].forEach((n, i) => el("rect", { x: x + 3, y: 118 - (n - 50) * 0.55 + i * 0.2, width: bw - 6, height: 2, fill: C.muted, opacity: 0.35 }, svg));
+				for (let st = 0; st < 16; st++) {
+					const cx = x + 5 + st * 3.9, fill = FILL_BARS.includes(b) && st >= 12;
+					if (s.kicks.includes(st)) el("circle", { cx, cy: 176, r: 2.6, fill: C.text }, svg);
+					if (fill) el("rect", { x: cx - 1.5, y: 170 - (st - 12) * 3, width: 3, height: 6 + (st - 12) * 3, fill: C.tomato }, svg);
+					else if (s.snares.includes(st)) el("rect", { x: cx - 1.5, y: 166, width: 3, height: 6, fill: C.warn }, svg);
+					else if (st % 2 === 1) el("rect", { x: cx - 0.8, y: 160, width: 1.6, height: 3, fill: C.muted }, svg);
+				}
+			}
+			hiLayer.textContent = "";
+			for (let b = 0; b < 8; b++) for (let st = 0; st < 16; st++) {
+				const x = x0 + b * bw + 3 + st * 3.9, ch = SONGS[track].chords[b], n = ch[[0, 1, 2, 1][st % 4]];
+				el("rect", { x, y: 222 - (n - 50) * 0.9 - (Math.floor(st / 8) % 2) * 6, width: 3, height: 3, fill: C.green }, hiLayer);
+			}
+			svg.appendChild(hiLayer); svg.appendChild(head);
+			el("text", { x: x0 + 2, y: 246, fill: C.muted, "font-size": 10.5 }, svg, "красным — сбивка малого в конце фраз (такты 4 и 8)");
+			hiLayer.setAttribute("opacity", (0.12 + 0.88 * shown).toFixed(2));
+		}
+		draw();
+		const play = document.getElementById("m-play"), fader = document.getElementById("m-int");
+		const tEl = document.getElementById("m-target"), sEl = document.getElementById("m-shown"), dEl = document.getElementById("m-db"), meter = document.getElementById("m-meter");
+		const MUSIC_DB = -11, HI_SILENT_DB = -60, RATE = 0.8;
+		const hiDb = k => k <= 0.01 ? HI_SILENT_DB : -30 + (MUSIC_DB - 1 + 30) * Math.sqrt(Math.min(1, Math.max(0, k)));
+		function stop() { src.forEach(s => { try { s.stop(); } catch (e) { } }); src = []; playing = false; play.textContent = "▶ Играть"; head.setAttribute("opacity", 0); }
+		function start() {
+			const ctx = audio(); if (!ctx) { play.textContent = "Нет Web Audio"; return; }
+			play.textContent = "Синтез…";
+			setTimeout(() => {
+				if (!data || data.track !== track) { data = song(SONGS[track]); data.track = track; }
+				gains = [ctx.createGain(), ctx.createGain()];
+				gains[0].gain.value = 0.55;
+				gains[1].gain.value = 0.55 * Math.pow(10, (hiDb(shown) - MUSIC_DB) / 20);
+				const when = ctx.currentTime + 0.05;
+				[data.base, data.hi].forEach((d, i) => { const s = ctx.createBufferSource(); s.buffer = buffer(ctx, d); s.loop = true; s.connect(gains[i]).connect(ctx.destination); s.start(when); src.push(s); });
+				t0 = when; playing = true; play.textContent = "■ Стоп"; head.setAttribute("opacity", 0.9);
+			}, 20);
+		}
+		play.addEventListener("click", () => playing ? stop() : start());
+		document.querySelectorAll("[data-track]").forEach(b => b.addEventListener("click", () => {
+			document.querySelectorAll("[data-track]").forEach(o => o.setAttribute("aria-pressed", o === b ? "true" : "false"));
+			const was = playing; stop(); track = b.dataset.track; draw(); if (was) start();
+		}));
+		fader.addEventListener("input", () => { target = +fader.value; tEl.textContent = fmt(target); });
+		let lt = 0;
+		function tick(ts) {
+			const dt = lt ? Math.min(0.1, (ts - lt) / 1000) : 0; lt = ts;
+			const d = RATE * dt; shown = Math.abs(target - shown) <= d ? target : shown + Math.sign(target - shown) * d;
+			const db = hiDb(shown);
+			sEl.textContent = fmt(shown); dEl.textContent = Math.round(db) === -60 ? "−60 дБ (тишина)" : fmt(db - MUSIC_DB, 1) + " дБ к основе";
+			meter.style.width = (shown * 100).toFixed(1) + "%";
+			hiLayer.setAttribute("opacity", (0.12 + 0.88 * shown).toFixed(2));
+			if (playing && gains && actx) {
+				gains[1].gain.setTargetAtTime(0.55 * Math.pow(10, (db - MUSIC_DB) / 20), actx.currentTime, 0.03);
+				const u = ((actx.currentTime - t0) % data.dur + data.dur) % data.dur / data.dur;
+				head.setAttribute("x", (x0 + u * 8 * bw).toFixed(1));
+			}
+			requestAnimationFrame(tick);
+		}
+		requestAnimationFrame(tick);
+	})();
+
+	/* =====================================================================
+	   Лаборатория звука — 12 рецептов из sound_bank.gd
+	   ===================================================================== */
+	(function lab() {
+		const pads = document.getElementById("pads"); if (!pads) return;
+		const R = [
+			["bite", "Укус", "mix(noise(0.1, 0.5, 3.0, 3000), tone(0.25, 260, 90, W.SQUARE, 0.28)), false, -2.0", () => toStream(mix(noise(0.1, 0.5, 3, 3000), tone(0.25, 260, 90, SQ, 0.28)), false, -2), 0.03],
+			["eat", "Съесть", "seq([tone(0.06, 440, 700, W.SQUARE, 0.2), tone(0.1, 700, 1200, W.SQUARE, 0.2)])", () => toStream(seq([tone(0.06, 440, 700, SQ, 0.2), tone(0.1, 700, 1200, SQ, 0.2)])), 0.03],
+			["hurt", "Урон", "mix(tone(0.35, 320, 70, W.SAW, 0.35, 0.0, 1.5), noise(0.25, 0.3, 2.0, 1800))", () => toStream(mix(tone(0.35, 320, 70, SAW, 0.35, 0, 1.5), noise(0.25, 0.3, 2, 1800))), 0.03],
+			["charge", "Заряд", "mix(tone(0.45, 90, 420, W.SAW, 0.25, 0.0, 0.8), _whoosh(0.45, 0.2, 300, 1500))", () => toStream(mix(tone(0.45, 90, 420, SAW, 0.25, 0, 0.8), whoosh(0.45, 0.2, 300, 1500))), 0.03],
+			["slam", "Удар об пол", "mix(tone(0.6, 110, 30, W.SINE, 0.9, 0.0, 1.5), noise(0.45, 0.5, 3.0, 900)), false, -3.0", () => toStream(mix(tone(0.6, 110, 30, SINE, 0.9, 0, 1.5), noise(0.45, 0.5, 3, 900)), false, -3), 0.03],
+			["clang", "Звон вилки", "mix(_metal([523, 1187, 1873, 2711], 0.7, 0.4), noise(0.05, 0.2, 3.0, 5500, 2000)), false, -5.0  # негармонические обертоны", () => toStream(mix(metal([523, 1187, 1873, 2711], 0.7, 0.4), noise(0.05, 0.2, 3, 5500, 2000)), false, -5), 0.03],
+			["roar", "Рёв яичницы", "growl = am(mix(tone(1.1, 95, 62, W.SAW, 0.3, 0.0, 1.1), tone(1.1, 101, 66, W.SAW, 0.22, 0.0, 1.1)), 11.0, 0.45)\nmix(lowpass(growl, 1400), noise(1.1, 0.3, 1.4, 5200, 1800, 0.35)), false, -3.0  # две пилы биением + шкворчание",
+				() => toStream(mix(lowpass(am(mix(tone(1.1, 95, 62, SAW, 0.3, 0, 1.1), tone(1.1, 101, 66, SAW, 0.22, 0, 1.1)), 11, 0.45), 1400), noise(1.1, 0.3, 1.4, 5200, 1800, 0.35)), false, -3), 0.03],
+			["yolk", "Желток открыт", "_notes([660, 880, 1100, 1320], 0.07, W.TRI, 0.35, 0.2)  # мелодичный — без разброса", () => toStream(notes([660, 880, 1100, 1320], 0.07, TRI, 0.35, 0.2)), 0],
+			["win", "Победа", "_notes([523, 659, 784, 1047, 784, 1047], 0.12, W.TRI, 0.4, 0.6)", () => toStream(notes([523, 659, 784, 1047, 784, 1047], 0.12, TRI, 0.4, 0.6)), 0],
+			["ui_key_down", "Клавиша: тук", "mix(lowpass(noise(0.04, 0.5, 3.5), 1800), tone(0.06, 150, 85, W.SINE, 0.35, 0.0, 3.0))  # бакелит уходит вниз", () => toStream(mix(lowpass(noise(0.04, 0.5, 3.5), 1800), tone(0.06, 150, 85, SINE, 0.35, 0, 3))), 0],
+			["ui_lever", "Тумблер", "mix(mix(_pop(0.01, 0.32, 1500, 6000), _metal([1850, 2930, 4100], 0.14, 0.07)),\n\ttone(0.05, 110, 70, W.SINE, 0.3, 0.0, 3.0)), false, -2.0  # щелчок, пружина, толчок в корпус",
+				() => toStream(mix(mix(pop(0.01, 0.32, 1500, 6000), metal([1850, 2930, 4100], 0.14, 0.07)), tone(0.05, 110, 70, SINE, 0.3, 0, 3)), false, -2), 0],
+			["ui_detent", "Детент крутилки", "mix(_pop(0.008, 0.22, 2500, 7000), tone(0.015, 3300, 3000, W.SINE, 0.05, 0.0, 6.0))  # храповик: разброс ±5%", () => toStream(mix(pop(0.008, 0.22, 2500, 7000), tone(0.015, 3300, 3000, SINE, 0.05, 0, 6))), 0.05],
+		];
+		const cv = document.getElementById("scope"), g = cv.getContext("2d"), code = document.getElementById("recipe"), jit = document.getElementById("jitter");
+		function scope(buf, name, pitch) {
+			const W = cv.width, H = cv.height;
+			g.fillStyle = "#07110a"; g.fillRect(0, 0, W, H);
+			g.strokeStyle = "rgba(142,224,98,.10)"; g.lineWidth = 1;
+			for (let x = 0; x <= W; x += W / 10) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+			for (let y = 0; y <= H; y += H / 4) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+			g.strokeStyle = "#8ee062"; g.lineWidth = 1.4; g.beginPath();
+			const per = buf.length / W;
+			for (let c = 0; c < W; c++) {
+				let lo = 0, hi = 0;
+				for (let i = Math.floor(c * per); i < Math.floor((c + 1) * per) && i < buf.length; i++) { if (buf[i] < lo) lo = buf[i]; if (buf[i] > hi) hi = buf[i]; }
+				g.moveTo(c + 0.5, H / 2 - hi * H * 0.45); g.lineTo(c + 0.5, H / 2 - lo * H * 0.45 + 1);
+			}
+			g.stroke();
+			let m = 0; for (const v of buf) m = Math.max(m, Math.abs(v));
+			g.fillStyle = "#b8e0a4"; g.font = "600 24px 'JetBrains Mono', monospace";
+			g.fillText(name + "   " + (buf.length / SR * 1000).toFixed(0) + " мс   пик " + m.toFixed(2) + (pitch !== 1 ? "   высота ×" + pitch.toFixed(3) : ""), 20, 38);
+		}
+		R.forEach(([id, label, rc, make, jitter]) => {
+			const b = document.createElement("button");
+			b.className = "key small"; b.type = "button"; b.textContent = label; b.title = id;
+			b.addEventListener("click", () => {
+				const buf = make();
+				const pitch = jit.checked && jitter > 0 ? 1 + (Math.random() * 2 - 1) * jitter : 1;
+				scope(buf, id, pitch);
+				code.innerHTML = '<span class="c"># sound_bank.gd</span>\n_bank[<span class="s">"' + id + '"</span>] = to_stream(' + rc.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/(#[^\n]*)/g, '<span class="c">$1</span>') + ")";
+				const ctx = audio(); if (!ctx) return;
+				const s = ctx.createBufferSource(), gn = ctx.createGain();
+				s.buffer = buffer(ctx, buf); s.playbackRate.value = pitch; gn.gain.value = 0.8;
+				s.connect(gn).connect(ctx.destination); s.start();
+			});
+			pads.appendChild(b);
+		});
+		scope(new Float32Array(SR / 4), "—", 1);
+	})();
+
+	/* =====================================================================
+	   Лайтбокс: рубрика, заголовок, листание стрелками
+	   ===================================================================== */
+	(function lightbox() {
+		const lb = document.getElementById("lightbox"); if (!lb || typeof lb.showModal !== "function") return;
+		const img = document.getElementById("lb-img"), cap = document.getElementById("lb-cap");
+		const all = () => [...document.querySelectorAll(".shot img, .fire-strip img")];
+		let cur = -1;
+		function show(i) {
+			const list = all(); cur = (i + list.length) % list.length;
+			const im = list[cur], fc = im.closest("figure") && im.closest("figure").querySelector("figcaption");
+			img.src = im.src; img.alt = im.alt; cap.textContent = "";
+			if (fc && fc.dataset.tag) {
+				const sm = document.createElement("small"); sm.textContent = fc.dataset.tag; cap.appendChild(sm);
+				const b = fc.querySelector("b"), sp = fc.querySelector("span");
+				if (b) { const bb = document.createElement("b"); bb.textContent = b.textContent; cap.appendChild(bb); }
+				if (sp) cap.appendChild(document.createTextNode(" — " + sp.textContent));
+			} else cap.textContent = fc ? fc.textContent : im.alt;
+		}
+		document.addEventListener("click", e => {
+			const im = e.target.closest(".shot img, .fire-strip img"); if (!im) return;
+			e.stopImmediatePropagation();
+			show(all().indexOf(im)); if (!lb.open) lb.showModal();
+		}, true);
+		lb.addEventListener("click", e => { if (e.target.closest(".lb-nav")) return; lb.close(); });
+		lb.querySelector(".lb-prev").addEventListener("click", () => show(cur - 1));
+		lb.querySelector(".lb-next").addEventListener("click", () => show(cur + 1));
+		lb.addEventListener("keydown", e => { if (e.key === "ArrowRight") show(cur + 1); if (e.key === "ArrowLeft") show(cur - 1); });
+	})();
+})();
+</script>
+</body>
+</html>
