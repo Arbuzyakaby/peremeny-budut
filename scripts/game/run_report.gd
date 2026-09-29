@@ -5,6 +5,7 @@ const Balance = preload("res://scripts/core/balance.gd")
 const Skills = preload("res://scripts/core/skills.gd")
 const Credits = preload("res://scripts/ending/credits.gd")
 const Daily = preload("res://scripts/core/daily.gd")
+const Design = preload("res://scripts/ui/design.gd")
 
 
 static func rows(g, win: bool, record: bool, best: int) -> Array:
@@ -15,6 +16,8 @@ static func rows(g, win: bool, record: bool, best: int) -> Array:
 		["Медведи / вилки / таблетки / матрёшки", "%d / %d / %d / %d" % [g.bears_eaten, g.forks_broken, g.pills_eaten,
 			g.dolls_done]],
 	]
+	if g.daily_mode and not g.daily.is_empty():  # испытание дня — не просто «Нормальная»
+		rows.insert(1, ["Испытание дня", String(g.daily.get("name", ""))])
 	if g.enemies.friendly_hits > 0:
 		rows.append(["Враги подрались", "%d раз" % g.enemies.friendly_hits])
 	if win and g.ending:
@@ -26,7 +29,7 @@ static func rows(g, win: bool, record: bool, best: int) -> Array:
 	rows.append(["Счёт", "%d%s" % [g.score, "  — НОВЫЙ РЕКОРД!" if record else ""], record])
 	rows.append(["Рекорд", str(best)])
 	if g.streak_bonus > 0:
-		rows.append(["Серия испытаний", "%d дн. подряд: +%d ч." % [Daily.streak(), g.streak_bonus], true])
+		rows.append(["Серия испытаний", "%s подряд: +%s" % [Design.plural(Daily.streak(), "день", "дня", "дней"), Design.scales_text(g.streak_bonus)], true])
 	rows.append(["Чешуйки", "+%d  (всего %d)" % [g.scales_gained, Skills.scales], g.scales_gained > 0])
 	if g.debug_run and g.guard.flagged():
 		rows.append(["Забег не засчитан", g.guard.reason])

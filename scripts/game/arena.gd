@@ -2,12 +2,16 @@ extends Node2D
 ## Арена-ящик: стол вокруг (виден на широких экранах телефонов), процедурный пол этапа и
 ## деревянный бортик с фаской, внутренней тенью и гвоздями. В тереме матрёшек (v9.0) бортик расписной:
 ## киноварь с золотой «ёлочкой», а по полу — хохломские лозы, городецкие розетки и тканый половик.
+## На этапе яичницы (v12.0) ящик — прямоугольная чугунная сковорода: литой борт с заклёпками,
+## ручка уходит за край (видна на широких экранах), на дне — соль, перец и капли масла, а над дном
+## дышит жар конфорки (set_heat растёт с фазой яичницы; рисуется поверх пола аддитивно).
 ## Пол статичен, а его шейдер тяжёлый (шум fbm на каждом пикселе), поэтому он рисуется один раз
 ## во внеэкранный SubViewport, а на экран идёт готовая текстура. Перерисовка — только при смене этапа
 ## и при заметном росте окна (чтобы пол оставался чётким на 1440p/4K).
 
 const Balance = preload("res://scripts/core/balance.gd")
 const Tex = preload("res://scripts/gfx/tex.gd")
+const Settings = preload("res://scripts/core/settings.gd")
 
 const TABLE := Color(0.16, 0.095, 0.055)
 const MAX_BAKE_SCALE := 2.0  # 2560×1440 — выше смысла нет, а видеопамяти жалко
@@ -19,6 +23,12 @@ var floor_decor: Node2D         # рисунок поверх пола (детс
 var floor_kind := -1
 var bake_scale := 0.0
 var frame: Node2D
+var heat_node: Node2D           # живой жар сковороды (этап яичницы)
+var heat := 0.0
+var t := 0.0
+## Чугунный борт и ручка сковороды. В финале камера показывает ящик на столе учёного — там он снова
+## деревянный ящик, ручка из него не торчит (set_pan_rim(false)).
+var pan_rim := true
 var bounds := Balance.ARENA.grow(-Balance.WALL)
 
 
@@ -54,6 +64,13 @@ func _ready() -> void:
 	floor_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	floor_rect.texture = floor_view.get_texture()
 	add_child(floor_rect)
+	heat_node = Node2D.new()
+	var add := CanvasItemMaterial.new()
+	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	heat_node.material = add
+	heat_node.draw.connect(_draw_heat)
+	add_child(heat_node)
+	set_process(false)
 	set_floor(Tex.Floor.WOOD)
 	get_viewport().size_changed.connect(_rebake_if_sharper)
 	frame = Node2D.new()
@@ -65,11 +82,56 @@ func set_floor(kind: int) -> void:
 	if kind == floor_kind and bake_scale > 0.0:
 		return
 	floor_kind = kind
+	if kind != Tex.Floor.PAN:
+		set_heat(0.0)
 	floor_src.material = Tex.floor_material(kind)
 	floor_decor.queue_redraw()
 	if frame:
 		frame.queue_redraw()
 	_bake()
+
+
+func set_pan_rim(on: bool) -> void:
+	pan_rim = on
+	frame.queue_redraw()
+
+
+## Жар конфорки под сковородой 0..1 (этап яичницы, растёт с фазой). 0 — не рисуется и не считается.
+func set_heat(k: float) -> void:
+	heat = clampf(k, 0.0, 1.0)
+	set_process(heat > 0.0)
+	heat_node.queue_redraw()
+
+
+func _process(delta: float) -> void:
+	t += delta
+	heat_node.queue_redraw()
+
+
+## Жар: вишнёвое свечение из-под середины дна (дышит, как пламя конфорки) и шипящие пузырьки масла,
+## которые вспухают и лопаются по дну. «Меньше анимации» — ровное свечение без пузырьков.
+func _draw_heat() -> void:
+	if heat <= 0.0 or floor_kind != Tex.Floor.PAN:
+		return
+	var calm := Settings.flag("reduced_motion")
+	var fl := 1.0 if calm else 0.86 + 0.14 * sin(t * 2.3) * sin(t * 3.7 + 1.0)
+	var c := Vector2(640, 380)
+	Tex.blob(heat_node, c, Vector2(560, 420) * (0.8 + 0.2 * heat), Color(0.5, 0.1, 0.02, 0.3 * heat * fl))
+	Tex.blob(heat_node, c, Vector2(280, 210) * (0.85 + 0.15 * heat), Color(0.65, 0.22, 0.04, 0.2 * heat * fl))
+	if calm:
+		return
+	for i in 22:  # пузырьки: у каждого своё место и свой ритм, после лопания — на новом месте
+		var life := 1.1 + 0.9 * fmod(i * 0.377, 1.0)
+		var cyc_t := t / life + fmod(0.37 + i * 0.61803, 1.0)
+		var ph := fmod(cyc_t, 1.0)
+		var cyc := floorf(cyc_t)
+		var a := i * 2.39996 + cyc * 1.3
+		var r := 90.0 + 330.0 * fmod(i * 0.1571 + cyc * 0.29, 1.0)
+		var p := c + Vector2(cos(a) * r, sin(a) * r * 0.62)
+		var br := 1.5 + 3.5 * ph
+		var alpha := (1.0 - ph) * (0.25 + 0.35 * heat) * (1.0 - r / 520.0)
+		heat_node.draw_arc(p, br, 0, TAU, 10, Color(1, 0.78, 0.4, alpha), 1.2)
+		heat_node.draw_circle(p + Vector2(-br * 0.35, -br * 0.35), br * 0.25, Color(1, 0.9, 0.7, alpha * 0.8))
 
 
 ## Во сколько раз экран крупнее арены 1280×720 (режим растяжения canvas_items): в таком масштабе и печём.
@@ -116,6 +178,54 @@ func _draw_frame() -> void:
 		frame.draw_circle(c + Vector2(-1.2, -1.2), 1.6, Color(0.9, 0.9, 0.92))
 	if floor_kind == Tex.Floor.TEREM:
 		_draw_terem_frame()
+	elif floor_kind == Tex.Floor.PAN and pan_rim:
+		_draw_pan_frame()
+
+
+## Борт чугунной сковороды поверх деревянного: литой, со скруглёнными углами, светлая фаска по верху
+## и масляный блик окна; ручка на заклёпках справа (уходит на стол) и литое ушко слева.
+func _draw_pan_frame() -> void:
+	var arena := Balance.ARENA
+	var wall := Balance.WALL
+	var iron := Color(0.13, 0.12, 0.12)
+	var hi := Color(0.42, 0.4, 0.38)
+	var hy := arena.get_center().y
+	var x := arena.end.x
+	var handle := PackedVector2Array([Vector2(x - 6, hy - 30), Vector2(x + 90, hy - 22), Vector2(x + 330, hy - 17),
+		Vector2(x + 350, hy), Vector2(x + 330, hy + 17), Vector2(x + 90, hy + 22), Vector2(x - 6, hy + 30)])
+	var shadow := PackedVector2Array()
+	for v in handle:
+		shadow.append(v + Vector2(10, 14))
+	frame.draw_colored_polygon(shadow, Color(0, 0, 0, 0.35))
+	frame.draw_colored_polygon(handle, iron)
+	frame.draw_polyline(handle.slice(0, 4), hi, 2.0, true)
+	frame.draw_polyline(handle.slice(3, 7), Color(0.03, 0.03, 0.03), 2.5, true)
+	frame.draw_circle(Vector2(x + 300, hy), 9.0, TABLE)  # отверстие — вешать на гвоздь
+	frame.draw_arc(Vector2(x + 300, hy), 9.0, PI, TAU, 12, Color(0.03, 0.03, 0.03), 2.0)
+	for k in 2:
+		var rv := Vector2(x + 34, hy - 12 + k * 24)
+		frame.draw_circle(rv, 5.0, Color(0.22, 0.21, 0.2))
+		frame.draw_circle(rv + Vector2(-1.2, -1.2), 2.0, Color(0.55, 0.53, 0.5))
+	var ear := Vector2(arena.position.x - 30, hy)
+	frame.draw_arc(ear + Vector2(6, 10), 32.0, PI * 0.5, PI * 1.5, 20, Color(0, 0, 0, 0.35), 12.0)
+	frame.draw_arc(ear, 32.0, PI * 0.5, PI * 1.5, 20, iron, 12.0)
+	frame.draw_arc(ear, 37.0, PI * 0.8, PI * 1.3, 10, hi, 2.0)
+	frame.draw_rect(arena.grow(-wall / 2), iron, false, wall)
+	for k in 4:  # литьё: борт темнеет к дну
+		frame.draw_rect(bounds.grow(1.5 + k * 2.5), Color(0, 0, 0, 0.18 - k * 0.04), false, 2.5)
+	frame.draw_rect(arena.grow(-2.0), Color(0.36, 0.34, 0.32), false, 2.5)  # фаска по верху борта
+	frame.draw_rect(arena.grow(-6.0), Color(0.22, 0.2, 0.19), false, 1.5)
+	for k in 6:  # масляный блик окна на верхнем борту — мягко гаснет к краям
+		var a0 := 120.0 + k * 60.0
+		frame.draw_line(arena.position + Vector2(a0, 10), arena.position + Vector2(a0 + 60, 10),
+			Color(0.75, 0.72, 0.68, 0.2 * sin((k + 0.5) / 6.0 * PI)), 2.0)
+	for c: Vector2 in [arena.position, Vector2(arena.end.x, arena.position.y), arena.end, Vector2(arena.position.x, arena.end.y)]:
+		frame.draw_circle(c, 11.0, TABLE)  # скруглённые углы литья
+		frame.draw_circle(c + (arena.get_center() - c).sign() * 11.0, 11.0, iron)
+	for c: Vector2 in [Vector2(640, 12), Vector2(640, 708), Vector2(12, 200), Vector2(12, 520), Vector2(1268, 200), Vector2(1268, 520)]:
+		frame.draw_circle(c + Vector2(1, 1.5), 4.0, Color(0, 0, 0, 0.4))  # заклёпки
+		frame.draw_circle(c, 3.6, Color(0.25, 0.24, 0.23))
+		frame.draw_circle(c + Vector2(-1, -1), 1.4, Color(0.6, 0.58, 0.55))
 
 
 ## Расписной бортик терема: киноварь, золотая «ёлочка» по средней линии, точки-бусины по краю.
@@ -151,6 +261,9 @@ func _draw_terem_frame() -> void:
 func _draw_decor() -> void:
 	if floor_kind == Tex.Floor.TEREM:
 		_draw_terem()
+		return
+	if floor_kind == Tex.Floor.PAN:
+		_draw_pan()
 		return
 	if floor_kind != Tex.Floor.WOOD:
 		return
@@ -295,6 +408,39 @@ func _draw_terem() -> void:
 		if p.distance_to(Vector2(640, 360)) < 170.0:
 			continue
 		d.draw_circle(p, 3.5, Color.from_hsv(rng.randf_range(0.0, 0.15), 0.8, 0.9, 0.5))
+
+
+## Дно сковороды: крупинки соли, чёрный перец, капли масла с бликом, пригоревшие крошки. Всё мелкое
+## и плоское — это дно, а не препятствия; середина свободна: туда приземляется яичница.
+func _draw_pan() -> void:
+	var d := floor_decor
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2412
+	var c := Vector2(640, 380)
+	for i in 70:
+		var p := Vector2(rng.randf_range(70, 1210), rng.randf_range(70, 650))
+		if p.distance_to(c) < 190.0:
+			continue
+		match i % 5:
+			0, 1:  # соль: белые кристаллики
+				var s := rng.randf_range(1.6, 3.0)
+				var a := rng.randf() * TAU
+				d.draw_colored_polygon(PackedVector2Array([p + Vector2.from_angle(a) * s, p + Vector2.from_angle(a + 1.8) * s * 0.8,
+					p + Vector2.from_angle(a + PI) * s, p + Vector2.from_angle(a + PI + 1.8) * s * 0.8]), Color(0.95, 0.93, 0.88, 0.55))
+			2:  # перец
+				d.draw_circle(p, rng.randf_range(1.2, 2.2), Color(0.02, 0.02, 0.02, 0.8))
+			3:  # капля масла с бликом окна
+				var r := rng.randf_range(4.0, 9.0)
+				d.draw_circle(p + Vector2(1, 1.5), r, Color(0, 0, 0, 0.25))
+				d.draw_circle(p, r, Color(0.45, 0.33, 0.1, 0.45))
+				d.draw_arc(p, r, PI * 1.05, PI * 1.6, 8, Color(1, 0.9, 0.6, 0.55), 1.2)
+				d.draw_circle(p + Vector2(-r * 0.35, -r * 0.35), r * 0.22, Color(1, 0.97, 0.85, 0.7))
+			4:  # пригоревшая крошка
+				var cr := PackedVector2Array()
+				var r2 := rng.randf_range(2.5, 5.0)
+				for k in 6:
+					cr.append(p + Vector2.from_angle(k * TAU / 6.0 + rng.randf() * 0.6) * r2 * rng.randf_range(0.6, 1.0))
+				d.draw_colored_polygon(cr, Color(0.08, 0.05, 0.03, 0.8))
 
 
 ## Городецкая розетка: кольцо лепестков-капель, цветок-купавка и золотая серединка.

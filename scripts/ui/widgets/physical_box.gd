@@ -26,6 +26,7 @@ enum Mode { KEY, INSET, PANEL, FOCUS }
 @export var screws := false
 @export var shadow := true
 @export var disabled := false
+@export var heat := 0.0                   # чугун (2.4): накал нижней кромки 0..1
 
 
 ## Отступы содержимого с учётом хода клавиши: нажатая опускает текст вместе с гранью.
@@ -105,16 +106,26 @@ func _draw(ci: RID, rect: Rect2) -> void:
 		bottom = mid
 	RenderingServer.canvas_item_add_polygon(ci, body, vgrad(body, body_r, top, bottom))
 	_grain(ci, body, body_r, 1.0)
-	if kind in [Materials.Kind.BRASS, Materials.Kind.CHROME, Materials.Kind.LACQUER]:  # полоса отражения на металле и лаке
+	if kind in [Materials.Kind.BRASS, Materials.Kind.CHROME, Materials.Kind.LACQUER, Materials.Kind.CAST_IRON]:  # полоса отражения на металле и лаке
 		var band := Rect2(body_r.position + Vector2(r * 0.5, body_r.size.y * 0.18),
 			Vector2(maxf(body_r.size.x - r, 1.0), body_r.size.y * 0.22))
-		var gloss := 0.3 if kind == Materials.Kind.LACQUER else 0.42
+		var gloss := 0.42
+		match kind:
+			Materials.Kind.LACQUER:
+				gloss = 0.3
+			Materials.Kind.CAST_IRON:  # чугун блестит только маслом: тусклый отлив
+				gloss = 0.12
 		RenderingServer.canvas_item_add_polygon(ci, rrect(band, band.size.y / 2.0),
 			vgrad(rrect(band, band.size.y / 2.0), band, Color(1, 1, 1, gloss), Color(1, 1, 1, 0.0)))
 	if kind == Materials.Kind.LACQUER:  # золотая кайма по грани, как у расписной игрушки
 		var rim := body_r.grow(-3.0)
 		RenderingServer.canvas_item_add_polyline(ci, rrect(rim, maxf(r - 4.5, 0.0), true),
 			PackedColorArray([Color(Materials.LACQUER_GOLD, 0.75)]), 1.4, true)
+	if kind == Materials.Kind.CAST_IRON and heat > 0.0:  # раскалённая нижняя кромка (2.4)
+		var glow := Rect2(Vector2(body_r.position.x + r * 0.4, body_r.end.y - body_r.size.y * 0.3),
+			Vector2(maxf(body_r.size.x - r * 0.8, 1.0), body_r.size.y * 0.3))
+		RenderingServer.canvas_item_add_polygon(ci, rrect(glow, glow.size.y / 2.0),
+			vgrad(rrect(glow, glow.size.y / 2.0), glow, Color(Materials.IRON_HEAT, 0.0), Color(Materials.IRON_HEAT, 0.45 * heat)))
 	if not pressed:
 		_top_line(ci, body_r.grow(-0.5), maxf(r - 2.0, 0.0), Color(hi.lightened(0.3), 0.7), 1.5)
 	else:

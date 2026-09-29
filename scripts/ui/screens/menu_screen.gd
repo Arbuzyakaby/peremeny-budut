@@ -2,7 +2,7 @@ extends "res://scripts/ui/screens/screen.gd"
 ## Главное меню 3.0 (v9.0). Слева — доска-пульт на винтах: заголовок, карточки сложностей 2×2
 ## (у каждой — лампа, сердца жизней и рекорд в окошке), описание, испытание дня и картотека,
 ## навыки, настройки, выход. Справа поверх живой демо-арены приколот «Журнал эксперимента»:
-## маршрут забега от медведей до яичницы, штамп «НОВОЕ» у терема матрёшек, счётчики (чешуйки,
+## маршрут забега от медведей до яичницы, штамп «ОБНОВЛЕНО» у яичницы (v12.0), счётчики (чешуйки,
 ## картотека, серия испытаний, пасхалки) и совет (core/tips.gd). Внизу справа — латунная табличка
 ## с управлением и номером версии.
 ## Пасхалки меню: код Konami, набранное iddqd, семь щелчков по заголовку (яичницу в углу ловит game.gd).
@@ -111,6 +111,9 @@ func build() -> void:
 		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		face.draw.connect(_draw_card.bind(face, b, i))
 		b.add_child(face)
+		# лицо карточки перерисовывается, когда меняется её вид (наведение, фокус, нажатие), а не каждый кадр
+		for sig: Signal in [b.mouse_entered, b.mouse_exited, b.focus_entered, b.focus_exited, b.button_down, b.button_up]:
+			sig.connect(face.queue_redraw)
 		grid.add_child(b)
 		diff_buttons.append(b)
 		fade_items.append(b)
@@ -272,7 +275,7 @@ func set_data(diffs: Array, best_scores: Array, selected: int, scales: int, touc
 
 func update_scales(scales: int) -> void:
 	scales_now = scales
-	tree_button.text = "НАВЫКИ  •  %d ч." % scales
+	tree_button.text = "НАВЫКИ  •  " + Design.scales_text(scales).to_upper()
 	if stats_label:
 		_update_journal()
 
@@ -280,9 +283,9 @@ func update_scales(scales: int) -> void:
 ## Счётчики журнала: машинописью, с отточием до значения.
 func _update_journal() -> void:
 	var rows := [
-		["Чешуйки", "%d ч." % scales_now],
+		["Чешуйки", "%d" % scales_now],
 		["Картотека", "%d / %d" % [Bestiary.known_count(), Bestiary.total()]],
-		["Серия испытаний", "%d дн." % Daily.streak()],
+		["Серия испытаний", Design.plural(Daily.streak(), "день", "дня", "дней")],
 		["Пасхалки", "%d / %d" % [Secrets.found_count(), Secrets.total()]],
 	]
 	var lines := PackedStringArray()
@@ -303,8 +306,8 @@ func _draw_route() -> void:
 		var w := f.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
 		route.draw_string(f, Vector2(x0 + i * ROUTE_STEP - w / 2.0, 62), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 10,
 			Color(PAPER_INK, 0.75))
-	# новый этап v9.0 — штампом «НОВОЕ»
-	Design.draw_stamp(route, Vector2(x0 + Balance.DOLL_STAGE * ROUTE_STEP + 24, 6), "НОВОЕ", RED_INK, 0.18, 10)
+	# этап, переделанный в этой версии (v12.0 — сковорода яичницы), — штампом «ОБНОВЛЕНО»
+	Design.draw_stamp(route, Vector2(x0 + Balance.BOSS_STAGE * ROUTE_STEP - 18, 34), "ОБНОВЛЕНО", RED_INK, -0.14, 10)
 
 
 ## Лицо карточки сложности: название цветом сложности, сердца жизней и рекорд в окошке.
@@ -382,10 +385,10 @@ func _show_daily_desc() -> void:
 	var run := Daily.streak()
 	desc_label.text = "Испытание дня %s: %s. Нормальная сложность.
 %s
-Серия: %d дн. (рекорд %d) — за первый забег дня +%d ч." % [
+Серия: %s (рекорд %d) — за первый забег дня +%s." % [
 		Daily.day_key(), mod["name"], (mod["desc"] as String).replace("
-", " • "), run, Daily.best_streak(),
-		Daily.streak_bonus(run + (0 if Daily.best(Daily.day_key()) > 0 else 1))]
+", " • "), Design.plural(run, "день", "дня", "дней"), Daily.best_streak(),
+		Design.scales_text(Daily.streak_bonus(run + (0 if Daily.best(Daily.day_key()) > 0 else 1)))]
 	desc_label.label_settings.font_color = Design.STEEL.lightened(0.3)
 
 
@@ -480,10 +483,8 @@ func _process(delta: float) -> void:
 	title_art.t = t
 	title_art.intro = intro
 	title_art.queue_redraw()
-	route.queue_redraw()
-	for b in diff_buttons:
-		b.get_child(0).queue_redraw()
 	_fit_journal()
+	_fit_plate()
 	if glitch and panel and not Settings.flag("reduced_motion"):  # фальшивое меню подрагивает помехами
 		var hit := fmod(t * 7.3, 1.0) < 0.08
 		panel.modulate = Color(0.85, 1.0, 0.9, 0.9) if hit else Color.WHITE
@@ -491,6 +492,17 @@ func _process(delta: float) -> void:
 	tip_t -= delta
 	if tip_t <= 0.0:
 		_next_tip()
+
+
+## Латунная табличка управления тоже не наезжает на доску: на узком экране она мельче.
+func _fit_plate() -> void:
+	if panel == null or not controls_plate.is_inside_tree() or controls_plate.size.x <= 0.0:
+		return
+	var right_edge := center.position.x + panel.position.x + panel.size.x
+	var free := size.x - Design.SPACE[5] - Design.SPACE[3] - right_edge
+	var k := clampf(free / controls_plate.size.x, 0.6, 1.0)
+	controls_plate.pivot_offset = controls_plate.size
+	controls_plate.scale = Vector2(k, k)
 
 
 ## Журнал не должен наезжать на доску слева (узкий экран, крупный интерфейс): тогда он мельче.

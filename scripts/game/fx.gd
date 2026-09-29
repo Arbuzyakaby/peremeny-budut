@@ -6,6 +6,9 @@ const Design = preload("res://scripts/ui/design.gd")
 const Settings = preload("res://scripts/core/settings.gd")
 const Tex = preload("res://scripts/gfx/tex.gd")
 
+## Поле, в котором живут всплывающие надписи (арена 1280×720).
+const POPUP_AREA := Rect2(0, 0, 1280, 720)
+
 var world: Node2D
 ## Кривая размера и градиент частиц одинаковы у всех облачков: создаём один раз, а не на каждый взрыв.
 static var _scale_curve: Curve
@@ -32,10 +35,15 @@ func popup(pos: Vector2, text: String, color: Color, score := false) -> void:
 	ls.outline_size = 7
 	label.label_settings = ls
 	label.z_index = 5
-	label.size = Vector2(400, 40)
+	# надпись у бортика не должна уходить за край поля: центр сдвигается внутрь на полширины текста
+	var w := ls.font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, ls.font_size).x + ls.outline_size * 2.0
+	var half := maxf(200.0, w / 2.0 + 8.0)
+	pos.x = clampf(pos.x, w / 2.0 + 12.0, POPUP_AREA.end.x - w / 2.0 - 12.0) if w + 24.0 < POPUP_AREA.size.x else POPUP_AREA.get_center().x
+	pos.y = clampf(pos.y, POPUP_AREA.position.y + 60.0, POPUP_AREA.end.y)
+	label.size = Vector2(half * 2.0, 40)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.position = pos - Vector2(200, 30)
-	label.pivot_offset = Vector2(200, 20)
+	label.position = pos - Vector2(half, 30)
+	label.pivot_offset = Vector2(half, 20)
 	label.scale = Vector2(0.6, 0.6)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	world.add_child(label)

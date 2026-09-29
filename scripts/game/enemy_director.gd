@@ -258,7 +258,7 @@ func update_reinforcements(delta: float) -> void:
 	g.fx.popup(pos + Vector2(0, -30), "НА ПОМОЩЬ ЯИЧНИЦЕ!", Color(1, 0.8, 0.5))
 	if not reinforce_hinted:
 		reinforce_hinted = true
-		g.hud.show_banner("На помощь яичнице идут медведи, вилки, таблетки и матрёшки!", Color(1, 0.7, 0.4), 2.0)
+		g.hud.show_banner("НА ПОМОЩЬ ЯИЧНИЦЕ! Идут медведи, вилки, таблетки и матрёшки", Color(1, 0.7, 0.4), 2.0)
 		g.hint("Съешь медведя — его атака ранит яичницу. Вилку в спринте можно направить в неё!", 4.0)
 
 

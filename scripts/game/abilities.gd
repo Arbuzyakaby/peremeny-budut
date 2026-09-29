@@ -125,12 +125,21 @@ func gain(t: int) -> void:
 	if not hinted:
 		hinted = true
 		hinted_sources[src] = true
-		g.hud.show_banner(how + " — атака съеденного врага!", Color(0.5, 1, 0.5), 1.8)
+		g.hud.show_banner("НОВАЯ АТАКА! " + how + " — атака съеденного врага", Color(0.5, 1, 0.5), 1.8)
 	elif not hinted_sources.has(src):
 		hinted_sources[src] = true
-		var text: String = {"fork": "Каждая 2-я вилка даёт её приём", "pill": "Каждая 2-я таблетка даёт ударную волну",
-			"doll": "Каждая 2-я малышка даёт прыжок"}.get(src, "")
-		g.hint(text + " — если слот атаки пуст", 3.0)
+		g.hint(source_hint(src, int(g.mods.get("fork_every", Balance.FORK_PILL_EVERY))), 3.0)
+
+
+## Подсказка «откуда берётся атака». every — с мутацией «Железный желудок» приём даёт каждый враг.
+static func source_hint(src: String, every: int) -> String:
+	var each := every <= 1
+	var text: String = {
+		"fork": "Каждая вилка даёт её приём" if each else "Каждая %d-я вилка даёт её приём" % every,
+		"pill": "Каждая таблетка даёт ударную волну" if each else "Каждая %d-я таблетка даёт ударную волну" % every,
+		"doll": "Каждая малышка даёт прыжок" if each else "Каждая %d-я малышка даёт прыжок" % every,
+	}.get(src, "")
+	return text + " — если слот атаки пуст"
 
 
 func update(delta: float) -> void:

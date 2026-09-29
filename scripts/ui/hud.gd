@@ -59,6 +59,7 @@ var shot_frames: Array[int] = []  # отладка: снимки экрана н
 var shot_frame := 0
 var pause_allowed := false
 var pause_summary := ""
+var pause_summary_fn := Callable()  # игра даёт строку паузы по запросу (game.gd::pause_summary)
 var cinematic := false
 const SHADE := Color(0.4, 0.38, 0.42)  # табло в тени: золото гаснет почти до бронзы
 var shade_tween: Tween
@@ -151,6 +152,7 @@ func layout() -> void:
 	dev_button.position = Vector2(12, root.size.y - 56)
 	for s in [menu, pause_screen, end_screen, perks, settings_screen, skills_screen, bestiary_screen, replay_screen]:
 		s.fit()
+	_place_texts()
 
 
 ## Применить изменённую настройку к интерфейсу.
@@ -221,6 +223,8 @@ func show_menu(diffs: Array, bests: Array, selected: int) -> void:
 	overlay.in_game = false
 	touch.set_active(false)
 	close_all()
+	set_iron(false)
+	_place_texts()
 	stack.append(menu)
 	Skills.ensure_loaded()
 	menu.show_menu(diffs, bests, selected, Skills.scales, Settings.touch_enabled())
@@ -233,12 +237,14 @@ func open_skills() -> void:
 func show_game(diff_name: String, diff_color: Color, lives_max: int) -> void:
 	close_all()
 	overlay.reset_run(diff_name, diff_color, lives_max)
+	set_iron(false)
 	_update_touch()
 
 
 func show_end(win: bool, title: String, line: String, rows: Array) -> void:
 	pause_allowed = false
 	captions.hide_caption()
+	captions.hide_banner()
 	touch.set_active(false)
 	close_all()
 	stack.append(end_screen)
@@ -248,6 +254,7 @@ func show_end(win: bool, title: String, line: String, rows: Array) -> void:
 
 func show_perks(cards: Array, next_stage: String) -> void:
 	touch.set_active(false)
+	captions.hide_banner()
 	close_all()
 	stack.append(perks)
 	perks.show_perks(cards, next_stage, Settings.touch_enabled())
@@ -258,9 +265,10 @@ func set_paused(paused: bool) -> void:
 	if paused:
 		touch.release_all()
 		captions.hide_caption()
+		captions.hide_banner()  # иначе «ЭТАП 2: …» выглядывает из-за таблички паузы
 		close_all()
 		stack.append(pause_screen)
-		pause_screen.show_pause(pause_summary)
+		pause_screen.show_pause(pause_summary_fn.call() if pause_summary_fn.is_valid() else pause_summary)
 	else:
 		close_all()
 		Settings.save()
@@ -274,6 +282,32 @@ func _update_touch() -> void:
 	overlay.touch = on
 	touch.set_active(on and overlay.in_game and not get_tree().paused and not cinematic and stack.is_empty())
 	_update_dev_button()
+	_place_texts()
+
+
+## Табличка объявлений и лента подсказки (2.4): в игре табличка сверху между табло, лента — над
+## нижним табло яичницы (на ПК) и над киношными полосами. Отступы — в единицах масштабируемого слоя.
+func _place_texts() -> void:
+	if captions == null:
+		return
+	var k := Settings.ui_scale()
+	var bottom := 84.0 if cinematic else 0.0
+	if overlay.boss_visible and not overlay.touch:
+		bottom = maxf(bottom, (overlay.boss_bar_height() + 8.0) / k)
+	captions.set_bottom_margin(bottom)
+	# табличка объявлений висит между табло: свободное место — от правого края левого табло до зеркального
+	var free := (overlay.size.x - 2.0 * (overlay.panel_left_edge() + Design.SPACE[2])) / k
+	captions.banner_free_width = maxf(free, 240.0)
+	# сенсорный экран: по бокам внизу стик и аркадные кнопки — лента подсказки между ними
+	captions.caption_max_width = maxf((overlay.size.x - 2.0 * 330.0) / k, 360.0) if overlay.touch else 1e9
+	captions.set_banner_place(overlay.in_game and not cinematic, overlay.touch, captions.iron, captions.heat)
+
+
+## Этап яичницы (2.4): таблички и лента — из чугуна, раскалённого на heat (фаза яичницы).
+func set_iron(on: bool, heat := 0.0) -> void:
+	captions.set_banner_place(overlay.in_game and not cinematic, overlay.touch, on, heat)
+	overlay.iron = on
+	overlay.heat = heat
 
 
 func quit() -> void:
@@ -328,7 +362,10 @@ func lives() -> int:
 
 
 func set_boss(visible_bar: bool, hp: int = 0, max_hp: int = 1, phase: int = 1) -> void:
+	var was := overlay.boss_visible
 	overlay.set_boss(visible_bar, hp, max_hp, phase)
+	if was != visible_bar:  # подсказка не должна лечь на табло яичницы
+		_place_texts()
 
 
 func set_ability(type: int, ability_title: String, count: int) -> void:
@@ -412,8 +449,7 @@ func set_cinematic(on: bool) -> void:
 		overlay.in_game = false
 		overlay.boss_visible = false
 	captions.skip_button.visible = on and Settings.touch_enabled()
-	captions.set_bottom_margin(84.0 if on else 0.0)
-	_update_touch()
+	_update_touch()  # и отступ ленты: над киношными полосами
 	create_tween().tween_property(overlay, "cine", 1.0 if on else 0.0, 1.0)
 
 

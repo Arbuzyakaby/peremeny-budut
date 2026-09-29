@@ -5,7 +5,7 @@ extends "res://scripts/ui/screens/screen.gd"
 const Skills = preload("res://scripts/core/skills.gd")
 const Icons = preload("res://scripts/ui/icons.gd")
 
-const NODE_SIZE := Vector2(238, 58)
+const NODE_SIZE := Vector2(238, 54)
 const MEDALLION := 36.0
 
 var grid: GridContainer
@@ -22,7 +22,8 @@ var selected := "hide"
 
 
 func build() -> void:
-	make_frame(Design.SPACE[3])
+	# v12.0: плотнее по вертикали — на экране 720 px кнопки «Сбросить» и «Готово» видны без прокрутки
+	make_frame(Design.SPACE[2], Design.plank(Color(0, 0, 0, 0), Design.RADIUS_LG, Vector2(Design.SPACE[6], Design.SPACE[4])))
 	var head := Design.hbox(Design.SPACE[5])
 	head.add_child(Design.label("ДРЕВО НАВЫКОВ", "h2", Design.YOLK))
 	var chip_row := Design.hbox(Design.SPACE[2])
@@ -37,7 +38,7 @@ func build() -> void:
 	grid = GridContainer.new()
 	grid.columns = Skills.BRANCHES.size()
 	grid.add_theme_constant_override("h_separation", Design.SPACE[5])
-	grid.add_theme_constant_override("v_separation", Design.SPACE[3])
+	grid.add_theme_constant_override("v_separation", Design.SPACE[2])
 	grid.draw.connect(_draw_links)
 	grid.sort_children.connect(grid.queue_redraw)  # связи рисуем после раскладки кнопок
 	var grid_center := CenterContainer.new()
@@ -195,7 +196,7 @@ func open() -> void:
 
 
 func refresh() -> void:
-	scales_label.text = "%d чешуек" % Skills.scales
+	scales_label.text = Design.scales_text(Skills.scales)
 	for id: String in node_buttons:
 		var btn: Button = node_buttons[id]
 		var n := Skills.node(id)
@@ -208,7 +209,7 @@ func refresh() -> void:
 			state_label.text = "закрыто"
 			state_label.label_settings.font_color = Design.FAINT
 		else:
-			state_label.text = "%d ч." % Skills.cost(id)
+			state_label.text = "%d чеш." % Skills.cost(id)
 			state_label.label_settings.font_color = Design.MINT if Skills.can_buy(id) else Design.MUTED
 		var border := Design.LINE
 		if Skills.maxed(id):
@@ -259,7 +260,7 @@ func _show_desc(id: String) -> void:
 	elif Skills.maxed(id):
 		text += "\nВкачано до максимума."
 	else:
-		text += "\nЦена следующего ранга: %d чешуек." % Skills.cost(id)
+		text += "\nЦена следующего ранга: %s." % Design.scales_text(Skills.cost(id))
 	desc_label.text = text
 
 

@@ -1,5 +1,5 @@
 extends RefCounted
-## Дизайн-язык «Ящик экспериментов» 2.3 — единственный источник цветов, шрифтов, отступов, радиусов,
+## Дизайн-язык «Ящик экспериментов» 2.4 — единственный источник цветов, шрифтов, отступов, радиусов,
 ## материалов, теней и анимаций интерфейса. Описание и правила — docs/DESIGN.md.
 ## Идея: интерфейс — панель лабораторного прибора, вмонтированная в деревянный ящик. Никаких плоских
 ## «цифровых» заливок: у каждой кнопки, тумблера и крутилки есть материал (бакелит, латунь, хром,
@@ -38,6 +38,8 @@ const LACQUER := Color(0.86, 0.2, 0.15)             # киноварь тере�
 const STAGE_ACCENTS := [Color(0.851, 0.627, 0.4), Color(0.85, 0.42, 0.16), Color(0.373, 0.831, 0.769), LACQUER, YOLK]
 ## Фазы яичницы.
 const PHASE_COLORS := [Color(1, 0.8, 0.15), Color(1, 0.55, 0.1), Color(0.95, 0.25, 0.1)]
+## Чугун сковороды (2.4): табло и таблички этапа яичницы.
+const IRON := Color(0.15, 0.14, 0.14)
 
 # ---------------------------------------------------------------- размеры
 
@@ -246,6 +248,45 @@ static func plate(color: Color, pad := Vector2(SPACE[3], 3), radius := RADIUS_SM
 	s.accent = Color(BRASS, 0.9)
 	s.shadow = false
 	return s
+
+
+## Объявление (2.4): табличка поверх арены вместо голого текста баннера — доска на винтах с кромкой
+## смысла. На этапе яичницы (iron) — прокалённый чугун, раскалённый снизу на heat.
+static func announce(col: Color, iron := false, heat := 0.0) -> PhysicalBox:
+	var s := plank(Color(col, 0.9), RADIUS_MD, Vector2(SPACE[6], SPACE[2]), true)
+	if iron:
+		s.kind = Materials.Kind.CAST_IRON
+		s.grain = 0.14
+		s.heat = heat
+	return s
+
+
+## Лента подсказки (2.4): тёмная резиновая полоса с лампой слева. Подсказка читается на любом полу —
+## от белого кафеля аптеки до чёрного чугуна, — а лампа говорит, чья это реплика (совет, персонаж).
+static func strip(lamp_col: Color) -> PhysicalBox:
+	var s := key(Materials.Kind.RUBBER, Color(0, 0, 0, 0), "normal", RADIUS_SM, 0.0, Vector2(SPACE[5], SPACE[2]))
+	s.content_margin_left = SPACE[6] + 2
+	s.lamp = lamp_col
+	s.lamp_left = true
+	s.grain = 0.05
+	return s
+
+
+## Число и слово в нужной форме: plural(3, "чешуйка", "чешуйки", "чешуек") → «3 чешуйки».
+static func plural(n: int, one: String, few: String, many: String) -> String:
+	var a := absi(n) % 100
+	var word := many
+	if a < 11 or a > 14:
+		match a % 10:
+			1:
+				word = one
+			2, 3, 4:
+				word = few
+	return "%d %s" % [n, word]
+
+
+static func scales_text(n: int) -> String:
+	return plural(n, "чешуйка", "чешуйки", "чешуек")
 
 
 static func panel_style() -> StyleBox:
@@ -641,12 +682,18 @@ static func draw_bar(ci: CanvasItem, r: Rect2, value: float, col: Color, ghost :
 	ci.draw_style_box(cached("tube_well_%d" % rad, func() -> StyleBox: return well(rad, Vector2.ZERO)), r)
 	if ghost > value:
 		var g := Rect2(r.position, Vector2(maxf(r.size.x * clampf(ghost, 0.0, 1.0), r.size.y), r.size.y))
-		ci.draw_style_box(box(Color(CREAM, 0.55), Color.TRANSPARENT, rad, 0, Vector2.ZERO), g)
+		ci.draw_style_box(cached("tube_ghost_%d" % rad, func() -> StyleBox:
+			return box(Color(CREAM, 0.55), Color.TRANSPARENT, rad, 0, Vector2.ZERO)), g)
 	if value > 0.0:
 		var fr := Rect2(r.position, Vector2(maxf(r.size.x * clampf(value, 0.0, 1.0), r.size.y), r.size.y))
-		ci.draw_style_box(box(col.darkened(0.2), Color.TRANSPARENT, rad, 0, Vector2.ZERO), fr)
 		var core := Rect2(fr.position + Vector2(0, r.size.y * 0.22), Vector2(fr.size.x, r.size.y * 0.42))
-		ci.draw_style_box(box(col.lightened(0.18), Color.TRANSPARENT, int(core.size.y / 2.0), 0, Vector2.ZERO), core)
+		var core_rad := int(core.size.y / 2.0)
+		# HUD рисует трубки каждый кадр: стили жидкости — из кэша по цвету, а не новые на каждый кадр
+		var id := "%s_%d_%d" % [col.to_html(), rad, core_rad]
+		ci.draw_style_box(cached("tube_fill_" + id, func() -> StyleBox:
+			return box(col.darkened(0.2), Color.TRANSPARENT, rad, 0, Vector2.ZERO)), fr)
+		ci.draw_style_box(cached("tube_core_" + id, func() -> StyleBox:
+			return box(col.lightened(0.18), Color.TRANSPARENT, core_rad, 0, Vector2.ZERO)), core)
 		ci.draw_line(Vector2(fr.end.x - 1.5, fr.position.y + 2), Vector2(fr.end.x - 1.5, fr.end.y - 2),
 			Color(col.lightened(0.5), 0.9), 2.0)  # мениск
 	# стекло: блик сверху и отсвет снизу

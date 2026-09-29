@@ -47,6 +47,10 @@ func _dump() -> String:
 	return out
 
 
+var _near_t := 0.0    # сколько бот уже кружит рядом с целью
+var _back_off := 0.0  # сколько ещё отъезжать
+
+
 ## Бот целится только в цель этапа (встроенный автопилот гонится за ближайшим медведем-помощником).
 func _drive_goal(stage: int) -> void:
 	var snake = game.snake
@@ -63,12 +67,23 @@ func _drive_goal(stage: int) -> void:
 			pool = game.enemies.pills.filter(func(p): return p.is_edible())
 		3:
 			pool = game.enemies.dolls.filter(func(m): return m.can_bite())
+	if _back_off > 0.0:  # отъезжаем, чтобы зайти на цель заново
+		_back_off -= 1.0 / 60.0
+		return
 	var best := INF
 	for n in pool:
 		var p: Vector2 = n.position - n.facing() * 12.0 if stage == 1 else n.position
 		if p.distance_to(snake.head_pos) < best:
 			best = p.distance_to(snake.head_pos)
 			snake.auto_target = p
+	# Радиус разворота бота ~50 px: цель сбоку ближе этого он обходит по кругу бесконечно. Живой игрок
+	# отъехал бы и зашёл заново — бот делает так же, если кружит у цели дольше трёх секунд.
+	_near_t = _near_t + 1.0 / 60.0 if best < 110.0 else 0.0
+	if _near_t > 3.0:
+		_near_t = 0.0
+		_back_off = 0.8
+		var away: Vector2 = snake.head_pos + (snake.head_pos - snake.auto_target).normalized() * 260.0
+		snake.auto_target = away.clamp(game.bounds.position + Vector2(60, 60), game.bounds.end - Vector2(60, 60))
 
 
 ## Прогнать этап автопилотом; вернуть описание проблемы или "" и сколько секунд ушло.

@@ -145,6 +145,7 @@ func _ready() -> void:
 		start_game(i))
 	hud.daily_chosen.connect(start_daily)
 	hud.replay = replay
+	hud.pause_summary_fn = pause_summary  # строка паузы собирается, когда пауза открыта, а не каждый кадр
 	hud.retry_pressed.connect(restart.bind(true))
 	hud.menu_pressed.connect(restart.bind(false))
 	hud.records_reset.connect(_reset_records)
@@ -401,6 +402,11 @@ func seen(key: String) -> void:
 		fx.popup(Vector2(640, 96), "В КАРТОТЕКЕ: " + String(e["title"]).to_upper(), Design.STEEL)
 
 
+## Строка на табличке паузы: сложность, этап, счёт.
+func pause_summary() -> String:
+	return "%s  •  этап %d: %s  •  счёт %d" % [cfg["name"], stage + 1, Balance.STAGES[stage]["short"], score]
+
+
 func hints_on() -> bool:
 	return Settings.flag("hints")
 
@@ -440,6 +446,13 @@ func _stage_cleared() -> void:
 	hud.show_banner("ЭТАП ПРОЙДЕН!", Color(0.6, 1, 0.5), 1.2)
 	_clear_field()
 	snake.stun_t = 0.0
+	# прыжок или рывок, начатые в последний миг этапа, не переносятся на следующий: иначе змея
+	# «приземляется» уже на новом поле и давит только что появившихся врагов
+	snake.hop_t = 0.0
+	snake.small = 1.0
+	snake.dash_t = 0.0
+	snake.shadow_dash = false
+	abilities.hop_land_t = -1.0
 	if mods.get("stage_heal", false) and snake.heal():  # навык «Регенерация»
 		fx.popup(snake.head_pos + Vector2(0, -70), "РЕГЕНЕРАЦИЯ: +1 ЖИЗНЬ", Color(1, 0.5, 0.5))
 	var tw := create_tween()
@@ -514,6 +527,8 @@ func on_boss_defeated() -> void:
 func start_ending() -> void:
 	state = State.CUTSCENE
 	hud.set_boss(false)
+	arena.set_pan_rim(false)  # в лаборатории это снова деревянный ящик на столе
+	arena.set_heat(0.0)
 	ending = Ending.new()
 	add_child(ending)
 	ending.finished.connect(_on_ending_finished)
@@ -673,6 +688,7 @@ func start_contact() -> void:
 		menu_demo = null
 	_clear_world()
 	state = State.CONTACT
+	arena.set_pan_rim(false)  # «Контакт» идёт в деревянном ящике: в финале трескается доска, а не чугун
 	cfg = Balance.difficulty(difficulty)
 	daily = {}
 	daily_mode = false
@@ -727,7 +743,6 @@ func _process(delta: float) -> void:
 		hud.track_snake(snake.stamina, snake.exhausted, snake.shield, head_screen, play_time)
 		hud.pause_allowed = state in [State.LEVEL, State.BOSS_INTRO, State.BOSS] \
 			or (state == State.CONTACT and contact != null and not contact.in_cutscene())
-		hud.pause_summary = "%s  •  этап %d: %s  •  счёт %d" % [cfg["name"], stage + 1, Balance.STAGES[stage]["short"], score]
 		snake.touch_steer = hud.touch.steer if hud.touch.active else Vector2.ZERO
 		snake.touch_sprint = hud.touch.active and hud.touch.sprint_held
 	if state in [State.LEVEL, State.BOSS_INTRO, State.BOSS, State.CONTACT]:

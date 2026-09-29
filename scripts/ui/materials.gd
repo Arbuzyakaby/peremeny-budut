@@ -4,7 +4,8 @@ extends RefCounted
 ## движком в фоне и кэшируются, одинаково работают на Forward+ и Compatibility.
 
 ## LACQUER (2.3) — киноварь под толстым лаком с золотой каймой, как у матрёшек и хохломы.
-enum Kind { BAKELITE, BRASS, CHROME, WOOD, ENAMEL, PAPER, VELVET, RUBBER, LACQUER }
+## CAST_IRON (2.4) — прокалённый чугун сковороды: графитовый, в мелких порах, с масляным отливом.
+enum Kind { BAKELITE, BRASS, CHROME, WOOD, ENAMEL, PAPER, VELVET, RUBBER, LACQUER, CAST_IRON }
 
 ## Палитра: [светлый край/блик, основной, тень/кромка]. Цвет смысла (золото, томат) подмешивается сверху.
 const PALETTE := {
@@ -17,9 +18,12 @@ const PALETTE := {
 	Kind.VELVET: [Color(0.3, 0.07, 0.09), Color(0.18, 0.04, 0.06), Color(0.07, 0.01, 0.02)],
 	Kind.RUBBER: [Color(0.22, 0.2, 0.19), Color(0.12, 0.11, 0.1), Color(0.04, 0.035, 0.03)],
 	Kind.LACQUER: [Color(0.98, 0.42, 0.32), Color(0.72, 0.1, 0.07), Color(0.28, 0.03, 0.02)],
+	Kind.CAST_IRON: [Color(0.34, 0.32, 0.31), Color(0.15, 0.14, 0.14), Color(0.045, 0.04, 0.04)],
 }
 ## Золотая кайма лака (2.3).
 const LACQUER_GOLD := Color(0.98, 0.78, 0.28)
+## Жар чугуна (2.4): раскалённая кромка сковороды — чем злее яичница, тем ярче.
+const IRON_HEAT := Color(1.0, 0.42, 0.12)
 
 static var _textures: Dictionary = {}
 
@@ -60,6 +64,10 @@ static func texture(kind: int) -> Texture2D:
 		Kind.RUBBER:  # матовая шероховатость
 			n.noise_type = FastNoiseLite.TYPE_VALUE
 			n.frequency = 0.6
+		Kind.CAST_IRON:  # чугун: мелкие поры литья
+			n.noise_type = FastNoiseLite.TYPE_CELLULAR
+			n.frequency = 0.22
+			n.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
 		Kind.LACQUER:  # лак: едва заметные наплывы
 			n.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 			n.frequency = 0.02

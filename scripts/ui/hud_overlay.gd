@@ -36,6 +36,9 @@ var ability_flash := 0.0
 const BOSS_PHASES := ["ШКВОРЧИТ", "ПОДГОРАЕТ", "ПРИГОРЕЛА"]
 ## Источник атаки по её типу (как Balance.ABILITIES[type]["source"]).
 const ABILITY_SOURCE := {10: "fork", 11: "fork", 12: "fork", 13: "pill", 14: "doll"}
+## Этап яичницы (2.4): табло яичницы — прокалённый чугун, нижняя кромка раскаляется с фазой (heat 0..1).
+var iron := false
+var heat := 0.0
 var boss_visible := false
 var boss_hp := 0
 var boss_max := 1
@@ -167,6 +170,16 @@ func _boss_rect() -> Rect2:
 		return Rect2((left + right - w) / 2.0, PAD + safe.y, w, 70)
 	var w2 := minf(780.0, size.x - 2 * (PAD + 24.0))
 	return Rect2((size.x - w2) / 2.0, size.y - 86 - safe.w, w2, 70)
+
+
+## Правый край левого табло (счёт и цель) — от него отсчитывается место под табличку объявлений.
+func panel_left_edge() -> float:
+	return _left_rect().end.x
+
+
+## Сколько места снизу экрана занимает табло яичницы (на ПК): над ним — лента подсказки.
+func boss_bar_height() -> float:
+	return size.y - safe.w - _boss_rect().position.y if not touch else 0.0
 
 
 func panel_rects() -> Array[Rect2]:
@@ -306,9 +319,14 @@ func _draw_ability() -> void:
 func _draw_boss_bar() -> void:
 	var frame := _boss_rect()
 	var col: Color = Design.PHASE_COLORS[boss_phase - 1]
-	draw_style_box(Design.cached("hud_boss", func() -> StyleBox:
-		return Design.plank(Color(0, 0, 0, 0), Design.RADIUS_MD, Vector2.ZERO, true)), frame)
-	draw_style_box(Design.box(Color.TRANSPARENT, Color(col, 0.8), Design.RADIUS_MD, 2, Vector2.ZERO), frame)
+	# табло — чугун сковороды (2.4): накал нижней кромки растёт с фазой, кромка — цветом фазы
+	draw_style_box(Design.cached("hud_boss_%d" % boss_phase, func() -> StyleBox:
+		var s := Design.announce(Color(0, 0, 0, 0), true, (boss_phase - 1) / 2.0 * 0.8 + 0.2)
+		s.accent = Color(0, 0, 0, 0)
+		s.set_pads(Vector2.ZERO)
+		return s), frame)
+	draw_style_box(Design.cached("hud_boss_edge_%d" % boss_phase, func() -> StyleBox:
+		return Design.box(Color.TRANSPARENT, Color(col, 0.8), Design.RADIUS_MD, 2, Vector2.ZERO)), frame)
 	_text(frame.position + Vector2(22, 26), "ГИГАНТСКАЯ ЯИЧНИЦА", "heavy", 18, Design.CREAM, 4)
 	var f := Design.font("heavy")
 	draw_string(f, frame.position + Vector2(frame.size.x - 222, 26), "ФАЗА %d · %s" % [boss_phase, BOSS_PHASES[boss_phase - 1]], HORIZONTAL_ALIGNMENT_RIGHT,

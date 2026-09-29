@@ -196,12 +196,13 @@ func update_drops(delta: float) -> void:
 				_end_flight(d)
 			continue
 		if d.kind == OilDrop.Kind.CRACKER:
-			var touched := snake.alive and d.position.distance_to(snake.head_pos) < OilDrop.RADIUS + Snake.HEAD_RADIUS
+			var touched := snake.alive and not snake.is_hopping() and d.position.distance_to(snake.head_pos) < OilDrop.RADIUS + Snake.HEAD_RADIUS
 			if d.should_explode() or touched:
 				explode(d.position, false)
 				remove_drop(d)
 			continue
-		var hit := snake.alive and d.position.distance_to(snake.head_pos) < OilDrop.RADIUS + Snake.HEAD_RADIUS * 0.8
+		# в прыжке малышки змея над полем: снаряды пролетают под ней, а не тратятся о неё (v12.0)
+		var hit := snake.alive and not snake.is_hopping() and d.position.distance_to(snake.head_pos) < OilDrop.RADIUS + Snake.HEAD_RADIUS * 0.8
 		if hit:
 			if d.kind == OilDrop.Kind.WHITE:
 				snake.slow(2.5)
@@ -245,7 +246,7 @@ func update_waves(delta: float) -> void:
 		if w.is_queued_for_deletion():
 			continue
 		w.update(delta)
-		if not w.friendly and w.hits(snake.head_pos):
+		if not w.friendly and not snake.is_hopping() and w.hits(snake.head_pos):  # волну можно перепрыгнуть
 			w.hit_done = true
 			if w.stun:
 				if snake.stun(1.3):

@@ -97,6 +97,10 @@ var stats := {"orbit": 0, "far": 0, "close": 0, "daze_wall": 0, "daze_slam": 0, 
 var lace: Array[Vector3] = []     # хрустящее кружево по краю: угол, радиус, размер
 var blisters: Array[Vector3] = [] # пузыри на белке: угол, доля радиуса, фаза
 var seeds: Array[float] = [randf() * TAU, randf() * TAU, randf() * TAU]
+## Цвета кружева зависят только от фазы: считаются один раз на фазу, а не 84 раза за кадр (v12.0).
+var _lace_cols: PackedColorArray = []
+var _lace_phase := -1
+var _body_xf := Transform2D.IDENTITY  # сдвиг и сплющивание тела на этот кадр
 
 
 func _ready() -> void:
@@ -602,7 +606,8 @@ func _draw() -> void:
 	var shadow_k := 1.0 - height / (JUMP_HEIGHT * 1.6)
 	Tex.blob(self, Vector2(10, 16), Vector2.ONE * WHITE_RADIUS * 1.3 * shadow_k, Color(0, 0, 0, 0.3 * shadow_k))
 
-	draw_set_transform(offset, 0.0, sq)
+	_body_xf = Transform2D(0.0, sq, 0.0, offset)
+	draw_set_transform_matrix(_body_xf)
 	_draw_white(p, rage)
 	_draw_yolk(rage)
 	_draw_face()
@@ -612,12 +617,19 @@ func _draw() -> void:
 		_draw_stars(offset)
 
 
-## Масло сковороды вокруг яичницы: глянцевое пятно и лопающиеся пузырьки (яичница «жарится»).
+## Масло сковороды вокруг яичницы: глянцевое пятно, пена шкварчащего масла по краю белка и лопающиеся
+## пузырьки (яичница «жарится»; на чугуне v12.0 — ярче, с золотым отливом).
 func _draw_pan_oil(in_air: bool) -> void:
 	if in_air:
 		return
 	var r := WHITE_RADIUS * 1.22
-	Tex.blob(self, Vector2(0, 6), Vector2(r, r * 0.9), Color(0.95, 0.72, 0.2, 0.16))
+	Tex.blob(self, Vector2(0, 6), Vector2(r, r * 0.9), Color(0.95, 0.72, 0.2, 0.2))
+	Tex.blob(self, Vector2(-30, -20), Vector2(r * 0.8, r * 0.5), Color(1, 0.85, 0.45, 0.08))  # отлив масла
+	for i in 26:  # пена по краю: мелкие пузырьки вплотную к белку
+		var ph := fmod(t * (1.3 + 0.07 * (i % 5)) + i * 0.29, 1.0)
+		var a := i * TAU / 26.0 + seeds[i % 3] * 0.1 + floorf(t * 1.3 + i * 0.29) * 0.4
+		var fp := Vector2.from_angle(a) * WHITE_RADIUS * (1.0 + 0.05 * sin(i * 1.7) + 0.04 * ph)
+		draw_circle(fp, 1.5 + 2.0 * (1.0 - ph), Color(1, 0.96, 0.8, 0.45 * (1.0 - ph)))
 	for i in 14:
 		var ph := fmod(t * (0.7 + 0.05 * i) + i * 0.37, 1.0)
 		var a := seeds[i % 3] + i * 0.45 + floorf(t * (0.7 + 0.05 * i) + i * 0.37) * 1.7
@@ -644,20 +656,34 @@ func _draw_white(p: int, rage: float) -> void:
 		var v := Vector2.from_angle(a)
 		outer.append(v * r)
 		inner.append(v * (r - 10.0))
-	for l in lace:  # хрустящее поджаристое кружево по краю: темнеет с каждой фазой
+	if _lace_phase != p:  # цвета кружева — раз на фазу
+		_lace_phase = p
+		_lace_cols.resize(lace.size() * 2)
+		for i in lace.size():
+			var burnt := smoothstep(0.35, 1.0, rage) * (0.5 + 0.5 * sin(lace[i].x * 7.0 + seeds[1]))
+			var lc := crust.lerp(char_col, burnt)
+			_lace_cols[i * 2] = lc.darkened(0.25)
+			_lace_cols[i * 2 + 1] = lc.lightened(0.12)
+	for i in lace.size():  # хрустящее поджаристое кружево по краю: темнеет с каждой фазой
+		var l := lace[i]
 		var lp := Vector2.from_angle(l.x) * WHITE_RADIUS * l.y
-		var burnt := smoothstep(0.35, 1.0, rage) * (0.5 + 0.5 * sin(l.x * 7.0 + seeds[1]))
-		var c := crust.lerp(char_col, burnt)
-		draw_circle(lp, l.z, c.darkened(0.25))
-		draw_circle(lp + Vector2(-1, -1), l.z * 0.6, c.lightened(0.12))
+		draw_circle(lp, l.z, _lace_cols[i * 2])
+		draw_circle(lp + Vector2(-1, -1), l.z * 0.6, _lace_cols[i * 2 + 1])
 	draw_colored_polygon(outer, crust)
-	# полупрозрачный край белка (сквозь него чуть видно масло) и плотная середина
+	# полупрозрачный край белка (сквозь него чуть видно масло) и плотная середина со светом сверху слева
 	draw_colored_polygon(inner, white.darkened(0.06).lerp(Color(0.93, 0.9, 0.8), 0.3))
 	var mid := PackedVector2Array()
+	var shade := PackedColorArray()
+	var light := Vector2(-0.6, -0.8)
 	for v in inner:
 		mid.append(v * 0.8 + Vector2(-4, -5))
-	draw_colored_polygon(mid, white)
+		shade.append(white.darkened(0.07 * (1.0 - v.normalized().dot(light))))  # объём: тень к правому нижнему краю
+	draw_polygon(mid, shade)
 	Tex.blob(self, Vector2(-40, -52), Vector2(100, 72), Color(1, 1, 1, 0.5))
+	var gloss := PackedVector2Array()  # глянцевая кромка белка там, куда светит окно
+	for i in range(34, 50):
+		gloss.append(inner[i] * 0.97)
+	draw_polyline(gloss, Color(1, 1, 1, 0.55), 3.0, true)
 	# пригоревшие пятна на третьей фазе
 	if p >= 3:
 		for i in 5:
@@ -706,8 +732,17 @@ func _draw_yolk(rage: float) -> void:
 		for i in 3:
 			var a := seeds[i] + i * 2.1
 			draw_arc(yc + Vector2.from_angle(a) * yr * 0.4, yr * 0.35, a + 0.6, a + 2.0, 8, Color(0.75, 0.45, 0.08, 0.5), 1.5)
-	Tex.blob(self, yc + Vector2(-yr * 0.4, -yr * 0.45), Vector2.ONE * yr * 0.36, Color(1, 1, 1, 0.75))
-	draw_circle(yc + Vector2(-yr * 0.42, -yr * 0.45), yr * 0.14, Color(1, 1, 1, 0.95))
+	draw_arc(yc, yr - 2.5, PI * 0.05, PI * 0.95, 18, Color(yolk_col.darkened(0.3), 0.55), 4.0)  # купол темнеет снизу
+	Tex.blob(self, yc + Vector2(-yr * 0.4, -yr * 0.45), Vector2.ONE * yr * 0.36, Color(1, 1, 1, 0.6))
+	# в глянцевом желтке отражается то же окно, что и в чугуне сковороды: рамка на четыре стекла
+	var wc := yc + Vector2(-yr * 0.4, -yr * 0.42)
+	var ws := yr * (0.2 if open else 0.16)
+	draw_set_transform_matrix(_body_xf * Transform2D(-0.25, Vector2(1.0, 0.8), 0.0, wc))
+	draw_rect(Rect2(-ws, -ws, ws * 2.0, ws * 2.0), Color(1, 1, 1, 0.9 if open else 0.7))
+	draw_line(Vector2(0, -ws), Vector2(0, ws), Color(yolk_col, 0.8), maxf(ws * 0.22, 1.5))
+	draw_line(Vector2(-ws, 0), Vector2(ws, 0), Color(yolk_col, 0.8), maxf(ws * 0.22, 1.5))
+	draw_set_transform_matrix(_body_xf)  # обратно в сплющивание тела
+	draw_circle(yc + Vector2(yr * 0.34, yr * 0.36), yr * 0.07, Color(1, 1, 1, 0.5))  # отсвет лампы снизу справа
 	if act == Act.TELL and tell_atk == Atk.PEPPER:  # перчинки проступают на желтке
 		for i in 6:
 			draw_circle(yc + Vector2.from_angle(i * 1.05 + t) * yr * 0.55, 3.0, Color(0.12, 0.08, 0.06))
