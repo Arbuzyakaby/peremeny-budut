@@ -414,9 +414,9 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 
 <nav class="nav" aria-label="Разделы">
 	<div class="wrap">
-		<a class="logo" href="#top">ЗМЕЯ v8.1</a>
+		<a class="logo" href="#top">ЗМЕЯ v9.0</a>
 		<div class="links">
-			<a href="#v81">Что нового</a>
+			<a href="#v90">Что нового</a>
 			<a href="#stages">Этапы</a>
 			<a href="#egg">Яичница</a>
 			<a href="#moves">Приёмы</a>
@@ -438,20 +438,20 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 <header class="hero" id="top">
 	<div class="wrap hero-grid">
 		<div>
-			<span class="plate">Эксперимент №47</span> <span class="ver" style="margin-left:10px">v8.1 · аудит</span>
+			<span class="plate">Эксперимент №47</span> <span class="ver" style="margin-left:10px">v9.0 · матрёшки</span>
 			<h1 style="margin-top:22px">Перемены будут</h1>
 			<p class="sub">Змея против Гигантской Яичницы</p>
-			<p class="lead">Аркада на Godot 4.7 для Windows и Android. Змея ест плюшевых медведей, ломает ржавые вилки, глотает прыгающие таблетки и перенимает приёмы врагов, чтобы добраться до яичницы. Но всё не то, чем кажется.</p>
+			<p class="lead">Аркада на Godot 4.7 для Windows и Android. Змея ест плюшевых медведей, ломает ржавые вилки, глотает прыгающие таблетки, раскрывает матрёшек и перенимает приёмы врагов, чтобы добраться до яичницы. Но всё не то, чем кажется.</p>
 			<div class="cta">
 				<a class="key primary" href="https://github.com/Arbuzyakaby/peremeny-budut/releases/latest">Скачать</a>
 				<a class="key" href="https://github.com/Arbuzyakaby/peremeny-budut">Исходники</a>
 			</div>
-			<p class="meta">v8.1 · Windows · Android 7.0+ · GDScript без аддонов</p>
+			<p class="meta">v9.0 · Windows · Android 7.0+ · GDScript без аддонов</p>
 		</div>
 		<div class="hero-shot">
 			<figure class="shot">
-				<img src="img/menu.webp" width="1600" height="900" alt="Главное меню: доска с выбором сложности, по деревянному столу ползает змея, медведи и яичница в углу">
-				<figcaption data-tag="Главное меню"><b>Стол, на котором всё начинается</b><span>Меню живое: по фанере ползает змея, медведи разбегаются, яичница ждёт в углу. Ни один пиксель не загружен из файла.</span></figcaption>
+				<img src="img/menu.webp" width="1600" height="900" alt="Главное меню 3.0: доска с карточками сложностей, журнал эксперимента с маршрутом этапов, по деревянному столу бродят медведи и матрёшка">
+				<figcaption data-tag="Главное меню 3.0"><b>Стол, на котором всё начинается</b><span>Слева — пульт с карточками сложностей, справа приколот журнал эксперимента: маршрут забега, счётчики и совет. По фанере бродят медведи и матрёшки. Ни один пиксель не загружен из файла.</span></figcaption>
 			</figure>
 			<span class="stamp">Ни одного файла</span>
 		</div>
@@ -469,9 +469,101 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 		</div>
 		<div class="zero">
 			<div class="gauge"><div class="n">0</div><div class="l">картинок, звуков и шрифтов в репозитории</div></div>
-			<div class="gauge"><div class="n">16,3k</div><div class="l">строк GDScript в 71 файле; 28 из них рисуют себя сами в <code>_draw()</code></div></div>
-			<div class="gauge"><div class="n">274</div><div class="l">автотеста, 2326 проверок, прогон на каждый пуш</div></div>
+			<div class="gauge"><div class="n">18,7k</div><div class="l">строк GDScript в 74 файлах; 30 из них рисуют себя сами в <code>_draw()</code></div></div>
+			<div class="gauge"><div class="n">321</div><div class="l">автотест, 3045 проверок, прогон на каждый пуш</div></div>
 			<div class="gauge"><div class="n">1</div><div class="l">сцена: <code>main.tscn</code>, остальное собирается из кода</div></div>
+		</div>
+	</div>
+</section>
+
+<section id="v90">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Версия 9.0 · матрёшки</span>
+			<h2>Враг, который делится</h2>
+			<p class="lead">Девятая версия добавила пятый этап и нового врага. Матрёшка — честный противник для змеи, которая ест всё подряд: укусишь — внутри ещё одна. А последняя, самая маленькая, не убегает, а прыгает сверху.</p>
+		</div>
+		<div class="two">
+			<figure class="shot"><img loading="lazy" src="img/dolls.webp" width="1600" height="900" alt="Терем матрёшек: вишнёвые половицы с хохломой, змея, большие и средние матрёшки, оранжевое кольцо на полу — место прыжка малышки"><figcaption data-tag="Этап 4 · Терем матрёшек"><b>Кольцо на полу — сюда прыгнет малышка</b><span>Точка прыжка выбирается в момент приседания и больше не меняется: ушла из кольца — промах. После приземления малышка переводит дух, и её можно съесть.</span></figcaption></figure>
+			<div class="stack">
+				<h3>Три размера, один набор</h3>
+				<ul class="rules">
+					<li><b>Большая</b> переваливается с боку на бок и неторопливо уходит. Укус раскрывает её: скорлупки разлетаются, изнутри выскакивают <b>две</b> средние.</li>
+					<li><b>Средняя</b> удирает зигзагом и держится подальше от углов. Из неё — малышка.</li>
+					<li><b>Малышка</b> — последняя, цельная, без шва. Она нападает: приседает с «хи-хи», прыгает и давит. В прыжке неуязвима, упав на соседку — раскрывает её.</li>
+				</ul>
+				<p class="muted" style="font-size:15.5px">Цель этапа — не куклы, а <b>наборы</b>: набор собран, когда съедена последняя малышка из большой. Пять укусов на набор, от трёх до шести наборов по сложностям. Каждая вторая малышка учит змею <b>прыжку малышки</b>: змея подпрыгивает, перелетает снаряды и давит всех в кольце приземления.</p>
+			</div>
+		</div>
+
+		<div class="diagram" style="margin-top:34px">
+			<p class="fig-title">Схема 0 · один набор матрёшек</p>
+			<svg viewBox="0 0 960 230" role="img" aria-label="Набор: большая матрёшка раскрывается в две средние, каждая средняя — в малышку; последняя съеденная малышка собирает набор">
+				<defs><marker id="ar90" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
+				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar90)">
+					<path d="M200 100 L330 58"/><path d="M200 120 L330 162"/><path d="M450 58 L580 58"/><path d="M450 162 L580 162"/><path d="M690 58 C760 58 780 110 800 110"/><path d="M690 162 C760 162 780 110 800 110"/>
+				</g>
+				<g font-size="12.5" text-anchor="middle">
+					<circle cx="140" cy="118" r="44" fill="#cc1a1a" stroke="#3b0a06" stroke-width="3"/><circle cx="140" cy="72" r="28" fill="#fac838" stroke="#3b0a06" stroke-width="3"/><circle cx="140" cy="74" r="17" fill="#ffe0c2"/>
+					<text x="140" y="210" fill="#ecdfc8">большая · укус</text>
+					<circle cx="390" cy="66" r="28" fill="#2458b8" stroke="#10254d" stroke-width="2.5"/><circle cx="390" cy="38" r="18" fill="#f56b2e" stroke="#10254d" stroke-width="2.5"/>
+					<circle cx="390" cy="170" r="28" fill="#2458b8" stroke="#10254d" stroke-width="2.5"/><circle cx="390" cy="142" r="18" fill="#f56b2e" stroke="#10254d" stroke-width="2.5"/>
+					<text x="390" y="112" fill="#b3a187">две средние · разбег</text>
+					<circle cx="635" cy="64" r="18" fill="#e6a01f" stroke="#5a3a06" stroke-width="2"/><circle cx="635" cy="46" r="12" fill="#3380d9" stroke="#5a3a06" stroke-width="2"/>
+					<circle cx="635" cy="168" r="18" fill="#e6a01f" stroke="#5a3a06" stroke-width="2"/><circle cx="635" cy="150" r="12" fill="#3380d9" stroke="#5a3a06" stroke-width="2"/>
+					<text x="635" y="112" fill="#b3a187">малышки · прыгают</text>
+					<rect x="806" y="84" width="136" height="52" rx="10" fill="#d8a94f"/><text x="874" y="106" fill="#2d1f0c" font-weight="700">НАБОР</text><text x="874" y="124" fill="#3d2a12">+40 очков</text>
+				</g>
+				<text x="20" y="24" fill="#b3a187" font-size="12.5">1 укус + 2 укуса + 2 малышки = 5 на набор</text>
+			</svg>
+		</div>
+
+		<div class="stack" style="gap:16px;margin-top:40px">
+			<h3>Хоровод вживую</h3>
+			<p class="muted prose" style="font-size:15.5px">Порт хоровода из <code>squad.gd</code>: на Сложной матрёшки встают в круг вокруг змеи, берутся за ленты и ведут хоровод — круг вращается и сжимается. Лента путает, но не ранит. По курсу змеи в момент сбора всегда просвет не уже 120°, рывок проходит сквозь ленту, а укус танцующей рвёт круг.</p>
+			<div class="sandbox">
+				<div class="screen"><canvas id="khorovod-cv" width="1280" height="720" aria-label="Хоровод: матрёшки водят круг вокруг змеи, между ними ленты"></canvas></div>
+				<div class="side">
+					<div class="row">
+						<button class="key small" type="button" data-dolls="4" aria-pressed="true">4 матрёшки · Сложная</button>
+						<button class="key small" type="button" data-dolls="5" aria-pressed="false">5 · Ультра</button>
+					</div>
+					<div class="readout small" id="khorovod-readout">—</div>
+					<p class="hint">Голова ползёт к указателю. Рывок — зажать кнопку мыши, палец или <kbd>Пробел</kbd>: сквозь ленту он проходит, не запутываясь. Выход — зелёный просвет или укус любой танцующей.</p>
+				</div>
+			</div>
+		</div>
+
+		<div class="cols3" style="margin-top:40px">
+			<article class="card">
+				<h3><span class="n">01</span>Терем</h3>
+				<ul class="rules">
+					<li><b>Половицы под вишнёвым лаком</b> с кракелюром и тёплым светом свечей — новая ветка шейдера пола, <a href="#floor-gl">попробуй ниже</a>.</li>
+					<li><b>Хохломская лоза</b> по периметру, городецкие розетки, тканый половик с ромбами, расписные ложки — рисунок печётся вместе с полом.</li>
+					<li><b>Бортик — киноварь</b> с золотой «ёлочкой». Своя музыка: ре минор, «балалайка» и притопы.</li>
+				</ul>
+			</article>
+			<article class="card">
+				<h3><span class="n">02</span>Дизайн-язык 2.3</h3>
+				<ul class="rules">
+					<li><b>Материал «Лак»</b> — киноварь с бликом и золотой каймой, акцент четвёртого этапа.</li>
+					<li><b>Маршрут</b> — один рисунок этапов для табло, меню, панели разработчика и загрузки.</li>
+					<li><b>Штамп протокола</b> — «РЕКОРД» пристукивается на итогах, «ИЗУЧЕНО» в картотеке. Таблетки и матрёшки переведены на язык телеграфов.</li>
+				</ul>
+			</article>
+			<article class="card">
+				<h3><span class="n">03</span>Меню и панель</h3>
+				<ul class="rules">
+					<li><b>Главное меню 3.0</b>: у карточек сложностей — сердца жизней и рекорд в окошке, справа журнал эксперимента.</li>
+					<li><b>Панель разработчика 2.0</b>: вкладка ИИ — уровень отряда вручную, приёмы по кнопке, роли над врагами.</li>
+					<li><b>115 советов</b> вместо 60 и <b>семь пасхалок</b>. Где искать — не скажем; журнал в меню считает найденные.</li>
+				</ul>
+			</article>
+		</div>
+
+		<div class="two" style="margin-top:34px">
+			<figure class="shot"><img loading="lazy" src="img/khorovod.webp" width="1600" height="900" alt="Хоровод: пять матрёшек держат ленты вокруг змеи, слева в круге просвет"><figcaption data-tag="ИИ · хоровод"><b>Просвет — слева по курсу</b><span>Ленты натягиваются только между теми, кто уже встал на место. Где лента обрывается — выход.</span></figcaption></figure>
+			<figure class="shot"><img loading="lazy" src="img/dev.webp" width="1600" height="900" alt="Панель разработчика 2.0: вкладка ИИ, уровень отряда, приёмы по кнопке, над ареной — круг хоровода и подписи ролей"><figcaption data-tag="Панель разработчика 2.0"><b>Сговор под микроскопом</b><span>Вкладка ИИ рисует круг хоровода с просветом, подписи ролей и линии к целям, а хоровод можно вызвать кнопкой.</span></figcaption></figure>
 		</div>
 	</div>
 </section>
@@ -530,7 +622,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 
 		<div class="stack" style="gap:16px;margin-top:40px">
 			<h3>Пол из формул — потрогай сам</h3>
-			<p class="muted prose" style="font-size:15.5px">Это шейдер пола из <code>gfx/tex.gd</code>, перенесённый в WebGL без изменений: те же <code>hash</code>, <code>vnoise</code>, <code>fbm</code> на пять октав и пять поверхностей. Переключи режим и посмотри на время кадра: «каждый кадр» — как было в 8.0, «запечь» — как стало в 8.1.</p>
+			<p class="muted prose" style="font-size:15.5px">Это шейдер пола из <code>gfx/tex.gd</code>, перенесённый в WebGL без изменений: те же <code>hash</code>, <code>vnoise</code>, <code>fbm</code> на пять октав и шесть поверхностей, включая вишнёвые половицы терема из 9.0. Переключи режим и посмотри на время кадра: «каждый кадр» — как было в 8.0, «запечь» — как стало в 8.1.</p>
 			<div class="sandbox">
 				<div class="screen"><canvas id="floor-gl" width="1280" height="720" aria-label="Процедурный пол этапа, отрисованный шейдером"></canvas></div>
 				<div class="side">
@@ -538,6 +630,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 						<button class="key small" type="button" data-kind="0" aria-pressed="true">Фанера</button>
 						<button class="key small" type="button" data-kind="4" aria-pressed="false">Бархат</button>
 						<button class="key small" type="button" data-kind="2" aria-pressed="false">Кафель</button>
+						<button class="key small" type="button" data-kind="5" aria-pressed="false">Терем</button>
 						<button class="key small" type="button" data-kind="3" aria-pressed="false">Сковорода</button>
 						<button class="key small" type="button" data-kind="1" aria-pressed="false">Поднос</button>
 					</div>
@@ -598,7 +691,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 <section id="stages">
 	<div class="wrap">
 		<div class="head">
-			<span class="plate">Четыре этапа</span>
+			<span class="plate">Пять этапов</span>
 			<h2>Что происходит в ящике</h2>
 			<p class="lead">Змея движется свободно, не по клеткам. Каждый этап — новая поверхность ящика и новые враги со своими слабостями. Съеденный особый медведь отдаёт змее свою атаку.</p>
 		</div>
@@ -619,8 +712,13 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 				<p>Кафель. Капсула прыгает высоко и далеко, шайба катится к змее на ребре и прыгает низко, но часто. Приземление даёт ударную волну, которая оглушает.</p>
 			</article>
 			<article class="stage">
+				<figure class="shot"><img loading="lazy" src="img/khorovod.webp" width="1600" height="900" alt="Терем матрёшек: матрёшки водят хоровод с лентами вокруг змеи"></figure>
+				<h3><span class="idx">этап 4 · новое</span>Терем матрёшек</h3>
+				<p>Вишнёвые половицы, хохлома и розетки. Большая матрёшка делится надвое, средняя удирает, малышка прыгает сверху. На Сложной куклы водят хоровод. Подробно — <a href="#v90">в разделе про 9.0</a>.</p>
+			</article>
+			<article class="stage">
 				<figure class="shot"><img loading="lazy" src="img/boss.webp" width="1600" height="900" alt="Бой с Гигантской Яичницей на тёмной сковороде, полоса здоровья босса"></figure>
-				<h3><span class="idx">этап 4</span>Гигантская Яичница</h3>
+				<h3><span class="idx">этап 5</span>Гигантская Яичница</h3>
 				<p>Сковорода. Три фазы — «Шкворчит», «Подгорает», «Пригорела», — рёв на каждой смене, телеграф перед каждой атакой, горящие лужи масла. Яичница читает манеру змеи и бьёт наперерез. Подробно — <a href="#egg">в разделе про неё</a>.</p>
 			</article>
 		</div>
@@ -703,7 +801,7 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 		</div>
 
 		<div class="head" style="margin-top:56px;margin-bottom:24px">
-			<span class="plate">Дизайн-язык 2.2</span>
+			<span class="plate">Дизайн-язык 2.3</span>
 			<h2 style="font-size:clamp(24px,3.2vw,34px)">Три знака на всю арену</h2>
 			<p class="lead">Предупреждения у всех врагов говорят на одном языке. Игрок читает знак, не зная врага: форма — смысл, цвет — срочность. Режим для дальтоников меняет красный на оранжевый, высокая контрастность делает линии толще в 1,8 раза.</p>
 		</div>
@@ -1240,7 +1338,7 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 
 		<div class="stack" style="gap:16px;margin-top:40px">
 			<h3>Лаборатория звука</h3>
-			<p class="muted prose" style="font-size:15.5px">Двенадцать рецептов из игры, переписанных с GDScript на JavaScript строка в строку: те же генераторы, PolyBLEP, фильтры и ограничитель. Нажми — звук синтезируется заново прямо сейчас, в браузере. С разбросом ±3% каждое нажатие звучит чуть иначе, как в игре.</p>
+			<p class="muted prose" style="font-size:15.5px">Четырнадцать рецептов из игры, переписанных с GDScript на JavaScript строка в строку: те же генераторы, PolyBLEP, фильтры и ограничитель. Нажми — звук синтезируется заново прямо сейчас, в браузере. С разбросом ±3% каждое нажатие звучит чуть иначе, как в игре. Новые в 9.0 — пустотелый «чпок» матрёшки и «хи-хи» малышки.</p>
 			<div class="soundlab">
 				<div class="stack" style="gap:12px">
 					<div class="pads" id="pads"></div>
@@ -1323,7 +1421,7 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 <section id="design">
 	<div class="wrap">
 		<div class="head">
-			<span class="plate">Дизайн-язык 2.2</span>
+			<span class="plate">Дизайн-язык 2.3</span>
 			<h2>Ящик экспериментов</h2>
 			<p class="lead">Главное правило — никаких плоских «цифровых» кнопок. Всё, что нажимается или крутится, — предмет: у него есть материал, фаска, тень на столе, ход при нажатии и свой синтезированный механический звук.</p>
 		</div>
@@ -1488,12 +1586,12 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 	<div class="wrap">
 		<div class="head">
 			<span class="plate">Как делалась игра</span>
-			<h2>Три дня, десять версий</h2>
-			<p class="lead">Первая публичная версия вышла 26 сентября в 10 утра, 8.1 — 28 сентября после обеда. За это время игра выросла с 4 до 16 тысяч строк, а начиная с шестой ни одна версия не выходила без зелёных тестов. Нажми на версию, чтобы увидеть, что в ней появилось.</p>
+			<h2>Четыре дня, двенадцать версий</h2>
+			<p class="lead">Первая публичная версия вышла 26 сентября в 10 утра, 9.0 — 29 сентября рано утром. За это время игра выросла с 4 до почти 19 тысяч строк, а начиная с шестой ни одна версия не выходила без зелёных тестов. Нажми на версию, чтобы увидеть, что в ней появилось.</p>
 		</div>
 		<div class="diagram timeline-chart">
 			<p class="fig-title">Схема 10 · строки кода и тесты по версиям</p>
-			<svg id="tl-svg" viewBox="0 0 960 300" role="img" aria-label="График роста кода и тестов от версии 4.0 до 8.1"></svg>
+			<svg id="tl-svg" viewBox="0 0 960 300" role="img" aria-label="График роста кода и тестов от версии 4.0 до 9.0"></svg>
 		</div>
 		<div class="tl-panel" id="tl-panel" aria-live="polite"></div>
 
@@ -1656,9 +1754,9 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 	<div class="wrap two">
 		<div class="stack">
 			<span class="plate" style="align-self:flex-start">Тесты и сборка</span>
-			<h2>274 теста без аддонов</h2>
+			<h2>321 тест без аддонов</h2>
 			<div class="prose">
-				<p>Своя лёгкая система: раннер, базовый класс с проверками и ожидание кадров через <code>await</code>. Юнит-тесты покрывают баланс, навыки, синтез, симуляцию пожара и приборные контролы. Интеграционные проходят весь забег, финал, тач-управление и настоящие нажатия F1, ё и Ctrl+Shift+D на паузе. В 8.1 добавились проверки аудита: поражение не перекрывает победу, огромный кадр не бросает змею в бортик, отредактированное сохранение не читается.</p>
+				<p>Своя лёгкая система: раннер, базовый класс с проверками и ожидание кадров через <code>await</code>. Юнит-тесты покрывают баланс, навыки, синтез, симуляцию пожара и приборные контролы. Интеграционные проходят весь забег, финал, тач-управление и настоящие нажатия F1, ё и Ctrl+Shift+D на паузе. В 8.1 добавились проверки аудита: поражение не перекрывает победу, огромный кадр не бросает змею в бортик, отредактированное сохранение не читается. В 9.0 — матрёшки: кольцо прыжка не догоняет змею, в хороводе всегда есть просвет не уже 120°, укус танцующей рвёт круг, пасхалки меню находятся настоящими нажатиями клавиш.</p>
 				<p>Тесты пишут во временную папку и не трогают настоящие сохранения. На GitHub они идут при каждом пуше в Godot 4.7.2 под Linux.</p>
 			</div>
 		</div>
@@ -1685,7 +1783,7 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 
 <footer>
 	<div class="wrap">
-		<span>«Перемены будут» · Змея против Гигантской Яичницы v8.1 · Godot 4.7</span>
+		<span>«Перемены будут» · Змея против Гигантской Яичницы v9.0 · Godot 4.7</span>
 		<span><a href="https://github.com/Arbuzyakaby/peremeny-budut">GitHub</a> · <a href="https://github.com/Arbuzyakaby/peremeny-budut/releases/latest">Скачать</a> · <a href="https://github.com/Arbuzyakaby/peremeny-budut/tree/main/docs">Документация</a></span>
 	</div>
 </footer>
@@ -2562,6 +2660,10 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 			["ui_key_down", "Клавиша: тук", "mix(lowpass(noise(0.04, 0.5, 3.5), 1800), tone(0.06, 150, 85, W.SINE, 0.35, 0.0, 3.0))  # бакелит уходит вниз", () => toStream(mix(lowpass(noise(0.04, 0.5, 3.5), 1800), tone(0.06, 150, 85, SINE, 0.35, 0, 3))), 0],
 			["ui_lever", "Тумблер", "mix(mix(_pop(0.01, 0.32, 1500, 6000), _metal([1850, 2930, 4100], 0.14, 0.07)),\n\ttone(0.05, 110, 70, W.SINE, 0.3, 0.0, 3.0)), false, -2.0  # щелчок, пружина, толчок в корпус",
 				() => toStream(mix(mix(pop(0.01, 0.32, 1500, 6000), metal([1850, 2930, 4100], 0.14, 0.07)), tone(0.05, 110, 70, SINE, 0.3, 0, 3)), false, -2), 0],
+			["doll_open", "Матрёшка: чпок", "mix(mix(_pop(0.02, 0.4, 800, 4000), tone(0.12, 540, 400, W.TRI, 0.3, 0.0, 2.5)),\n\ttone(0.2, 262, 250, W.SINE, 0.28, 0.0, 1.8)), false, -3.0  # щелчок шва и гулкое дерево внутри",
+				() => toStream(mix(mix(pop(0.02, 0.4, 800, 4000), tone(0.12, 540, 400, TRI, 0.3, 0, 2.5)), tone(0.2, 262, 250, SINE, 0.28, 0, 1.8)), false, -3), 0.03],
+			["doll_giggle", "Малышка: хи-хи", "giggle = seq([tone(0.05, 1250, 1450, W.SQUARE, 0.06), silence(0.03), tone(0.05, 1300, 1500, W.SQUARE, 0.06),\n\tsilence(0.03), tone(0.07, 1350, 1150, W.SQUARE, 0.06)])\nlowpass(am(giggle, 30.0, 0.4), 3500), false, -4.0  # три писка с дрожью",
+				() => toStream(lowpass(am(seq([tone(0.05, 1250, 1450, SQ, 0.06), silence(0.03), tone(0.05, 1300, 1500, SQ, 0.06), silence(0.03), tone(0.07, 1350, 1150, SQ, 0.06)]), 30, 0.4), 3500), false, -4), 0.03],
 			["ui_detent", "Детент крутилки", "mix(_pop(0.008, 0.22, 2500, 7000), tone(0.015, 3300, 3000, W.SINE, 0.05, 0.0, 6.0))  # храповик: разброс ±5%", () => toStream(mix(pop(0.008, 0.22, 2500, 7000), tone(0.015, 3300, 3000, SINE, 0.05, 0, 6))), 0.05],
 		];
 		const cv = document.getElementById("scope"), g = cv.getContext("2d"), code = document.getElementById("recipe"), jit = document.getElementById("jitter");
@@ -2616,6 +2718,8 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 		eat: () => toStream(seq([tone(0.06, 440, 700, SQ, 0.2), tone(0.1, 700, 1200, SQ, 0.2)])),
 		hurt: () => toStream(mix(tone(0.35, 320, 70, SAW, 0.35, 0, 1.5), noise(0.25, 0.3, 2, 1800))),
 		clang: () => toStream(mix(metal([523, 1187, 1873, 2711], 0.7, 0.4), noise(0.05, 0.2, 3, 5500, 2000)), false, -5),
+		doll_open: () => toStream(mix(mix(pop(0.02, 0.4, 800, 4000), tone(0.12, 540, 400, TRI, 0.3, 0, 2.5)), tone(0.2, 262, 250, SINE, 0.28, 0, 1.8)), false, -3),
+		ribbon: () => toStream(mix(whoosh(0.22, 0.2, 1500, 5000), tone(0.3, 330, 318, TRI, 0.14, 0, 1.5))),
 	};
 	const sfxCache = {};
 	function sfx(name, jitter = 0, vol = 0.7) {
@@ -2721,6 +2825,19 @@ void main() {
 		float z = (d - 330.0) / 70.0;
 		c += 0.12 * exp(-z * z) * pow(0.5 + 0.5 * sin(atan(dv.y, dv.x) + 2.2), 3.0);
 		c += 0.06 * smoothstep(0.7, 0.9, vnoise(px * 0.08)) * oil;
+	}
+	if (k == 5) {
+		float pid = floor(px.x / 160.0); vec2 q = px + vec2(0.0, hash(vec2(pid, 5.0)) * 700.0);
+		float g = fbm(vec2(q.x * 0.05, q.y * 0.006));
+		float grain = sin(q.x * 0.12 + g * 14.0) * 0.5 + 0.5;
+		c = mix(vec3(0.36, 0.085, 0.06), vec3(0.22, 0.045, 0.035), grain * 0.5 + g * 0.3);
+		c *= 0.9 + 0.14 * hash(vec2(pid, 9.0));
+		float seam = mod(px.x, 160.0);
+		c *= 1.0 - 0.4 * smoothstep(3.0, 0.0, seam) - 0.12 * smoothstep(6.0, 3.0, 160.0 - seam);
+		vec2 cc = px * 0.035; float cr = abs(vnoise(cc) - vnoise(cc + 17.3));
+		c *= 1.0 - 0.16 * smoothstep(0.035, 0.0, cr);
+		c += vec3(0.2, 0.08, 0.04) * pow(sin(seam / 160.0 * 3.14159), 10.0) * 0.4;
+		vec2 lv = (UV - vec2(0.5, 0.35)) * vec2(1.3, 1.0); c *= vec3(1.1, 0.98, 0.86) * (0.7 + 0.45 * exp(-dot(lv, lv) * 2.0));
 	}
 	vec2 v = UV - 0.5; c *= 1.0 - dot(v, v) * 0.6;
 	gl_FragColor = vec4(c, 1.0);
@@ -3023,6 +3140,147 @@ void main() {
 	})();
 
 	/* =====================================================================
+	   Хоровод вживую — порт squad.gd::khorovod_slots и такта хоровода (v9.0)
+	   ===================================================================== */
+	(function khorovodDemo() {
+		const cv = document.getElementById("khorovod-cv"); if (!cv) return;
+		const g = cv.getContext("2d"), out = document.getElementById("khorovod-readout");
+		const R0 = 250, RMIN = 165, GAP = 2.1, TIME = 6, SPIN = 0.28, GATHER = 2.5, IN_PLACE = 46, HURRY = 190, SLOW = 0.9;
+		const B = { x0: 60, y0: 60, x1: 1220, y1: 660 };
+		const DRESS = ["#cc1a1a", "#2458b8", "#1f7347", "#8c1f59", "#e6a01f"], SCARF = ["#fac838", "#f56b2e", "#3380d9", "#eb3340", "#fac838"];
+		let count = 4, head = { x: 640, y: 440 }, heading = -Math.PI / 2, target = null, down = false, stamina = 1, slow = 0;
+		let dolls = [], state = "roam", t = 0, cd = 1.5, gather = 0, left = TIME, radius = R0, center = { x: 640, y: 360 }, gapDir = 0;
+		let msg = "", msgT = 0, tangles = 0, exits = 0, breaks = 0, ribbonCd = 0, respawn = [], painted = 0;
+		function doll(x, y) { const i = painted++; return { x, y, big: i % 2 === 0, dress: DRESS[i % 5], scarf: SCARF[(i + 2) % 5], dancing: false, rock: Math.random() * 6, wx: 0, wy: 0, wt: 0 }; }
+		function reset() { dolls = []; painted = 0; for (let i = 0; i < count; i++) dolls.push(doll(160 + Math.random() * 960, 120 + Math.random() * 460)); state = "roam"; cd = 1.5; respawn = []; }
+		function say(s) { msg = s; msgT = 1.4; }
+		// squad.gd::khorovod_slots: n точек на дуге, просвет GAP с серединой в gapDir
+		function slots(r) { const o = [], n = dolls.length; for (let i = 0; i < n; i++) { const k = n === 1 ? 0.5 : i / (n - 1), a = gapDir + GAP / 2 + (2 * Math.PI - GAP) * k; o.push({ x: Math.min(B.x1, Math.max(B.x0, center.x + Math.cos(a) * r)), y: Math.min(B.y1, Math.max(B.y0, center.y + Math.sin(a) * r)) }); } return o; }
+		function segDist(p, a, b) { const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy || 1; const k = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)); return { d: Math.hypot(p.x - a.x - dx * k, p.y - a.y - dy * k), k }; }
+		function wrap(a) { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; }
+		function end(c, s) { dolls.forEach(d => d.dancing = false); state = "roam"; cd = c; radius = R0; if (s) say(s); }
+		function step(dt) {
+			dt = Math.min(dt, 1 / 20);
+			msgT = Math.max(0, msgT - dt); slow = Math.max(0, slow - dt); ribbonCd = Math.max(0, ribbonCd - dt);
+			const dash = (down || spaceHeld) && stamina > 0.05;
+			if (target) { const dx = target.x - head.x, dy = target.y - head.y; if (Math.hypot(dx, dy) > 20) heading = rotateToward(heading, Math.atan2(dy, dx), 4.2 * dt); }
+			const moving = target && Math.hypot(target.x - head.x, target.y - head.y) > 20;
+			const sp = moving ? (dash ? 370 : 180) * (slow > 0 && !dash ? 0.45 : 1) : 0;
+			head.x = Math.min(B.x1, Math.max(B.x0, head.x + Math.cos(heading) * sp * dt));
+			head.y = Math.min(B.y1, Math.max(B.y0, head.y + Math.sin(heading) * sp * dt));
+			stamina = dash && moving ? Math.max(0, stamina - dt * 0.45) : Math.min(1, stamina + dt * 0.22);
+			t += dt;
+			respawn = respawn.filter(r => { r.t -= dt; if (r.t <= 0) { dolls.push(doll(160 + Math.random() * 960, 120 + Math.random() * 460)); return false; } return true; });
+			let sl = null;
+			if (state === "roam") {
+				cd -= dt;
+				if (cd <= 0 && dolls.length >= 3) {  // сбор: центр — где змея, просвет — по её курсу
+					state = "dance"; center = { x: head.x, y: head.y }; gapDir = heading; gather = GATHER; left = TIME; radius = R0;
+					dolls.sort((a, b) => ((Math.atan2(a.y - center.y, a.x - center.x) - gapDir + 4 * Math.PI) % (2 * Math.PI)) - ((Math.atan2(b.y - center.y, b.x - center.x) - gapDir + 4 * Math.PI) % (2 * Math.PI)));
+					say("ХОРОВОД!"); sfx("ribbon", 0.03, 0.4);
+				}
+			} else {
+				const placed = dolls.filter(d => d.dancing).length;
+				gather -= dt;
+				const assembled = placed >= dolls.length - 1 || gather <= 0;
+				if (assembled) { left -= dt; gapDir += SPIN * (count === 5 ? 1.4 : 1) * dt; }
+				radius = R0 + (RMIN - R0) * Math.min(1, Math.max(0, (1 - left / TIME) * 1.4));
+				sl = slots(radius);
+				const away = Math.hypot(head.x - center.x, head.y - center.y);
+				if (left <= 0) end(3, "ХОРОВОД РАЗОШЁЛСЯ");
+				else if (assembled && away > radius + 60) { exits++; end(3, Math.abs(wrap(Math.atan2(head.y - center.y, head.x - center.x) - gapDir)) < GAP / 2 ? "ВЫШЛА В ПРОСВЕТ" : "ВЫРВАЛАСЬ"); sfx("ui_select", 0, 0.5); }
+			}
+			dolls.forEach((d, i) => {
+				d.rock += dt * 5;
+				let tx, ty, v;
+				if (state === "dance" && sl) { tx = sl[i].x; ty = sl[i].y; v = HURRY; }
+				else {
+					d.wt -= dt; if (d.wt <= 0) { d.wt = 1 + Math.random() * 1.5; const a = Math.random() * 7; d.wx = Math.cos(a); d.wy = Math.sin(a); }
+					const fx = d.x - head.x, fy = d.y - head.y, fd = Math.hypot(fx, fy);
+					tx = d.x + d.wx * 40 + (fd < 180 ? fx / fd * 80 : 0); ty = d.y + d.wy * 40 + (fd < 180 ? fy / fd * 80 : 0); v = d.big ? 50 : 90;
+				}
+				const dx = tx - d.x, dy = ty - d.y, dist = Math.hypot(dx, dy);
+				if (dist > 1) { const m = Math.min(dist, v * dt); d.x = Math.min(B.x1, Math.max(B.x0, d.x + dx / dist * m)); d.y = Math.min(B.y1, Math.max(B.y0, d.y + dy / dist * m)); }
+				d.dancing = state === "dance" && sl && Math.hypot(d.x - sl[i].x, d.y - sl[i].y) < IN_PLACE;
+			});
+			// укус: танцующую — хоровод рвётся, любую — раскрывается (и потом появляется новая)
+			for (let i = 0; i < dolls.length; i++) {
+				const d = dolls[i], r = d.big ? 28 : 21;
+				if (Math.hypot(head.x - d.x, head.y - d.y) < 16 + r) {
+					dolls.splice(i, 1); respawn.push({ t: 1.8 }); sfx("doll_open", 0.03, 0.6);
+					if (state === "dance") { breaks++; end(3, "ХОРОВОД РАССЫПАЛСЯ"); } else say("ЧПОК!");
+					break;
+				}
+			}
+			// лента: между соседками, которые уже встали на место; через просвет ленты нет
+			if (state === "dance" && ribbonCd <= 0 && !dash) {
+				for (let i = 0; i < dolls.length - 1; i++) {
+					const a = dolls[i], b = dolls[i + 1];
+					if (!a.dancing || !b.dancing) continue;
+					const s = segDist(head, a, b);
+					if (s.d < 11 + 8 && s.k > 0.08 && s.k < 0.92) { slow = SLOW; ribbonCd = 1.2; tangles++; say("ЛЕНТА!"); sfx("ribbon", 0.03, 0.5); break; }
+				}
+			}
+			const names = { roam: "бродят · до хоровода " + Math.max(0, cd).toFixed(1).replace(".", ",") + " с", dance: gather > 0 && dolls.filter(d => d.dancing).length < dolls.length - 1 ? "встают в круг" : "водят хоровод · " + Math.max(0, left).toFixed(1).replace(".", ",") + " с" };
+			out.innerHTML = "хоровод: <b>" + names[state] + "</b><br>просвет <b>" + Math.round(GAP * 180 / Math.PI) + "°</b> · радиус <b>" + Math.round(radius) + "</b><br>стамина <b>" + Math.round(stamina * 100) + "%</b>" + (slow > 0 ? " · <b style=\"color:#e5533d\">запуталась</b>" : "") + "<br>выходов <b>" + exits + "</b> · разрывов <b>" + breaks + "</b> · лент <b>" + tangles + "</b>";
+			draw(sl);
+		}
+		function circle(x, y, r) { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
+		function drawDoll(d) {
+			const s = d.big ? 1.25 : 0.95;
+			g.save(); g.translate(d.x, d.y);
+			g.fillStyle = "rgba(0,0,0,.3)"; g.beginPath(); g.ellipse(4, 24 * s, 24 * s, 9 * s, 0, 0, 7); g.fill();
+			g.rotate(Math.sin(d.rock) * (d.dancing ? 0.14 : 0.08)); g.scale(s, s);
+			const dark = "#2a0c08";
+			g.fillStyle = dark; circle(0, 7, 22.5); circle(0, -12, 15);
+			g.fillStyle = d.dress; circle(0, 7, 21); g.beginPath(); g.moveTo(-11.5, -8); g.lineTo(11.5, -8); g.lineTo(20.5, 4); g.lineTo(-20.5, 4); g.fill();
+			g.fillStyle = d.scarf; circle(0, -12, 13.5);
+			[-1, 1].forEach(k => { g.fillStyle = dark; circle(d.dancing ? k * 16.5 : k * 11, d.dancing ? -4 : 2, 3.4); g.fillStyle = "#ffe0c2"; circle(d.dancing ? k * 16.5 : k * 11, d.dancing ? -4 : 2, 2.6); });
+			g.fillStyle = "#fcf2d6"; circle(0, 11, 13); g.strokeStyle = "#f5c341"; g.lineWidth = 1.6; g.beginPath(); g.arc(0, 11, 13, 0, 7); g.stroke();
+			g.fillStyle = d.dress; for (let k = 0; k < 5; k++) { const a = k / 5 * 2 * Math.PI - Math.PI / 2; circle(Math.cos(a) * 5.2, 11 + Math.sin(a) * 5.2, 3.6); }
+			g.fillStyle = "#f5c341"; circle(0, 11, 2.8);
+			g.fillStyle = "#ffe0c2"; circle(0, -11, 9);
+			g.fillStyle = "rgba(242,115,115,.7)"; circle(-5.2, -8.2, 2.4); circle(5.2, -8.2, 2.4);
+			g.fillStyle = "#29140c"; circle(-3.4, -11.5, 1.6); circle(3.4, -11.5, 1.6);
+			g.fillStyle = "#d91a26"; circle(-0.9, -7.2, 1.1); circle(0.9, -7.2, 1.1);
+			g.restore();
+		}
+		function draw(sl) {
+			g.fillStyle = "#3f0c08"; g.fillRect(0, 0, 1280, 720);
+			for (let x = 0; x < 1280; x += 160) { g.fillStyle = (x / 160) % 2 ? "#4a100b" : "#3a0a07"; g.fillRect(x, 0, 158, 720); g.fillStyle = "rgba(0,0,0,.35)"; g.fillRect(x + 158, 0, 2, 720); }
+			g.strokeStyle = "rgba(245,195,65,.22)"; g.lineWidth = 3; g.beginPath(); g.arc(640, 360, 150, 0, 7); g.stroke();
+			for (let k = 0; k < 12; k++) { const a = k / 12 * 2 * Math.PI; g.fillStyle = k % 2 ? "rgba(250,150,40,.18)" : "rgba(230,50,30,.2)"; g.beginPath(); g.moveTo(640 + Math.cos(a - 0.2) * 70, 360 + Math.sin(a - 0.2) * 70); g.lineTo(640 + Math.cos(a) * 135, 360 + Math.sin(a) * 135); g.lineTo(640 + Math.cos(a + 0.2) * 70, 360 + Math.sin(a + 0.2) * 70); g.fill(); }
+			if (state === "dance") {
+				g.setLineDash([4, 10]); g.strokeStyle = "rgba(243,212,138,.45)"; g.lineWidth = 2; g.beginPath(); g.arc(center.x, center.y, radius, 0, 7); g.stroke(); g.setLineDash([]);
+				g.fillStyle = "rgba(142,224,98,.14)"; g.beginPath(); g.moveTo(center.x, center.y); g.arc(center.x, center.y, radius, gapDir - GAP / 2, gapDir + GAP / 2); g.closePath(); g.fill();
+				g.strokeStyle = "#8ee062"; g.lineWidth = 4; g.beginPath(); g.arc(center.x, center.y, radius, gapDir - GAP / 2, gapDir + GAP / 2); g.stroke();
+				for (let i = 0; i < dolls.length - 1; i++) {  // ленты: красные с золотой каймой, волнятся
+					const a = dolls[i], b = dolls[i + 1]; if (!a.dancing || !b.dancing) continue;
+					const nx = -(b.y - a.y), ny = b.x - a.x, nl = Math.hypot(nx, ny) || 1;
+					g.beginPath();
+					for (let k = 0; k <= 14; k++) { const f = k / 14, w = Math.sin(f * Math.PI * 4 + t * 6) * 5 * Math.sin(f * Math.PI); const x = a.x + (b.x - a.x) * f + nx / nl * w, y = a.y - 2 + (b.y - a.y) * f + ny / nl * w; k ? g.lineTo(x, y) : g.moveTo(x, y); }
+					g.strokeStyle = "rgba(60,8,8,.55)"; g.lineWidth = 7; g.stroke(); g.strokeStyle = "#d91f24"; g.lineWidth = 4.5; g.stroke(); g.strokeStyle = "rgba(250,200,70,.85)"; g.lineWidth = 1.3; g.stroke();
+				}
+			}
+			dolls.forEach(drawDoll);
+			g.strokeStyle = slow > 0 ? "#b7d9a8" : "#66db57"; g.lineWidth = 22; g.lineCap = "round"; g.beginPath(); g.moveTo(head.x, head.y); g.lineTo(head.x - Math.cos(heading) * 70, head.y - Math.sin(heading) * 70); g.stroke();
+			g.fillStyle = "#0f3d14"; circle(head.x, head.y, 18.5);
+			g.fillStyle = slow > 0 ? "#b7d9a8" : "#66db57"; circle(head.x, head.y, 16);
+			if (msgT > 0) { g.globalAlpha = Math.min(1, msgT * 2); g.fillStyle = /ПРОСВЕТ|РАССЫПАЛСЯ|ВЫРВАЛАСЬ/.test(msg) ? "#8ee062" : msg === "ЛЕНТА!" ? "#e5533d" : "#f3d48a"; g.font = "900 40px Unbounded, sans-serif"; g.textAlign = "center"; g.fillText(msg, head.x, head.y - 60); g.textAlign = "left"; g.globalAlpha = 1; }
+		}
+		cv.addEventListener("pointermove", e => { target = pointerWorld(cv, e); });
+		cv.addEventListener("pointerdown", e => { audio(); down = true; target = pointerWorld(cv, e); cv.setPointerCapture(e.pointerId); });
+		cv.addEventListener("pointerup", () => { down = false; });
+		cv.addEventListener("pointercancel", () => { down = false; });
+		document.querySelectorAll("[data-dolls]").forEach(b => b.addEventListener("click", () => {
+			count = +b.dataset.dolls; reset();
+			document.querySelectorAll("[data-dolls]").forEach(o => o.setAttribute("aria-pressed", o === b ? "true" : "false"));
+		}));
+		reset(); draw(null);
+		loopWhenVisible(cv, step);
+	})();
+
+	/* =====================================================================
 	   Потрогай пульт — крутилка, тумблер, клавиша, видимый отказ
 	   ===================================================================== */
 	(function panelDemo() {
@@ -3111,11 +3369,13 @@ void main() {
 			{ v: "7.2", at: "27.09 22:52", h: 36.82, loc: 14842, files: 71, tests: 240, items: ["<b>Версия по плейтесту:</b> только то, что игрок заметит за 5 минут", "Отклик 80 мс, видимый отказ, пульт настроек без прокрутки", "Пожар с гарантиями, ducking, 200 мс тишины", "ИИ не дёргается, у клещей есть выход"] },
 			{ v: "8.0", at: "28.09 11:23", h: 49.33, loc: 16095, files: 71, tests: 264, items: ["<b>Яичница 2.0:</b> фазы, телеграфы, чтение манеры", "Музыка 2.0 со слоем напряжения", "Дизайн-язык 2.2, приёмы вилок и таблеток", "Новая лаборатория"] },
 			{ v: "8.1", at: "28.09 12:39", h: 50.6, loc: 16260, files: 71, tests: 274, items: ["<b>Аудит:</b> девять находок, десять новых тестов", "Зашифрованное сохранение, атомарная запись", "Пол запекается один раз"] },
+			{ v: "8.2", at: "28.09 16:36", h: 54.55, loc: 16629, files: 71, tests: 283, items: ["Детская на этапе медведей", "Древо навыков 4 × 5, мутации трёх редкостей", "Испытание дня 2.0 с серией дней", "Протокол мелом на доске"] },
+			{ v: "9.0", at: "29.09 06:51", h: 68.8, loc: 18728, files: 74, tests: 321, items: ["<b>Матрёшки</b> и пятый этап — терем", "Хоровод, разбег, заслон, дуэт малышек", "Дизайн-язык 2.3, меню 3.0, панель разработчика 2.0", "Семь пасхалок, 115 советов"] },
 		];
-		const X = h => 70 + h / 52 * 830, YL = l => 250 - l / 17000 * 200, YT = t => 250 - t / 300 * 200;
-		for (let k = 0; k <= 17000; k += 4000) { el("line", { x1: 60, x2: 910, y1: YL(k), y2: YL(k), stroke: "#2a1c14" }, svg); el("text", { x: 54, y: YL(k) + 4, fill: C.muted, "font-size": 10.5, "text-anchor": "end", class: "mono" }, svg, k / 1000 + "k"); }
-		for (let t = 0; t <= 300; t += 100) el("text", { x: 916, y: YT(t) + 4, fill: C.green, "font-size": 10.5, class: "mono" }, svg, t);
-		[["26.09", 0], ["27.09", 14], ["28.09", 38]].forEach(([d, h]) => { el("line", { x1: X(h), x2: X(h), y1: 44, y2: 256, stroke: "#4a3223", "stroke-dasharray": "2 5" }, svg); el("text", { x: X(h) + 4, y: 272, fill: C.muted, "font-size": 11, class: "mono" }, svg, d); });
+		const X = h => 70 + h / 70 * 830, YL = l => 250 - l / 20000 * 200, YT = t => 250 - t / 350 * 200;
+		for (let k = 0; k <= 20000; k += 4000) { el("line", { x1: 60, x2: 910, y1: YL(k), y2: YL(k), stroke: "#2a1c14" }, svg); el("text", { x: 54, y: YL(k) + 4, fill: C.muted, "font-size": 10.5, "text-anchor": "end", class: "mono" }, svg, k / 1000 + "k"); }
+		for (let t = 0; t <= 350; t += 100) el("text", { x: 916, y: YT(t) + 4, fill: C.green, "font-size": 10.5, class: "mono" }, svg, t);
+		[["26.09", 0], ["27.09", 14], ["28.09", 38], ["29.09", 62]].forEach(([d, h]) => { el("line", { x1: X(h), x2: X(h), y1: 44, y2: 256, stroke: "#4a3223", "stroke-dasharray": "2 5" }, svg); el("text", { x: X(h) + 4, y: 272, fill: C.muted, "font-size": 11, class: "mono" }, svg, d); });
 		el("text", { x: 60, y: 20, fill: C.brass, "font-size": 11.5 }, svg, "■ строки GDScript");
 		el("text", { x: 190, y: 20, fill: C.green, "font-size": 11.5 }, svg, "● автотесты");
 		el("path", { d: "M" + V.map(p => X(p.h).toFixed(1) + " " + YT(p.tests).toFixed(1)).join("L"), fill: "none", stroke: C.green, "stroke-width": 2 }, svg);
