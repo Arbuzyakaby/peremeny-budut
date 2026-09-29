@@ -24,7 +24,7 @@ func build() -> Dictionary:
 	out["tick"] = to_stream(_tick(), false, -6.6)
 	out["scribble"] = to_stream(_pen(1.4), false, -2.0)
 	out["match"] = to_stream(_match(), false, -4.5)
-	out["thunder"] = to_stream(_thunder(), false, -1.0)
+	out["thunder"] = to_stream(_thunder(), false, 0.0)
 	out["ignite"] = to_stream(_ignite(), false, -0.3)
 	out["crackle"] = to_stream(_crackle(), false, -4.0)
 	out["burn"] = to_stream(_burn(), false, -6.0)
@@ -158,17 +158,18 @@ func _match() -> PackedFloat32Array:
 func _thunder() -> PackedFloat32Array:
 	var dur := 4.5
 	var out := silence(dur)
-	var crack := shape(bandpass(noise(0.35, 1.0, 0.0), 300, 2600), 0.003, 0.07)
+	var crack := shape(lowpass(bandpass(noise(0.35, 1.0, 0.0), 300, 2600), 2600), 0.003, 0.07)
 	_normalize(crack, 0.8)
 	out = mix(out, crack)
 	var t := 0.12
 	while t < dur - 0.6:  # раскаты
 		var len := randf_range(0.4, 1.1)
-		var roll := shape(lowpass(noise(len, 1.0, 0.0), randf_range(160, 380)), randf_range(0.05, 0.2), len * 0.4)
+		var fc := randf_range(160, 380)
+		var roll := shape(lowpass(lowpass(lowpass(noise(len, 1.0, 0.0), fc), fc), fc), randf_range(0.05, 0.2), len * 0.4)  # 18 дБ/окт: глухо, как за стеклом
 		_normalize(roll, randf_range(0.35, 0.8) * exp(-t / 2.2))
 		out = mix_at(out, roll, t)
 		t += randf_range(0.15, 0.45)
-	var sub := shape(lowpass(noise(dur, 1.0, 0.0), 60), 0.2, 1.6)
+	var sub := shape(lowpass(lowpass(noise(dur, 1.0, 0.0), 60), 60), 0.2, 1.6)
 	_normalize(sub, 0.7)
 	return mix(out, sub)
 
