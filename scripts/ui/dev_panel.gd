@@ -1,7 +1,9 @@
 extends CanvasLayer
-## Панель разработчика (F1, ` или Ctrl+Shift+D; на телефоне — кнопка </> после 7 нажатий на версию в настройках).
-## Вкладки: ИНФО (производительность и состояние), ЧИТЫ, МИР (этапы, спавн, время), ОТЛАДКА
-## (хитбоксы, безопасная зона, звуки), UI-КИТ (витрина дизайн-языка), ТЕСТЫ (юнит-тесты в игре).
+## Панель разработчика 2.0 (v9.0) (F1, ` или Ctrl+Shift+D; на телефоне — кнопка </> после 7 нажатий на
+## версию в настройках). В шапке — табличка версии и лампа «отладочный забег», под ней — маршрут забега.
+## Вкладки: ИНФО (производительность и состояние), ЧИТЫ, МИР (этапы, спавн врагов и матрёшек, время,
+## пасхалки), ИИ (кооператив: уровень отряда, приёмы по кнопке, роли над врагами, счётчики),
+## ДЕБАГ (хитбоксы, безопасная зона, звуки), UI (витрина дизайн-языка), ТЕСТЫ (юнит-тесты в игре).
 ## Любой чит помечает забег отладочным — рекорды и чешуйки не сохраняются.
 
 const Design = preload("res://scripts/ui/design.gd")
@@ -17,9 +19,16 @@ const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Fader = preload("res://scripts/ui/widgets/fader.gd")
 const Fork = preload("res://scripts/entities/fork.gd")
 const Pill = preload("res://scripts/entities/pill.gd")
+const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
+const Snake = preload("res://scripts/entities/snake.gd")
+const Secrets = preload("res://scripts/core/secrets.gd")
 
-const WIDTH := 460.0
-const TABS := ["ИНФО", "ЧИТЫ", "МИР", "ДЕБАГ", "UI", "ТЕСТЫ"]
+const WIDTH := 500.0
+const TABS := ["ИНФО", "ЧИТЫ", "МИР", "ИИ", "ДЕБАГ", "UI", "ТЕСТЫ"]
+const PAGE_AI := 3
+const PAGE_DEBUG := 4
+## Уровни отряда для переключателя на вкладке ИИ (−1 — как у сложности).
+const COOP_LEVELS := [-1, 0, 1, 2]
 const BEAR_NAMES := ["Обычный", "Боксёр", "Метатель", "Каратист", "Швея", "Ниндзя", "Хлопушка", "Медсестра"]
 const TEST_RUNNER := "res://tests/test_runner.gd"
 ## Звуки финала — отдельной группой в превью.
@@ -37,6 +46,12 @@ var sound_grid: VBoxContainer
 var overlay: DevOverlay
 var open := false
 var info_t := 0.0
+var ai_label: Label
+var roles_label: Label
+var secrets_box: VBoxContainer
+var run_lamp: Control
+var route: Control
+var t := 0.0
 
 
 func _ready() -> void:
@@ -64,25 +79,44 @@ func _ready() -> void:
 	ic.custom_minimum_size = Vector2(28, 28)
 	ic.draw.connect(func() -> void: Icons.code(ic, Vector2(14, 14), Design.PLUM, 1.0))
 	head.add_child(ic)
-	var t := Design.label("ПАНЕЛЬ РАЗРАБОТЧИКА", "h3", Design.PLUM)
-	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(t)
+	var title := Design.label("ПАНЕЛЬ РАЗРАБОТЧИКА", "h3", Design.PLUM)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	run_lamp = Control.new()  # лампа «отладочный забег»: горит сливовым, когда рекорды не пишутся
+	run_lamp.custom_minimum_size = Vector2(22, 22)
+	run_lamp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	run_lamp.tooltip_text = "Отладочный забег: рекорды и чешуйки не сохраняются"
+	run_lamp.draw.connect(func() -> void:
+		var on: bool = game.debug_run
+		Design.draw_lamps(run_lamp, Vector2(11, 11), 1, 1 if on else 0, Design.PLUM, 6.0))
+	head.add_child(run_lamp)
+	var ver := Design.chip("v" + str(ProjectSettings.get_setting("application/config/version", "")), Design.PLUM)
+	ver.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(ver)
 	var close := Design.button("×", toggle, "Ghost", Vector2(40, 40))
 	close.focus_mode = Control.FOCUS_NONE
 	close.add_theme_font_size_override("font_size", 20)
 	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(close)
 	col.add_child(head)
+	route = Control.new()  # маршрут забега: где мы сейчас
+	route.custom_minimum_size = Vector2(0, 40)
+	route.draw.connect(func() -> void:
+		var step := 72.0
+		var x0 := (route.size.x - step * (Balance.STAGE_COUNT - 1)) / 2.0
+		var cur: int = game.stage if game.state not in [game.State.MENU, game.State.LOADING] else -1
+		Design.draw_route(route, Vector2(x0, 20), cur, step, t, 0.85))
+	col.add_child(route)
 	var tabs := Segmented.new()
 	tabs.setup(TABS, 0, 0.0, true)
 	tabs.changed.connect(_show_page)
 	col.add_child(tabs)
 	for b in tabs.buttons:  # компактные сегменты: тема уже применена, раз узел в дереве
-		b.add_theme_font_size_override("font_size", 12)
+		b.add_theme_font_size_override("font_size", 11)
 		for st in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 			var sb := b.get_theme_stylebox(st).duplicate() as StyleBox
-			sb.content_margin_left = 14  # слева — место под лампу нажатой клавиши
-			sb.content_margin_right = 6
+			sb.content_margin_left = 13  # слева — место под лампу нажатой клавиши
+			sb.content_margin_right = 4
 			b.add_theme_stylebox_override(st, sb)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -95,7 +129,7 @@ func _ready() -> void:
 	var stack := Design.vbox(0)
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	gutter.add_child(stack)
-	for builder in [_build_info, _build_cheats, _build_world, _build_debug, _build_kit, _build_tests]:
+	for builder in [_build_info, _build_cheats, _build_world, _build_ai, _build_debug, _build_kit, _build_tests]:
 		var page := Design.vbox(Design.SPACE[2])
 		page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		stack.add_child(page)
@@ -130,8 +164,10 @@ func toggle() -> void:
 func _show_page(i: int) -> void:
 	for k in pages.size():
 		pages[k].visible = k == i
-	if i == 3:
+	if i == PAGE_DEBUG:
 		_fill_sounds()
+	if i == 2:
+		_fill_secrets()
 
 
 # ---------------------------------------------------------------- строительные блоки
@@ -237,6 +273,11 @@ func _update_info() -> void:
 		"Этап / цель    %d  •  %d/%d" % [game.stage + 1, game.goal_done, game.goal_total],
 		"Сложность      %s" % game.cfg["name"],
 		"Враги / снаряды %d / %d" % [game.enemies.count(), game.shots.drops.size()],
+		"Матрёшки       %d на поле  •  наборов %d  •  раскрыто %d" % [game.enemies.dolls.size(),
+			game.enemies.doll_sets.size(), game.opened_dolls],
+		"Отряд          уровень %d%s  •  ролей %d" % [game.enemies.squad.level,
+			" (вручную)" if game.enemies.coop_override >= 0 else "", game.enemies.squad.roles.size()],
+		"Пасхалки       %d / %d" % [Secrets.found_count(), Secrets.total()],
 		"Голоса звука   %d / %d  •  отброшено %d" % [game.sfx.busy_voices(), game.sfx.VOICES, game.sfx.dropped],
 		"Скорость       ×%.2f" % Engine.time_scale,
 		"Платформа      %s" % Platform.describe(),
@@ -263,6 +304,11 @@ func _build_cheats(p: VBoxContainer) -> void:
 	_toggle(p, "Бесконечные заряды атак", false, func(on: bool) -> void:
 		_cheat()
 		game.abilities.infinite = on)
+	_toggle(p, "Золотая змея (как по коду Konami)", Snake.golden, func(on: bool) -> void:
+		Snake.golden = on)
+	_toggle(p, "Новогодняя шапка", false, func(on: bool) -> void:
+		if game.snake:
+			game.snake.hat = on)
 	var g := _grid(p, 2)
 	g.add_child(_btn("+1 ЖИЗНЬ", func() -> void:
 		if game.snake:
@@ -326,6 +372,11 @@ func _build_world(p: VBoxContainer) -> void:
 		sp2.add_child(_btn(String(Fork.KINDS[k]["name"]), _spawn.bind("fork", k)))
 	for k in Pill.KINDS.size():
 		sp2.add_child(_btn(String(Pill.KINDS[k]["name"]), _spawn.bind("pill", k)))
+	_section(p, "СОЗДАТЬ МАТРЁШКУ")
+	var sp3 := _grid(p, 4)
+	sp3.add_child(_btn("Набор", _spawn.bind("set", 0), "Primary"))
+	for k in range(Matryoshka.SIZES.size() - 1, -1, -1):
+		sp3.add_child(_btn(String(Matryoshka.SIZES[k]["name"]), _spawn.bind("doll", k)))
 	_section(p, "ПРИЁМЫ ВИЛОК — БЛИЖАЙШАЯ К ЗМЕЕ")
 	var atk := _grid(p, 2)
 	for a in Fork.ATTACK_NAMES.size():
@@ -363,6 +414,18 @@ func _build_world(p: VBoxContainer) -> void:
 			_cheat()
 		Engine.time_scale = v)
 	_row(p, "Скорость времени", speed)
+	_section(p, "ПАСХАЛКИ")
+	secrets_box = Design.vbox(Design.SPACE[1])
+	p.add_child(secrets_box)
+	var sg := _grid(p, 2)
+	sg.add_child(_btn("КОЩЕЕВА ИГЛА СЕЙЧАС", func() -> void:
+		if _in_run():
+			_cheat()
+			game.enemies.koschei(game.snake.head_pos)
+			_fill_secrets()))
+	sg.add_child(_btn("ЗАБЫТЬ ПАСХАЛКИ", func() -> void:
+		Secrets.reset()
+		_fill_secrets()))
 
 
 func _jump(i: int) -> void:
@@ -398,6 +461,135 @@ func _spawn(kind: String, type: int) -> void:
 			game.enemies.spawn_fork(Vector2.INF, type)
 		"pill":
 			game.enemies.spawn_pill(Vector2.INF, type)
+		"doll":
+			game.enemies.spawn_doll(type)
+		"set":
+			game.enemies.spawn_doll_set()
+
+
+## Список пасхалок: найденные — со штампом-галочкой, остальные — с подсказкой, где искать.
+func _fill_secrets() -> void:
+	for c in secrets_box.get_children():
+		c.queue_free()
+	for e: Dictionary in Secrets.LIST:
+		var found := Secrets.is_found(e["id"])
+		var l := Design.label("%s  %s — %s" % ["✔" if found else "·", e["title"], e["hint"]], "caption",
+			Design.MINT if found else Design.MUTED)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		secrets_box.add_child(l)
+
+
+# ---------------------------------------------------------------- ИИ
+
+func _build_ai(p: VBoxContainer) -> void:
+	_section(p, "УРОВЕНЬ ОТРЯДА")
+	var lv := Segmented.new()
+	lv.setup(["КАК В СЛОЖНОСТИ", "0", "1", "2"], 0, 0.0, true)
+	lv.changed.connect(func(i: int) -> void:
+		if COOP_LEVELS[i] >= 0:
+			_cheat()
+		game.enemies.coop_override = COOP_LEVELS[i])
+	p.add_child(lv)
+	for b in lv.buttons:
+		b.add_theme_font_size_override("font_size", 11)
+	var note := Design.label("0 — каждый сам по себе, 1 — Сложная (клещи, хоровод, заслоны), 2 — Ультра (тройные клещи, обманщик, дуэт малышек).",
+		"caption", Design.MUTED)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	p.add_child(note)
+	_toggle(p, "Роли и хоровод над врагами", false, func(on: bool) -> void: overlay.roles = on)
+	_section(p, "ПРИЁМЫ ПО КНОПКЕ")
+	var g := _grid(p, 2)
+	g.add_child(_btn("КЛЕЩИ СЕЙЧАС", _force_ai.bind("pincer")))
+	g.add_child(_btn("ХОРОВОД СЕЙЧАС", _force_ai.bind("khorovod")))
+	g.add_child(_btn("ДУЭТ МАЛЫШЕК", _force_ai.bind("duet")))
+	g.add_child(_btn("СБРОСИТЬ ОТРЯД", _force_ai.bind("reset")))
+	_section(p, "СЧЁТЧИКИ")
+	ai_label = Design.label("", "small", Design.CREAM)
+	ai_label.label_settings.font = Design.font("mono")
+	ai_label.label_settings.font_size = 12
+	p.add_child(ai_label)
+	_section(p, "РОЛИ СЕЙЧАС")
+	roles_label = Design.label("", "small", Design.CREAM)
+	roles_label.label_settings.font = Design.font("mono")
+	roles_label.label_settings.font_size = 12
+	roles_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	p.add_child(roles_label)
+
+
+## Заставить отряд провести приём: нужные враги создаются, если их нет, уровень поднимается до нужного.
+func _force_ai(what: String) -> void:
+	if not _in_run():
+		return
+	_cheat()
+	var e = game.enemies
+	var sq = e.squad
+	var head: Vector2 = game.snake.head_pos
+	match what:
+		"pincer":
+			e.coop_override = maxi(e.coop_override, 1)
+			while e.forks.size() < 2:
+				e.spawn_fork(head + Vector2.from_angle(randf() * TAU) * 300.0)
+			for f in e.forks:
+				f.spawn_k = 1.0
+				f.attack_cd = 0.0
+			sq.pincer_cd = 0.0
+		"khorovod":
+			e.coop_override = maxi(e.coop_override, 1)
+			var n := 0
+			for m in e.dolls:  # в хоровод зовут только тех, кто рядом
+				if not m.is_last() and m.position.distance_to(head) < sq.KHOROVOD_REACH - 40.0:
+					n += 1
+			for i in maxi(4 - n, 0):
+				e.spawn_doll(Matryoshka.Size.MIDDLE, (head + Vector2.from_angle(i * 1.6) * 230.0).clamp(game.bounds.position + Vector2(40, 40), game.bounds.end - Vector2(40, 40)))
+			for m in e.dolls:
+				m.spawn_k = 1.0
+			sq.kh_cd = 0.0
+		"duet":
+			e.coop_override = 2
+			var tinies := 0
+			for m in e.dolls:
+				if m.is_last():
+					tinies += 1
+					m.attack_cd = 0.0
+					m.spawn_k = 1.0
+			for i in maxi(2 - tinies, 0):
+				var m = e.spawn_doll(Matryoshka.Size.TINY, head + Vector2(-160 + i * 320, 80))
+				m.spawn_k = 1.0
+				m.attack_cd = 0.0
+			sq.duet_cd = 0.0
+		"reset":
+			sq.reset()
+	sq.tick_t = 0.0
+
+
+func _update_ai() -> void:
+	var sq = game.enemies.squad
+	var keys: Array = sq.stats.keys()
+	var lines := PackedStringArray()
+	for i in range(0, keys.size(), 2):
+		var a := "%-12s %3d" % [keys[i], sq.stats[keys[i]]]
+		var b := "%-12s %3d" % [keys[i + 1], sq.stats[keys[i + 1]]] if i + 1 < keys.size() else ""
+		lines.append(a + "   " + b)
+	ai_label.text = "\n".join(lines)
+	var roles := PackedStringArray()
+	for r: Dictionary in sq.roles.values():
+		if is_instance_valid(r["node"]):
+			roles.append("%s → %s" % [_who(r["node"]), r["role"]])
+	if not sq.pincer.is_empty():
+		roles.append("клещи: %d вилки" % sq.pincer.size())
+	if not sq.khorovod.is_empty():
+		roles.append("хоровод: %d матрёшки, осталось %.1f с" % [sq.khorovod.size(), sq.kh_t])
+	roles_label.text = "\n".join(roles) if not roles.is_empty() else "никто ни с кем не сговаривается"
+
+
+func _who(n: Object) -> String:
+	if n is Matryoshka:
+		return "матрёшка (%s)" % String(n.spec()["name"]).to_lower()
+	if n is Pill:
+		return "таблетка"
+	if n.get("type") != null:
+		return "медведь (%s)" % BEAR_NAMES[n.type].to_lower()
+	return "враг"
 
 
 ## Заставить вилку провести приём (если вилок нет — создать столовую).
@@ -490,8 +682,14 @@ func _process(delta: float) -> void:
 	frame_ms.append(delta * 1000.0 / maxf(Engine.time_scale, 0.01))
 	if frame_ms.size() > 120:
 		frame_ms.pop_front()
+	t += delta
+	route.queue_redraw()
+	run_lamp.queue_redraw()
 	info_t -= delta
 	if info_t <= 0.0 and pages[0].visible:
 		info_t = 0.25
 		_update_info()
 		graph.queue_redraw()
+	elif info_t <= 0.0 and pages[PAGE_AI].visible:
+		info_t = 0.25
+		_update_ai()

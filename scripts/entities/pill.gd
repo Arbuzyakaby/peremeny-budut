@@ -152,14 +152,11 @@ func _draw() -> void:
 	var s := spawn_k
 	var c0 := tint(cols[0])
 	var c1 := tint(cols[1])
-	if st == St.JUMP:  # метка приземления
+	if st == St.JUMP:  # «здесь ударит» (язык телеграфов 2.3): кольцо со стрелкой часов на месте приземления
 		var target := jump_to - position
 		var k := 1.0 - st_t / air_time
-		var pulse := 0.5 + 0.5 * sin(t * 20.0)
-		Tex.blob(self, target, Vector2.ONE * CRUSH_RADIUS * 1.2, Color(0.3, 0.5, 1.0, 0.18 + 0.2 * k))
-		var mark := Design.warn() if Design.Settings.flag("high_contrast") else Color(0.35, 0.6, 1.0)
-		draw_arc(target, CRUSH_RADIUS, 0, TAU, 32, Color(mark, 0.5 + 0.4 * pulse), Design.telegraph_width(3.0))
-		draw_arc(target, CRUSH_RADIUS * (1.0 - k * 0.7), 0, TAU, 32, Color(1, 1, 1, 0.5), 2.0)
+		Tex.blob(self, target, Vector2.ONE * CRUSH_RADIUS * 1.2, Color(0, 0, 0, 0.1 + 0.12 * k))
+		Design.draw_tell_ring(self, target, CRUSH_RADIUS, Design.Tell.AREA, k)
 	var shadow_k := 1.0 - height / (jump_height() * 1.5)
 	Tex.blob(self, Vector2(3, 8), Vector2(30, 16) * shadow_k * s, Color(0, 0, 0, 0.28 * shadow_k))
 	if herd_k > 0.01:  # загонщик: жаркий ореол

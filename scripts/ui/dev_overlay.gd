@@ -1,6 +1,7 @@
 extends Node2D
-## Отладочный слой поверх мира: хитбоксы и радиусы (змея, медведи, вилки, таблетки, яичница,
-## снаряды) и сетка с безопасной зоной экрана.
+## Отладочный слой поверх мира: хитбоксы и радиусы (змея, медведи, вилки, таблетки, матрёшки,
+## яичница, снаряды), сетка с безопасной зоной экрана и (v9.0) роли отряда над врагами — подпись
+## роли, линия к цели, круг хоровода с просветом.
 
 const Snake = preload("res://scripts/entities/snake.gd")
 const TeddyBear = preload("res://scripts/entities/teddy_bear.gd")
@@ -9,6 +10,9 @@ const FriedEggBoss = preload("res://scripts/entities/fried_egg_boss.gd")
 const OilDrop = preload("res://scripts/entities/oil_drop.gd")
 const Balance = preload("res://scripts/core/balance.gd")
 const Platform = preload("res://scripts/core/platform.gd")
+const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
+const Squad = preload("res://scripts/game/squad.gd")
+const Design = preload("res://scripts/ui/design.gd")
 
 const HIT := Color(1, 0.2, 0.9, 0.9)
 const SOFT := Color(0.3, 0.9, 1, 0.7)
@@ -16,10 +20,11 @@ const SOFT := Color(0.3, 0.9, 1, 0.7)
 var game
 var hitboxes := false
 var safe_grid := false
+var roles := false
 
 
 func _process(_delta: float) -> void:
-	visible = hitboxes or safe_grid
+	visible = hitboxes or safe_grid or roles
 	if visible:
 		queue_redraw()
 
@@ -29,6 +34,32 @@ func _draw() -> void:
 		_draw_hitboxes()
 	if safe_grid:
 		_draw_grid()
+	if roles:
+		_draw_roles()
+
+
+## Роли отряда: подпись над врагом, линия к цели, хоровод — круг и просвет.
+func _draw_roles() -> void:
+	var sq = game.enemies.squad
+	var font := Design.font("mono")
+	for r: Dictionary in sq.roles.values():
+		var n = r["node"]
+		if not is_instance_valid(n):
+			continue
+		draw_string_outline(font, n.position + Vector2(-30, -34), r["role"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color.BLACK)
+		draw_string(font, n.position + Vector2(-30, -34), r["role"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Design.PLUM)
+		var target = r["target"]
+		if target != null and is_instance_valid(target):
+			draw_dashed_line(n.position, target.position, Color(Design.PLUM, 0.7), 2.0, 8.0)
+	for f in sq.pincer:
+		if is_instance_valid(f):
+			draw_string(font, f.position + Vector2(-24, -40), "клещи", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Design.TOMATO)
+	if not sq.khorovod.is_empty():
+		var gap_w := Squad.KHOROVOD_GAP
+		draw_arc(sq.kh_center, Squad.KHOROVOD_RADIUS, sq.kh_gap + gap_w / 2.0, sq.kh_gap + TAU - gap_w / 2.0, 64,
+			Color(Design.PLUM, 0.6), 2.0)
+		draw_line(sq.kh_center, sq.kh_center + Vector2.from_angle(sq.kh_gap) * Squad.KHOROVOD_RADIUS, Design.safe(), 2.0)
+		draw_string(font, sq.kh_center + Vector2(-40, 4), "хоровод %.1f" % sq.kh_t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Design.PLUM)
 
 
 func _draw_hitboxes() -> void:
@@ -53,6 +84,10 @@ func _draw_hitboxes() -> void:
 	for p in game.enemies.pills:
 		draw_arc(p.position, Pill.RADIUS, 0, TAU, 20, HIT if p.is_edible() else SOFT, 2.0)
 		draw_arc(p.position, Pill.CRUSH_RADIUS, 0, TAU, 20, Color(1, 0.6, 0.2, 0.5), 1.0)
+	for m in game.enemies.dolls:
+		draw_arc(m.position, m.radius(), 0, TAU, 20, HIT if m.can_bite() else SOFT, 2.0)
+		if m.st in [Matryoshka.St.CROUCH, Matryoshka.St.JUMP]:
+			draw_arc(m.jump_to, Matryoshka.CRUSH_RADIUS, 0, TAU, 20, Color(1, 0.6, 0.2, 0.7), 1.5)
 	for d in game.shots.drops:
 		draw_arc(d.position, OilDrop.RADIUS, 0, TAU, 12, Color(1, 1, 0.3, 0.9), 1.5)
 	var boss: FriedEggBoss = game.boss

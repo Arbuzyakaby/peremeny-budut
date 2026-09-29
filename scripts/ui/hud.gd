@@ -7,6 +7,7 @@ signal difficulty_chosen(index: int)
 signal daily_chosen
 signal retry_pressed
 signal menu_pressed
+signal secret_found(id: String)
 signal records_reset
 signal perk_chosen(id: String)
 signal pause_changed(paused: bool)
@@ -91,10 +92,12 @@ func _ready() -> void:
 	menu.quit_requested.connect(quit)
 	menu.daily_requested.connect(daily_chosen.emit)
 	menu.bestiary_requested.connect(func() -> void: push(bestiary_screen))
+	menu.secret_found.connect(secret_found.emit)
 	pause_screen = _screen(PauseScreen.new())
 	pause_screen.resume_requested.connect(set_paused.bind(false))
 	pause_screen.settings_requested.connect(func() -> void: push(settings_screen))
 	pause_screen.menu_requested.connect(menu_pressed.emit)
+	pause_screen.secret_found.connect(secret_found.emit)
 	end_screen = _screen(EndScreen.new())
 	end_screen.retry_requested.connect(retry_pressed.emit)
 	end_screen.menu_requested.connect(menu_pressed.emit)

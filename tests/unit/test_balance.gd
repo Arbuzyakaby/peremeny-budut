@@ -40,7 +40,9 @@ func test_stages_table() -> void:
 	for st: Dictionary in Balance.STAGES:
 		assert_true(st["music"] in SynthMusic.TRACKS, "трек %s существует" % st["music"])
 	assert_eq(Balance.goal(Balance.DIFFICULTIES[1], 0), 15)
-	assert_eq(Balance.goal(Balance.DIFFICULTIES[1], 3), 0)
+	assert_eq(Balance.goal(Balance.DIFFICULTIES[1], Balance.DOLL_STAGE), 4, "4 набора матрёшек на Нормальной")
+	assert_eq(Balance.goal(Balance.DIFFICULTIES[1], Balance.BOSS_STAGE), 0)
+	assert_eq(Balance.STAGES[Balance.DOLL_STAGE]["floor"], Tex.Floor.TEREM, "матрёшки живут в тереме")
 
 
 func test_every_special_bear_gives_ability() -> void:

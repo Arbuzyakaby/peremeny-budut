@@ -18,6 +18,14 @@ extends RefCounted
 ##   медведь на линии огня отскакивает вбок (дёргается перед этим — видно);
 ## - ОГОНЬ ПО ПОДХОДУ: когда желток яичницы открыт, стрелки целятся змее на путь к желтку;
 ## - МИЛОСЕРДИЕ: на последней жизни (если жизней было больше одной) клещи реже, обманщика и цепочек нет.
+## v9.0, матрёшки:
+## - ХОРОВОД: три и больше матрёшек встают в круг вокруг змеи, берутся за ленты и ведут хоровод —
+##   круг медленно вращается и сжимается. Лента путает змею (замедляет). По курсу змеи в момент сбора
+##   всегда оставлен просвет ≥ 120°, а укус танцующей рвёт хоровод;
+## - РАЗБЕГ: две средние, выскочившие из большой, удирают в разные стороны — обеих сразу не догнать;
+## - ЗАСЛОН: пока малышка переводит дух после прыжка, ближайшая матрёшка встаёт между ней и змеёй;
+## - ДУЭТ (только Ультра): две малышки переглядываются («!!») и прыгают одновременно по бокам от курса
+##   змеи — прямо по курсу безопасно.
 ## Окно обязательства: взятая роль держится не меньше COMMIT_TICKS тактов (0,5 с), раньше её снимает
 ## только срыв — враг погиб или оглушён, цель пропала, враг застрял. Подробности — docs/AI.md.
 ## На Лёгкой и Нормальной (coop = 0) ничего не делает.
@@ -27,6 +35,7 @@ const TeddyBear = preload("res://scripts/entities/teddy_bear.gd")
 const Fork = preload("res://scripts/entities/fork.gd")
 const Tips = preload("res://scripts/core/tips.gd")
 const FriedEggBoss = preload("res://scripts/entities/fried_egg_boss.gd")
+const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
 
 const TICK := 0.25
 const COMMIT_TICKS := 2          # окно обязательства: 2 такта = 0,5 с
@@ -48,6 +57,20 @@ const DODGE_COOLDOWN := 2.5      # следующий отскок этого м
 const MERCY_PINCER := 1.5        # милосердие: пауза между клещами длиннее во столько раз
 const RANGED_SNAKE_ATTACKS := [2, 4, 10]  # пуговицы, иглы, залп зубцов (типы из Balance.ABILITIES)
 const RANGED_BEARS := [TeddyBear.Type.THROWER, TeddyBear.Type.SEAMSTRESS, TeddyBear.Type.NINJA, TeddyBear.Type.BOMBER]
+## v9.0: матрёшки.
+const KHOROVOD_RADIUS := 250.0   # круг собирается на таком радиусе вокруг змеи...
+const KHOROVOD_MIN_R := 165.0    # ...и сжимается до такого
+const KHOROVOD_GAP := 2.1        # просвет по курсу змеи ≈ 120° (не уже — выход должен быть)
+const KHOROVOD_TIME := 6.0       # сколько длится хоровод
+const KHOROVOD_SPIN := 0.28      # вращение, рад/с (на Ультра ×1,4)
+const KHOROVOD_CD := 7.0
+const KHOROVOD_REACH := 460.0    # дальше этого от змеи в хоровод не зовут
+const KHOROVOD_IN_PLACE := 46.0  # ближе этого к своему месту — берётся за ленту
+const KHOROVOD_GATHER := 2.5     # дольше этого круг не собирают: кто не успел — догоняет на ходу
+const SCATTER_TIME := 1.1
+const DUET_CD := 5.0
+const DUET_LOOK := 0.35          # малышки переглядываются перед дуэтом
+const DUET_SIDE := 75.0          # и прыгают на столько вбок от курса змеи
 
 var d  # enemy_director.gd — только на время update(): постоянная ссылка дала бы цикл и утечку
 var level := 0
@@ -63,8 +86,17 @@ var roles := {}
 var role_cd := {}        # instance_id → секунды, пока роль не дают (после застревания)
 var hinted := {}
 var mercy := false       # последняя жизнь — отряд давит мягче
+## Хоровод матрёшек: танцующие по кругу, центр круга (стоит на месте), угол просвета, время.
+var khorovod: Array = []
+var kh_center := Vector2.ZERO
+var kh_gap := 0.0        # направление просвета, рад (вращается вместе с кругом)
+var kh_t := 0.0
+var kh_gather := 0.0     # сколько ещё ждать, пока все встанут в круг
+var kh_cd := 3.0
+var duet_cd := 2.0
 var stats := {"pincer": 0, "rescue": 0, "guard": 0, "crossfire": 0, "herd": 0, "chain": 0, "boss_guard": 0,
-	"breakout": 0, "decoy": 0, "abort": 0, "spread": 0, "dodge": 0, "boss_fire": 0, "mercy": 0}
+	"breakout": 0, "decoy": 0, "abort": 0, "spread": 0, "dodge": 0, "boss_fire": 0, "mercy": 0,
+	"khorovod": 0, "khorovod_break": 0, "scatter": 0, "cover": 0, "duet": 0}
 
 
 func reset() -> void:
@@ -82,6 +114,12 @@ func reset() -> void:
 	pincer_look_t = 0.0
 	decoy_cd = 0.0
 	tick_t = 0.0
+	for m in khorovod:
+		if is_instance_valid(m):
+			m.leave_dance()
+	khorovod.clear()
+	kh_cd = 2.0
+	duet_cd = 2.0
 
 
 func update(delta: float, snake: Snake, director) -> void:
@@ -95,8 +133,11 @@ func update(delta: float, snake: Snake, director) -> void:
 func _think(delta: float, snake: Snake) -> void:
 	pincer_cd -= delta
 	decoy_cd -= delta
+	kh_cd -= delta
+	duet_cd -= delta
 	_check_aborts(delta)
 	_update_pincer(delta, snake)
+	_update_khorovod(delta, snake)
 	tick_t -= delta
 	if tick_t > 0.0:
 		return
@@ -114,9 +155,12 @@ func _think(delta: float, snake: Snake) -> void:
 	_plan_spread(snake)
 	_plan_herding(snake)
 	_plan_boss_guard(snake)
+	_plan_khorovod(snake)
+	_plan_doll_cover(snake)
 	if level >= 2 and not mercy:
 		_plan_chain(snake)
 		_plan_decoy(snake)
+		_plan_duet(snake)
 	_drop_stale()
 
 
@@ -181,6 +225,9 @@ func _clear_role_fields(r: Dictionary) -> void:
 			n.order_pos = Vector2.INF
 			n.order_target = null
 			n.feint = false
+	elif n is Matryoshka:
+		if not n.dancing:
+			n.order_pos = Vector2.INF
 	elif n.get("aim_offset") != null:  # таблетка
 		n.aim_offset = Vector2.ZERO
 		n.herd = false
@@ -207,9 +254,12 @@ func _aborted(r: Dictionary) -> bool:
 	if n is TeddyBear:
 		if not d.bears.has(n) or n.st == TeddyBear.St.DIZZY or n.has_grudge():
 			return true  # погиб, оглушён или ушёл мстить
+	elif n is Matryoshka:
+		if not d.dolls.has(n) or n.st != Matryoshka.St.ROAM or n.dancing:
+			return true  # раскрыта, оглушена или ушла в хоровод
 	elif not d.pills.has(n):
 		return true
-	if target != null and (not is_instance_valid(target) or not d.forks.has(target)):
+	if target != null and (not is_instance_valid(target) or not _on_field(target)):
 		return true  # цель пропала
 	match role:
 		"rescue":
@@ -224,6 +274,17 @@ func _aborted(r: Dictionary) -> bool:
 			return d.forks.is_empty()
 		"boss_guard", "boss_fire":
 			return d.g.boss == null or not d.g.boss.is_yolk_open()
+		"cover":
+			return not target.is_dazed()
+	return false
+
+
+## Цель роли ещё на поле: вилка или матрёшка (типизированные массивы не принимают чужой тип в has()).
+func _on_field(target: Object) -> bool:
+	if target is Fork:
+		return d.forks.has(target)
+	if target is Matryoshka:
+		return d.dolls.has(target)
 	return false
 
 
@@ -249,6 +310,8 @@ func _age_roles() -> void:
 
 func _goal_of(r: Dictionary) -> Vector2:
 	var n = r["node"]
+	if n is Matryoshka:
+		return n.order_pos if r["role"] == "cover" else Vector2.INF
 	if not n is TeddyBear:
 		return Vector2.INF
 	match r["role"]:
@@ -690,3 +753,184 @@ func _plan_boss_fire(snake: Snake) -> void:
 		elif not is_committed(b):
 			_assign(b, "boss_fire")
 		b.lead_hint = lead
+
+
+# ---------------------------------------------------------------- v9.0: матрёшки
+
+## Хоровод водят большие и средние матрёшки: малышки не танцуют — они прыгают.
+func _dancer_ok(m: Matryoshka) -> bool:
+	return not m.is_last() and m.st == Matryoshka.St.ROAM and m.scatter_t <= 0.0 and m.spawn_k > 0.9
+
+
+## Сейчас змею зажимают (клещи или хоровод) — музыка подмешивает напряжение.
+func is_trapping() -> bool:
+	return not pincer.is_empty() or not khorovod.is_empty()
+
+
+func _plan_khorovod(snake: Snake) -> void:
+	if not khorovod.is_empty() or kh_cd > 0.0:
+		return
+	if mercy and randf() < 0.4:
+		kh_cd = 1.5
+		return
+	var ready: Array[Matryoshka] = []
+	for m: Matryoshka in d.dolls:
+		if _dancer_ok(m) and _can_take(m) and role_of(m) == "" \
+				and m.position.distance_to(snake.head_pos) < KHOROVOD_REACH:
+			ready.append(m)
+	if ready.size() < 3:
+		return
+	var most := 5 if level >= 2 else 4
+	ready.sort_custom(func(a: Matryoshka, b: Matryoshka) -> bool:
+		return a.position.distance_to(snake.head_pos) < b.position.distance_to(snake.head_pos))
+	var dancers := ready.slice(0, mini(most, ready.size()))
+	var inner: Rect2 = d.g.bounds.grow(-KHOROVOD_MIN_R * 0.6)
+	kh_center = snake.head_pos.clamp(inner.position, inner.end)
+	kh_gap = snake.heading  # просвет — по курсу змеи
+	# порядок по кругу: по углу от центра, начиная сразу за просветом
+	dancers.sort_custom(func(a: Matryoshka, b: Matryoshka) -> bool:
+		return wrapf((a.position - kh_center).angle() - kh_gap, 0.0, TAU) < wrapf((b.position - kh_center).angle() - kh_gap, 0.0, TAU))
+	khorovod = dancers
+	kh_t = KHOROVOD_TIME
+	kh_gather = KHOROVOD_GATHER
+	for m: Matryoshka in khorovod:
+		m.order_pos = m.position
+	stats["khorovod"] += 1
+	_announce("khorovod", Tips.KHOROVOD_HINT)
+
+
+## Места в хороводе: n точек на дуге круга радиуса r вокруг c, просвет gap_w с серединой в gap_dir.
+static func khorovod_slots(c: Vector2, r: float, gap_dir: float, n: int, gap_w := KHOROVOD_GAP) -> Array[Vector2]:
+	var out: Array[Vector2] = []
+	for i in n:
+		var k := 0.5 if n == 1 else float(i) / (n - 1)
+		var a := gap_dir + gap_w / 2.0 + (TAU - gap_w) * k
+		out.append(c + Vector2.from_angle(a) * r)
+	return out
+
+
+func _update_khorovod(delta: float, snake: Snake) -> void:
+	if khorovod.is_empty():
+		return
+	for m in khorovod:  # кто-то раскрыт, оглушён или сбит — хоровод рассыпается
+		if not is_instance_valid(m) or not d.dolls.has(m) or m.st != Matryoshka.St.ROAM:
+			break_khorovod()
+			return
+	var in_place := 0
+	for m in khorovod:
+		if m.dancing:
+			in_place += 1
+	kh_gather -= delta
+	var assembled := in_place >= khorovod.size() - 1 or kh_gather <= 0.0
+	if assembled:  # круг собран (или сбор затянулся): пошёл отсчёт, круг вращается и сжимается
+		kh_t -= delta
+	var left := snake.head_pos.distance_to(kh_center) > KHOROVOD_RADIUS + 60.0
+	if kh_t <= 0.0 or (left and assembled):  # время вышло или змея ушла из круга — расходятся
+		_end_khorovod(KHOROVOD_CD)
+		return
+	var k := 1.0 - kh_t / KHOROVOD_TIME
+	var r := lerpf(KHOROVOD_RADIUS, KHOROVOD_MIN_R, clampf(k * 1.4, 0.0, 1.0))
+	if assembled:
+		kh_gap += KHOROVOD_SPIN * (1.4 if level >= 2 else 1.0) * delta
+	var slots := khorovod_slots(kh_center, r, kh_gap, khorovod.size())
+	var inner: Rect2 = d.g.bounds.grow(-24.0)
+	for i in khorovod.size():
+		var m: Matryoshka = khorovod[i]
+		m.order_pos = slots[i].clamp(inner.position, inner.end)
+		m.dancing = m.position.distance_to(slots[i]) < KHOROVOD_IN_PLACE
+	for i in khorovod.size() - 1:  # ленты — между соседками; через просвет ленты нет
+		var a: Matryoshka = khorovod[i]
+		var b: Matryoshka = khorovod[i + 1]
+		a.ribbon_to = b if a.dancing and b.dancing else null
+	khorovod.back().ribbon_to = null
+
+
+## Укус танцующей или ударная волна: хоровод рвётся, куклы на миг теряются.
+func break_khorovod() -> void:
+	if khorovod.is_empty():
+		return
+	stats["khorovod_break"] += 1
+	_end_khorovod(KHOROVOD_CD * 0.8)
+
+
+func _end_khorovod(cd: float) -> void:
+	for m in khorovod:
+		if is_instance_valid(m):
+			m.leave_dance()
+	khorovod.clear()
+	kh_cd = cd
+
+
+## Разбег: выскочившие из большой куклы бегут в разные стороны от змеи, не в угол.
+func scatter(kids: Array, snake: Snake, bounds: Rect2) -> void:
+	if level <= 0 or snake == null:
+		return
+	var runners: Array = kids.filter(func(m) -> bool: return not m.is_last())
+	if runners.size() < 2:
+		return
+	var inner := bounds.grow(-90.0)
+	for i in runners.size():
+		var m: Matryoshka = runners[i]
+		var away := (m.position - snake.head_pos).normalized()
+		var dir := away.rotated((float(i) / (runners.size() - 1) - 0.5) * 2.4)
+		var goal := m.position + dir * 220.0
+		if not inner.has_point(goal):  # в угол не бежать: к середине поля
+			dir = (dir + (inner.get_center() - m.position).normalized()).normalized()
+		m.scatter_dir = dir
+		m.scatter_t = SCATTER_TIME
+	stats["scatter"] += 1
+
+
+## Заслон: пока малышка переводит дух после прыжка, ближайшая свободная матрёшка встаёт между ней и змеёй.
+func _plan_doll_cover(snake: Snake) -> void:
+	var served := {}
+	for r: Dictionary in roles.values():
+		if r["role"] == "cover" and is_instance_valid(r["node"]):
+			served[r["target"]] = true
+			if not is_committed(r["node"]):
+				_assign(r["node"], "cover", r["target"])
+			r["node"].order_pos = guard_point(r["target"].position, snake.head_pos, 44.0)
+	var free: Array[Matryoshka] = []
+	for m: Matryoshka in d.dolls:
+		if _dancer_ok(m) and not m.dancing and role_of(m) == "" and _can_take(m):
+			free.append(m)
+	for tiny: Matryoshka in d.dolls:
+		if free.is_empty():
+			return
+		if not tiny.is_last() or not tiny.is_dazed() or served.has(tiny) \
+				or tiny.position.distance_to(snake.head_pos) > 420.0:
+			continue
+		var best: Matryoshka = null
+		for m in free:
+			if best == null or m.position.distance_to(tiny.position) < best.position.distance_to(tiny.position):
+				best = m
+		if best.position.distance_to(tiny.position) > 360.0:
+			continue
+		free.erase(best)
+		if _assign(best, "cover", tiny):
+			best.order_pos = guard_point(tiny.position, snake.head_pos, 44.0)
+			stats["cover"] += 1
+			_announce()
+
+
+## Дуэт (Ультра): две готовые малышки переглядываются и прыгают одновременно по бокам от курса змеи.
+func _plan_duet(snake: Snake) -> void:
+	if duet_cd > 0.0:
+		return
+	var ready: Array[Matryoshka] = []
+	for m: Matryoshka in d.dolls:
+		if m.is_last() and m.st == Matryoshka.St.ROAM and m.spawn_k > 0.9 and m.sync_jump < 0.0 \
+				and m.attack_cd < 0.6 and m.position.distance_to(snake.head_pos) < Matryoshka.ATTACK_RANGE + 80.0:
+			ready.append(m)
+	if ready.size() < 2:
+		return
+	var side := Vector2.from_angle(snake.heading).orthogonal()
+	for i in 2:
+		var m: Matryoshka = ready[i]
+		m.sync_jump = DUET_LOOK
+		m.jump_offset = side * DUET_SIDE * (1.0 if i == 0 else -1.0)
+		m.coop_tag = DUET_LOOK + 0.6
+		m.attack_cd = 9.0  # сама не прыгает — ждёт напарницу
+	duet_cd = DUET_CD
+	stats["duet"] += 1
+	_announce("duet", Tips.DUET_HINT)

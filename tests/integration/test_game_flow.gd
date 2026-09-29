@@ -12,10 +12,10 @@ func test_menu_boots_with_demo() -> void:
 
 
 func test_every_stage_starts_and_runs() -> void:
-	for stage in 4:
+	for stage in Balance.STAGE_COUNT:
 		await boot_stage(stage)
 		await step(240)
-		if stage < 3:
+		if stage < Balance.BOSS_STAGE:
 			assert_eq(game.state, Game.State.LEVEL, "этап %d идёт" % stage)
 			assert_true(game.enemies.count() > 0, "враги на этапе %d" % stage)
 		else:
@@ -70,7 +70,7 @@ func test_ultra_skips_perks() -> void:
 
 
 func test_boss_defeat_leads_to_ending_and_results() -> void:
-	await boot_stage(3)
+	await boot_stage(Balance.BOSS_STAGE)
 	await wait_until(func() -> bool: return game.state == Game.State.BOSS)
 	assert_eq(game.state, Game.State.BOSS, "яичница приземлилась")
 	game.boss.dev_set_hp(0)
@@ -223,7 +223,7 @@ func test_pill_wave_stuns_forks_but_spares_snake() -> void:
 
 
 func test_snake_cannot_die_between_boss_and_ending() -> void:
-	await boot_stage(3)
+	await boot_stage(Balance.BOSS_STAGE)
 	await wait_until(func() -> bool: return game.state == Game.State.BOSS)
 	game.boss.dev_set_hp(0)
 	assert_eq(game.state, Game.State.OUTRO)

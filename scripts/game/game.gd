@@ -2,7 +2,8 @@ extends Node2D
 ## Главный узел игры: состояния и этапы забега, счёт, итоги. Всю работу делают помощники:
 ## EnemyDirector (враги), Projectiles (снаряды и волны), Abilities (атаки змеи), BossFight (яичница),
 ## MenuDemo (фон меню), Fx (частицы и надписи), Arena (ящик), Hud (интерфейс).
-## Этапы: 0 — медведи, 1 — ржавые вилки, 2 — прыгающие таблетки, 3 — гигантская яичница.
+## Этапы: 0 — медведи, 1 — ржавые вилки, 2 — прыгающие таблетки, 3 — терем матрёшек (v9.0),
+## 4 — гигантская яичница.
 ## Отладка (аргументы после `--`): --stage=N, --diff=N, --ending, --autopilot, --dump-sfx, --skills,
 ## --perks, --touch (сенсорный режим на ПК), --dev (открыть панель разработчика).
 
@@ -34,6 +35,7 @@ const Bestiary = preload("res://scripts/core/bestiary.gd")
 const Daily = preload("res://scripts/core/daily.gd")
 const Replay = preload("res://scripts/game/replay.gd")
 const Darkness = preload("res://scripts/game/darkness.gd")
+const Secrets = preload("res://scripts/core/secrets.gd")
 
 enum State { LOADING, MENU, LEVEL, PERK, BOSS_INTRO, BOSS, OUTRO, CUTSCENE, WIN, GAME_OVER }
 
@@ -58,6 +60,8 @@ var score := 0
 var bears_eaten := 0
 var forks_broken := 0
 var pills_eaten := 0
+var dolls_done := 0     # собранных наборов матрёшек
+var opened_dolls := 0   # раскрытых матрёшек (большие и средние)
 var play_time := 0.0
 var run_scales := 0.0
 var streak_bonus := 0  # чешуйки за серию испытаний дня в этом забеге
@@ -133,6 +137,7 @@ func _ready() -> void:
 	hud.attack_pressed.connect(_try_attack)
 	hud.skip_pressed.connect(_skip_ending)
 	hud.dev_toggled.connect(func() -> void: dev_panel.toggle())
+	hud.secret_found.connect(found_secret)
 	hud.back_unhandled.connect(func() -> void:  # «Назад» в финале — пропустить
 		if state == State.CUTSCENE:
 			_skip_ending())
@@ -192,7 +197,7 @@ func _open_for_debug(what: String) -> void:
 		"settings":
 			hud.push(hud.settings_screen)
 		"bestiary":
-			for k in ["bear_0", "bear_3", "fork_0", "fork_2", "fork_atk_1", "pill"]:
+			for k in ["bear_0", "bear_3", "fork_0", "fork_2", "fork_atk_1", "pill", "doll_2", "doll_0"]:
 				Bestiary.unlock(k, false)
 			hud.push(hud.bestiary_screen)
 			hud.bestiary_screen._select(3)
@@ -279,6 +284,9 @@ func start_game(diff: int) -> void:
 		darkness = Darkness.new()
 		world.add_child(darkness)
 	snake.reset(Vector2(640, 520))
+	snake.hat = Secrets.is_holiday()
+	if snake.hat:
+		found_secret("holiday")
 	snake.damaged.connect(_on_snake_damaged)
 	snake.died.connect(_on_snake_died)
 	world.add_child(snake)
@@ -291,6 +299,7 @@ func start_game(diff: int) -> void:
 		bears_eaten = cfg["bears"]
 		forks_broken = cfg["forks"]
 		pills_eaten = cfg["pills"]
+		dolls_done = cfg["dolls"]
 		arena.set_floor(Balance.STAGES[Balance.BOSS_STAGE]["floor"])
 		start_ending()
 		return
@@ -333,7 +342,7 @@ func enter_stage(i: int) -> void:
 
 ## Подсказка внизу экрана (можно отключить в настройках).
 func hint(text: String, time: float) -> void:
-	if text == "" or not hints_on():
+	if text == "" or not hints_on() or state == State.MENU:
 		return
 	hud.show_hint(text)
 	if hint_tween:
@@ -484,6 +493,12 @@ func _try_attack() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	# Панель разработчика слушает клавиши сама (dev_panel.gd::_input): этот узел на паузе не получает ввод.
+	if state == State.MENU and menu_demo:  # пасхалка: тычки в яичницу, выглядывающую из угла
+		var click: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+		var tap: bool = click or (event is InputEventScreenTouch and event.pressed)
+		if tap and menu_demo.poke(get_canvas_transform().affine_inverse() * (event.position as Vector2)):
+			get_viewport().set_input_as_handled()
+		return
 	if state == State.CUTSCENE and ending:
 		if event.is_action_pressed("pause"):
 			get_viewport().set_input_as_handled()
@@ -557,7 +572,7 @@ func _process(delta: float) -> void:
 	if snake and fighting:
 		var yolk := boss != null and boss.is_yolk_open()
 		sfx.set_intensity(music_intensity(state == State.BOSS, boss.phase() if boss else 1, snake.lives,
-			snake.max_lives, not enemies.squad.pincer.is_empty(), yolk, float(goal_done) / maxf(goal_total, 1.0)))
+			snake.max_lives, enemies.squad.is_trapping(), yolk, float(goal_done) / maxf(goal_total, 1.0)))
 	if autopilot and snake and fighting:
 		Autopilot.drive(self)
 
@@ -581,6 +596,7 @@ func _process(delta: float) -> void:
 			enemies.update_bears(delta, snake, true)
 			enemies.update_forks(delta, snake)
 			enemies.update_pills(delta, snake)
+			enemies.update_dolls(delta, snake)
 			enemies.update_squad(delta, snake)
 			shots.update_drops(delta)
 			shots.update_waves(delta)
@@ -673,6 +689,17 @@ func menu_demo_refresh() -> void:
 	if state == State.MENU:
 		hud.menu.set_data(Balance.DIFFICULTIES, SaveData.bests(Balance.DIFFICULTIES.size()), difficulty,
 			Skills.scales, touch_on())
+
+
+## Найдена пасхалка: табличка сверху и звонок. Второй раз ничего не происходит.
+func found_secret(id: String) -> void:
+	if not Secrets.unlock(id):
+		return
+	var e := Secrets.entry(id)
+	hud.show_banner("ПАСХАЛКА: %s  (%d/%d)" % [e["title"], Secrets.found_count(), Secrets.total()], Design.PLUM, 2.0)
+	sfx.play("secret")
+	if state == State.MENU:  # журнал в меню считает пасхалки
+		hud.menu.update_scales(Skills.scales)
 
 
 ## Пометить забег отладочным (любое читерство из панели разработчика).

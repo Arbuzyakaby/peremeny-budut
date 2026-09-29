@@ -2,6 +2,7 @@ extends "res://tests/test_case.gd"
 ## Общие помощники интеграционных тестов: поднять главную сцену и дождаться нужного состояния.
 
 const Game = preload("res://scripts/game/game.gd")
+const Balance = preload("res://scripts/core/balance.gd")
 const MAIN := "res://scenes/main.tscn"
 
 var game: Game

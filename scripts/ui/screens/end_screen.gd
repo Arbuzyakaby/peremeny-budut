@@ -1,6 +1,7 @@
 extends "res://scripts/ui/screens/screen.gd"
 ## Итоги забега: заголовок (победа / поражение / «КОНЕЦ»), строки статистики, чешуйки, кнопки.
 ## После гибели — совет по причине удара и клавиша «ПОВТОР» (запись последних секунд, replay_screen.gd).
+## Новый рекорд (дизайн-язык 2.3) — красный штамп протокола «РЕКОРД» у заголовка.
 
 signal retry_requested
 signal menu_requested
@@ -11,11 +12,21 @@ var headline: Label
 var stats: VBoxContainer
 var tip_label: Label
 var replay_button: Button
+var stamp: Control
+var stamp_k := 0.0  # штамп «прилетает» сверху и пристукивается
 
 
 func build() -> void:
 	make_frame(Design.SPACE[3])
 	head = title("", "display")
+	stamp = Control.new()
+	stamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stamp.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stamp.draw.connect(func() -> void:  # справа от строк итогов, поверх прокрутки
+		var to_local := stamp.get_global_transform().affine_inverse() * panel.get_global_transform()
+		var at := to_local * Vector2(panel.size.x - 170, panel.size.y * 0.56)
+		Design.draw_stamp(stamp, at, "РЕКОРД", Design.danger(), -0.18, 26, 1.0 + 0.6 * (1.0 - stamp_k)))
+	add_child(stamp)
 	headline = Design.label("", "h3", Design.CREAM, HORIZONTAL_ALIGNMENT_CENTER)
 	content.add_child(headline)
 	content.add_child(HSeparator.new())
@@ -46,6 +57,20 @@ func show_end(win: bool, custom_title: String, line: String, rows: Array, can_re
 		col = Design.YOLK
 	head.label_settings.font_color = col
 	headline.text = line
+	var record := false
+	for r: Array in rows:
+		if r[0] == "Счёт" and r.size() > 2 and r[2]:
+			record = true
+	stamp.visible = record
+	if record:
+		stamp_k = 1.0 if Settings.flag("reduced_motion") else 0.0
+		if stamp_k < 1.0:
+			var tw := create_tween()
+			tw.tween_interval(0.6)
+			tw.tween_property(self, "stamp_k", 1.0, Design.BASE).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			tw.tween_callback(Design.play.bind("stamp"))
+			tw.tween_method(func(_v: float) -> void: stamp.queue_redraw(), 0.0, 1.0, 0.05)
+		stamp.modulate.a = 1.0
 	for c in stats.get_children():
 		c.queue_free()
 	for i in rows.size():
@@ -59,6 +84,12 @@ func show_end(win: bool, custom_title: String, line: String, rows: Array, can_re
 		stats.add_child(h)
 		Design.appear(h, 0.25 + i * Design.STAGGER * 2.0, 0.0)
 	open()
+
+
+func _process(_delta: float) -> void:
+	if visible and stamp.visible:
+		stamp.modulate.a = stamp_k
+		stamp.queue_redraw()
 
 
 func handle_back() -> bool:

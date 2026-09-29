@@ -25,6 +25,10 @@ static func drive(g) -> void:
 		if p.is_edible() and p.position.distance_to(snake.head_pos) < best_d:
 			best_d = p.position.distance_to(snake.head_pos)
 			best = p.position
+	for m in g.enemies.dolls:
+		if m.can_bite() and m.position.distance_to(snake.head_pos) < best_d:
+			best_d = m.position.distance_to(snake.head_pos)
+			best = m.position
 	if g.boss and g.in_boss_fight() and g.boss.is_yolk_open():
 		best = g.boss.position + FriedEggBoss.YOLK_OFFSET
 	snake.auto_target = best

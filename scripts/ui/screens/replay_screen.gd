@@ -67,6 +67,8 @@ static func cause_title(cause: String) -> String:
 			return "ВЗРЫВ ХЛОПУШКИ"
 		"pill":
 			return "РАЗДАВИЛА ТАБЛЕТКА"
+		"doll":
+			return "ПРИДАВИЛА МАЛЫШКА"
 		"wave":
 			return "УДАРНАЯ ВОЛНА"
 		"boss", "oil":
@@ -120,6 +122,11 @@ func _draw_monitor() -> void:
 				var lift := Vector2(0, -float(e[2]))
 				monitor.draw_circle(e[1], 16.0, Color(0, 0, 0, 0.5))
 				monitor.draw_circle(e[1] + lift, 24.0, Color(PHOSPHOR, 0.6))
+			"doll":  # матрёшка: низ и голова
+				var up := Vector2(0, -float(e[2]))
+				var dr := float(e[3])
+				monitor.draw_circle(e[1] + up + Vector2(0, dr * 0.25), dr, Color(PHOSPHOR, 0.6))
+				monitor.draw_circle(e[1] + up - Vector2(0, dr * 0.55), dr * 0.62, Color(PHOSPHOR, 0.8))
 	for d: Array in f["drops"]:
 		monitor.draw_circle(d[0], 8.0, Color(PHOSPHOR, 0.5 if d[2] else 0.95))
 	var body: PackedVector2Array = f["body"]

@@ -44,9 +44,9 @@ func _draw() -> void:
 	var body := Design.font("body")
 	var tw := body.get_string_size(status + "...", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(body, c + Vector2(-tw / 2.0, 66), status + dots, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Design.MUTED)
-	for i in 3:  # три иконки врагов «подпрыгивают» по очереди
+	for i in 4:  # четыре иконки врагов «подпрыгивают» по очереди
 		var k := maxf(sin(t * 5.0 - i * 0.9), 0.0)
-		Icons.stage(self, c + Vector2(-40 + i * 40, 110 - k * 8.0), i, 0.9)
+		Icons.stage(self, c + Vector2(-60 + i * 40, 110 - k * 8.0), i, 0.9)
 	var line := "СОВЕТ: " + tip
 	var lw := minf(body.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x, size.x - 48.0)
 	draw_string(body, Vector2((size.x - lw) / 2.0, size.y - 40.0), line, HORIZONTAL_ALIGNMENT_LEFT, size.x - 48.0, 16,

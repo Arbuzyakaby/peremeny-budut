@@ -1,5 +1,5 @@
 extends RefCounted
-## Дизайн-язык «Ящик экспериментов» 2.2 — единственный источник цветов, шрифтов, отступов, радиусов,
+## Дизайн-язык «Ящик экспериментов» 2.3 — единственный источник цветов, шрифтов, отступов, радиусов,
 ## материалов, теней и анимаций интерфейса. Описание и правила — docs/DESIGN.md.
 ## Идея: интерфейс — панель лабораторного прибора, вмонтированная в деревянный ящик. Никаких плоских
 ## «цифровых» заливок: у каждой кнопки, тумблера и крутилки есть материал (бакелит, латунь, хром,
@@ -8,6 +8,7 @@ extends RefCounted
 const Settings = preload("res://scripts/core/settings.gd")
 const PhysicalBox = preload("res://scripts/ui/widgets/physical_box.gd")
 const Materials = preload("res://scripts/ui/materials.gd")
+const Icons = preload("res://scripts/ui/icons.gd")
 
 # ---------------------------------------------------------------- цвета
 
@@ -32,8 +33,9 @@ const STEEL := Color(0.498, 0.722, 1.0)              # информация, о�
 const RUST := Color(0.753, 0.396, 0.173)
 const PLUM := Color(0.831, 0.42, 1.0)                # ультра-хардкор, редкое
 const BRASS := Color(0.86, 0.64, 0.25)               # оправы, петли, заклёпки
-## Акценты этапов: фанера, медь ящика для вилок, аптека, чугун с золотом.
-const STAGE_ACCENTS := [Color(0.851, 0.627, 0.4), Color(0.85, 0.42, 0.16), Color(0.373, 0.831, 0.769), YOLK]
+## Акценты этапов: фанера, медь ящика для вилок, аптека, киноварь терема (2.3), чугун с золотом.
+const LACQUER := Color(0.86, 0.2, 0.15)             # киноварь терема матрёшек
+const STAGE_ACCENTS := [Color(0.851, 0.627, 0.4), Color(0.85, 0.42, 0.16), Color(0.373, 0.831, 0.769), LACQUER, YOLK]
 ## Фазы яичницы.
 const PHASE_COLORS := [Color(1, 0.8, 0.15), Color(1, 0.55, 0.1), Color(0.95, 0.25, 0.1)]
 
@@ -333,6 +335,13 @@ static func draw_dashes(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, widt
 		d += dash + gap
 
 
+## «Окно, бей» (2.3): сплошная кромка вокруг цели, дуга убывает — сколько окна осталось (k 1 → 0).
+static func draw_open_arc(ci: CanvasItem, c: Vector2, r: float, k: float) -> void:
+	var col := tell_color(Tell.OPEN)
+	ci.draw_arc(c, r, 0, TAU, 40, Color(col, 0.18), telegraph_width(2.0))
+	ci.draw_arc(c, r, -PI / 2, -PI / 2 + TAU * clampf(k, 0.0, 1.0), 40, Color(col, 0.9), telegraph_width(3.0))
+
+
 ## Кольцо зоны удара: заливка, кромка и «стрелка часов» k (0..1) — сколько осталось до удара.
 static func draw_tell_ring(ci: CanvasItem, c: Vector2, r: float, kind: int, k: float) -> void:
 	var col := tell_color(kind)
@@ -345,8 +354,51 @@ static func draw_tell_ring(ci: CanvasItem, c: Vector2, r: float, kind: int, k: f
 # ---------------------------------------------------------------- 2.2: источники атак змеи
 
 ## Откуда у змеи атака: у каждого источника — свой акцент этапа и гравировка на табличке.
-const SOURCE_COLORS := {"bear": Color(0.851, 0.627, 0.4), "fork": Color(0.85, 0.42, 0.16), "pill": Color(0.373, 0.831, 0.769)}
-const SOURCE_NAMES := {"bear": "МЕДВЕДЬ", "fork": "ВИЛКА", "pill": "ТАБЛЕТКА"}
+const SOURCE_COLORS := {"bear": Color(0.851, 0.627, 0.4), "fork": Color(0.85, 0.42, 0.16), "pill": Color(0.373, 0.831, 0.769),
+	"doll": LACQUER}
+const SOURCE_NAMES := {"bear": "МЕДВЕДЬ", "fork": "ВИЛКА", "pill": "ТАБЛЕТКА", "doll": "МАТРЁШКА"}
+
+
+# ---------------------------------------------------------------- 2.3: маршрут и штамп
+
+## Маршрут эксперимента (2.3): этапы забега иконками по одной линии — пройденные с галочкой и мятной
+## линией, текущий — в золотом ореоле, будущие — приглушены. Один рисунок для табло, меню и загрузки.
+## current < 0 — забега нет: всё одинаково ярко, без ореола (карта в меню).
+static func draw_route(ci: CanvasItem, origin: Vector2, current: int, step := 70.0, t := 0.0, s := 1.0) -> void:
+	var n := STAGE_ACCENTS.size()
+	for i in n:
+		var c := origin + Vector2(i * step, 0)
+		if i < n - 1:
+			var done_col := MINT if i < current else (Color(STAGE_ACCENTS[i], 0.55) if current < 0 else LINE)
+			ci.draw_line(c + Vector2(18, 0) * s, c + Vector2(step - 18 * s, 0), INK, 6.0 * s)
+			ci.draw_line(c + Vector2(18, 0) * s, c + Vector2(step - 18 * s, 0), done_col, 3.0 * s)
+		if i == current:
+			ci.draw_circle(c, (17.0 + 1.5 * sin(t * 5.0)) * s, Color(YOLK, 0.3))
+			ci.draw_arc(c, 16.0 * s, 0, TAU, 24, YOLK, 2.5 * s)
+		elif current < 0:
+			ci.draw_arc(c, 16.0 * s, 0, TAU, 24, Color(STAGE_ACCENTS[i], 0.6), 2.0 * s)
+		Icons.stage(ci, c, i, s, 1.0 if current < 0 or i <= current else 0.35)
+		if i < current:
+			Icons.check(ci, c + Vector2(10, 7) * s, MINT, 0.7 * s)
+
+
+## Штамп протокола (2.3): чернильный оттиск в двойной рамке, чуть повёрнут, краска ложится неровно.
+## Для «сделано»: рекорд на итогах, изученная карточка картотеки, найденные пасхалки.
+## k — масштаб оттиска (штамп «прилетает» крупнее и пристукивается).
+static func draw_stamp(ci: CanvasItem, c: Vector2, text: String, col: Color, angle := -0.12, size := 18, k := 1.0) -> void:
+	var f := font("heavy")
+	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	var box := Vector2(w + size * 1.2, size * 1.9)
+	ci.draw_set_transform(c, angle, Vector2(k, k))
+	var r := Rect2(-box / 2.0, box)
+	var ink := Color(col, 0.82)
+	var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]
+	for side in 4:  # краска ложится неровно: у каждой стороны рамки своя густота
+		ci.draw_line(corners[side], corners[(side + 1) % 4], Color(col, [0.85, 0.6, 0.8, 0.7][side]), 2.5)
+	ci.draw_rect(r.grow(-4.0), Color(col, 0.55), false, 1.2)
+	ci.draw_string(f, Vector2(-w / 2.0 + 1.0, size * 0.36 + 1.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(col, 0.25))
+	ci.draw_string(f, Vector2(-w / 2.0, size * 0.36), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, ink)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## Ряд ламп (заряды атаки и т. п.): горящие — цвета col с ореолом, погасшие — тёмное стекло.

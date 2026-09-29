@@ -35,7 +35,7 @@ var ability_flash := 0.0
 ## Названия фаз яичницы (как FriedEggBoss.PHASE_NAMES — без preload сущности в интерфейс).
 const BOSS_PHASES := ["ШКВОРЧИТ", "ПОДГОРАЕТ", "ПРИГОРЕЛА"]
 ## Источник атаки по её типу (как Balance.ABILITIES[type]["source"]).
-const ABILITY_SOURCE := {10: "fork", 11: "fork", 12: "fork", 13: "pill"}
+const ABILITY_SOURCE := {10: "fork", 11: "fork", 12: "fork", 13: "pill", 14: "doll"}
 var boss_visible := false
 var boss_hp := 0
 var boss_max := 1
@@ -254,18 +254,7 @@ func _draw_left(panel: StyleBox) -> void:
 
 
 func _draw_stage_track(origin: Vector2) -> void:
-	for i in 4:
-		var c := origin + Vector2(i * 88, 0)
-		if i < 3:
-			var done_col := Design.MINT if i < stage else Design.LINE
-			draw_line(c + Vector2(18, 0), c + Vector2(70, 0), Design.INK, 6.0)
-			draw_line(c + Vector2(18, 0), c + Vector2(70, 0), done_col, 3.0)
-		if i == stage:
-			draw_circle(c, 17.0 + 1.5 * sin(t * 5.0), Color(Design.YOLK, 0.3))
-			draw_arc(c, 16.0, 0, TAU, 24, Design.YOLK, 2.5)
-		Icons.stage(self, c, i, 1.0, 1.0 if i <= stage else 0.35)
-		if i < stage:
-			Icons.check(self, c + Vector2(10, 7), Design.MINT, 0.7)
+	Design.draw_route(self, origin, stage, 70.0, t)
 
 
 func _draw_right(panel: StyleBox) -> void:

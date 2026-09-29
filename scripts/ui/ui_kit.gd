@@ -113,7 +113,7 @@ static func build(p: VBoxContainer) -> void:
 	icons.custom_minimum_size = Vector2(0, 136)
 	icons.draw.connect(func() -> void:
 		var x := 20.0
-		for i in 4:
+		for i in 5:
 			Icons.stage(icons, Vector2(x, 20), i)
 			x += 44.0
 		Icons.heart(icons, Vector2(x, 20), 11.0, Color(0.95, 0.15, 0.25))

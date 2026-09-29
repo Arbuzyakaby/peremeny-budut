@@ -9,6 +9,7 @@ const Skills = preload("res://scripts/core/skills.gd")
 const Controls = preload("res://scripts/core/controls.gd")
 const Bestiary = preload("res://scripts/core/bestiary.gd")
 const Daily = preload("res://scripts/core/daily.gd")
+const Secrets = preload("res://scripts/core/secrets.gd")
 
 const TMP := "user://test"
 
@@ -171,6 +172,7 @@ static func use_temp_storage() -> void:
 	Settings.load_from_disk()
 	Bestiary.load_progress()
 	Daily.load_progress()
+	Secrets.load_progress()
 
 
 static func restore_storage() -> void:
@@ -181,6 +183,7 @@ static func restore_storage() -> void:
 	Settings.load_from_disk()
 	Bestiary.load_progress()
 	Daily.load_progress()
+	Secrets.load_progress()
 
 
 ## Убедиться, что есть игровые действия с настоящими клавишами (в тестах game.gd может не запускаться).

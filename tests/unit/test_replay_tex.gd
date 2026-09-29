@@ -26,7 +26,7 @@ func test_replay_is_a_ring_buffer() -> void:
 func test_replay_record_rate() -> void:
 	var r := Replay.new()
 	# вместо игры — словарь с теми же полями: пустое поле, без змеи и босса
-	var fake := {"snake": null, "boss": null, "enemies": {"bears": [], "forks": [], "pills": []},
+	var fake := {"snake": null, "boss": null, "enemies": {"bears": [], "forks": [], "pills": [], "dolls": []},
 		"shots": {"drops": [], "waves": []}}
 	for i in 60:
 		r.record(fake, 1.0 / 60.0)

@@ -1,6 +1,7 @@
 extends RefCounted
-## Враги на поле: медведи, вилки, таблетки. Спавн, обновление, столкновения со змеёй и между
-## собой (френдли фаер), цели этапа, помощники на этапах 2–3 и подкрепления яичнице.
+## Враги на поле: медведи, вилки, таблетки, матрёшки (v9.0). Спавн, обновление, столкновения со змеёй
+## и между собой (френдли фаер), цели этапа, помощники на этапах 2–4 и подкрепления яичнице.
+## Матрёшки собираются наборами: набор — большая кукла и всё, что из неё выскочит; цель этапа — наборы.
 
 const Balance = preload("res://scripts/core/balance.gd")
 const Combat = preload("res://scripts/core/combat.gd")
@@ -12,6 +13,13 @@ const FriedEggBoss = preload("res://scripts/entities/fried_egg_boss.gd")
 const OilDrop = preload("res://scripts/entities/oil_drop.gd")
 const Tips = preload("res://scripts/core/tips.gd")
 const Squad = preload("res://scripts/game/squad.gd")
+const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
+const DollShell = preload("res://scripts/entities/doll_shell.gd")
+
+## Кощеева игла (пасхалка): так редко в малышке находится яйцо, а в яйце — игла.
+const KOSCHEI_CHANCE := 0.03
+const RIBBON_SLOW := 0.9      # лента хоровода путает змею на столько секунд
+const RIBBON_REACH := 11.0
 
 const SPECIAL_BEARS := [TeddyBear.Type.BOXER, TeddyBear.Type.THROWER, TeddyBear.Type.KARATE, TeddyBear.Type.SEAMSTRESS,
 	TeddyBear.Type.NINJA, TeddyBear.Type.BOMBER, TeddyBear.Type.MEDIC]
@@ -20,6 +28,13 @@ var g  # game.gd (без типа — чтобы не было цикличес�
 var bears: Array[TeddyBear] = []
 var forks: Array[Fork] = []
 var pills: Array[Pill] = []
+var dolls: Array[Matryoshka] = []
+var doll_sets := {}           # номер набора → сколько кукол этого набора ещё на поле
+var doll_set_id := 0
+var doll_paint := 0
+var ribbon_cd := 0.0
+var doll_hinted := {}
+var coop_override := -1       # панель разработчика: уровень отряда вручную (−1 — как в сложности)
 var friendly_hits := 0
 var fork_hinted := false
 var fork_atk_hinted := {}
@@ -37,12 +52,12 @@ func _init(game) -> void:
 
 ## Кооператив врагов (только Сложная и Ультра — см. squad.gd).
 func update_squad(delta: float, snake: Snake) -> void:
-	squad.level = int(g.cfg.get("coop", 0))
+	squad.level = coop_override if coop_override >= 0 else int(g.cfg.get("coop", 0))
 	squad.update(delta, snake, self)
 
 
 func count() -> int:
-	return bears.size() + forks.size() + pills.size()
+	return bears.size() + forks.size() + pills.size() + dolls.size()
 
 
 ## Убрать всех врагов с поля (между этапами).
@@ -62,6 +77,12 @@ func clear(with_fx := true) -> void:
 			g.fx.burst(p.position, p.cols[0], 10)
 		p.queue_free()
 	pills.clear()
+	for m in dolls:
+		if with_fx:
+			g.fx.burst(m.position, m.sarafan(), 10)
+		m.queue_free()
+	dolls.clear()
+	doll_sets.clear()
 	squad.reset()
 
 
@@ -77,6 +98,9 @@ func spawn_for_stage(stage: int, goal_total: int) -> void:
 		2:
 			for k in mini(3, goal_total):
 				spawn_pill()
+		Balance.DOLL_STAGE:
+			for k in mini(Balance.DOLL_SETS_ON_FIELD, goal_total):
+				spawn_doll_set()
 
 
 func spawn_pos(margin := 40.0) -> Vector2:
@@ -137,7 +161,7 @@ func update_bears(delta: float, snake: Snake, fighting: bool) -> void:
 		if bear.is_queued_for_deletion():  # съеден или поле очищено (этап пройден) в этом же кадре
 			continue
 		bear.update(delta, snake)
-		if not fighting or not snake.alive:
+		if not fighting or not snake.alive or snake.is_hopping():
 			continue
 		if bear.position.distance_to(snake.head_pos) < Snake.HEAD_RADIUS + TeddyBear.RADIUS:
 			if bear.is_shielded():  # пузырь медсестры: отскакиваем
@@ -221,18 +245,20 @@ func update_reinforcements(delta: float) -> void:
 		return
 	reinforce_t = Balance.REINFORCE_INTERVAL * clampf(g.cfg["tempo"], 0.6, 1.3)
 	var pos := Vector2.ZERO
-	match reinforce_kind % 3:
+	match reinforce_kind % 4:
 		0:
 			pos = spawn_bear(SPECIAL_BEARS.pick_random()).position
 		1:
 			pos = spawn_fork().position
 		2:
 			pos = spawn_pill().position
+		3:
+			pos = spawn_doll(Matryoshka.Size.MIDDLE).position
 	reinforce_kind += 1
 	g.fx.popup(pos + Vector2(0, -30), "НА ПОМОЩЬ ЯИЧНИЦЕ!", Color(1, 0.8, 0.5))
 	if not reinforce_hinted:
 		reinforce_hinted = true
-		g.hud.show_banner("На помощь яичнице идут медведи, вилки и таблетки!", Color(1, 0.7, 0.4), 2.0)
+		g.hud.show_banner("На помощь яичнице идут медведи, вилки, таблетки и матрёшки!", Color(1, 0.7, 0.4), 2.0)
 		g.hint("Съешь медведя — его атака ранит яичницу. Вилку в спринте можно направить в неё!", 4.0)
 
 
@@ -301,7 +327,7 @@ func update_forks(delta: float, snake: Snake) -> void:
 		f.update(delta, snake.head_pos, snake.alive)
 		if not is_instance_valid(f):
 			continue
-		if snake.alive and f.touches(snake.head_pos, Snake.HEAD_RADIUS):
+		if snake.alive and not snake.is_hopping() and f.touches(snake.head_pos, Snake.HEAD_RADIUS):
 			if f.is_pincer_windup() and snake.sprinting and not snake.is_dashing():
 				pincer_breakout(f, snake)
 				continue
@@ -416,7 +442,7 @@ func update_pills(delta: float, snake: Snake) -> void:
 		if p.is_queued_for_deletion():
 			continue
 		p.update(delta, snake.head_pos, head_vel, snake.alive)
-		if snake.alive and p.is_edible() and p.position.distance_to(snake.head_pos) < Pill.RADIUS + Snake.HEAD_RADIUS:
+		if snake.alive and not snake.is_hopping() and p.is_edible() and p.position.distance_to(snake.head_pos) < Pill.RADIUS + Snake.HEAD_RADIUS:
 			eat_pill(p)
 
 
@@ -455,3 +481,206 @@ func _on_pill_landed(pos: Vector2, p: Pill) -> void:
 		if b.position.distance_to(pos) < Pill.CRUSH_RADIUS + TeddyBear.RADIUS:
 			friendly_hit(b, null, (b.position - pos).normalized() * 300.0)
 	g.shots.spawn_stun_wave(pos, 200.0 + 40.0 * float(g.cfg["bear_aggr"]))
+
+
+# ---------------------------------------------------------------- матрёшки (v9.0)
+
+## Новый набор: большая матрёшка со своей росписью.
+func spawn_doll_set(at := Vector2.INF) -> Matryoshka:
+	doll_set_id += 1
+	doll_paint += 1
+	doll_sets[doll_set_id] = 1
+	return spawn_doll(Matryoshka.Size.BIG, at, doll_set_id, doll_paint)
+
+
+## Одна кукла. set_id = 0 — сама по себе (подкрепление яичнице), такой набор не считается.
+func spawn_doll(size: int, at := Vector2.INF, set_id := 0, paint := -1) -> Matryoshka:
+	var m := Matryoshka.new()
+	m.z_index = 2
+	m.setup(spawn_pos(60.0) if at == Vector2.INF else at, g.bounds, size, g.cfg["tempo"], g.cfg["bear_aggr"],
+		g.cfg["bear_speed"])
+	m.set_id = set_id
+	m.paint = paint if paint >= 0 else randi() % Matryoshka.SARAFANS.size()
+	m.sound.connect(g.sfx.play)
+	m.landed.connect(_on_doll_landed.bind(m))
+	g.world.add_child(m)
+	dolls.append(m)
+	g.seen(m.bestiary_key())
+	return m
+
+
+func update_dolls(delta: float, snake: Snake) -> void:
+	ribbon_cd = maxf(ribbon_cd - delta, 0.0)
+	var head_vel := Vector2.from_angle(snake.heading) * Snake.BASE_SPEED
+	for m: Matryoshka in dolls.duplicate():
+		if m.is_queued_for_deletion():
+			continue
+		m.update(delta, snake.head_pos, head_vel, snake.alive)
+		if snake.alive and not snake.is_hopping() and m.can_bite() and m.position.distance_to(snake.head_pos) < m.radius() + Snake.HEAD_RADIUS:
+			bite_doll(m, "НОКАУТ! " if m.is_dazed() and not m.is_last() else "")
+	_separate_dolls()
+	if snake.alive and ribbon_cd <= 0.0 and not snake.is_dashing():
+		_check_ribbons(snake)
+
+
+## Матрёшки не стоят друг в друге: соседки мягко расталкиваются (кроме прыгающих).
+func _separate_dolls() -> void:
+	for i in dolls.size():
+		var a := dolls[i]
+		if a.in_air():
+			continue
+		for j in range(i + 1, dolls.size()):
+			var b := dolls[j]
+			if b.in_air():
+				continue
+			var gap := a.radius() + b.radius() + 4.0
+			var off := b.position - a.position
+			var dist := off.length()
+			if dist < gap and dist > 0.01:
+				var push := off / dist * (gap - dist) * 0.5
+				a.position -= push
+				b.position += push
+
+
+## Лента хоровода путает змею: замедление, а не урон. Выход — просвет или укус танцующей.
+func _check_ribbons(snake: Snake) -> void:
+	for m: Matryoshka in dolls:
+		if not m.dancing or not is_instance_valid(m.ribbon_to):
+			continue
+		var a := m.position
+		var b: Vector2 = m.ribbon_to.position
+		var closest := Geometry2D.get_closest_point_to_segment(snake.head_pos, a, b)
+		if closest.distance_to(snake.head_pos) < RIBBON_REACH + Snake.HEAD_RADIUS * 0.5 \
+				and closest.distance_to(a) > m.radius() and closest.distance_to(b) > 12.0:
+			ribbon_cd = 1.2
+			snake.slow(RIBBON_SLOW)
+			g.fx.popup(snake.head_pos + Vector2(0, -30), "ЛЕНТА!", Color(1, 0.55, 0.45))
+			g.sfx.play("ribbon")
+			if not doll_hinted.has("ribbon"):
+				doll_hinted["ribbon"] = true
+				g.hint(Tips.RIBBON_HINT, 3.5)
+			return
+
+
+## Укус (или атака змеи) по матрёшке: малышку съесть, остальных — раскрыть.
+func bite_doll(m: Matryoshka, prefix := "") -> void:
+	if m.is_last():
+		eat_doll(m, prefix)
+	else:
+		open_doll(m, prefix)
+
+
+## Раскрыть матрёшку: скорлупки разлетаются, изнутри выскакивают следующие куклы.
+func open_doll(m: Matryoshka, prefix := "") -> void:
+	if not dolls.has(m) or m.is_last():
+		return
+	dolls.erase(m)
+	var dir := Vector2.from_angle(randf() * TAU)
+	if g.snake:
+		dir = (m.position - g.snake.head_pos).normalized()
+	for top in [true, false]:
+		var sh := DollShell.new()
+		sh.setup(m.position, top, m.sarafan(), m.scarf(), float(m.spec()["scale"]), dir.rotated(-0.9 if top else 0.9))
+		g.world.add_child(sh)
+	g.fx.burst(m.position, Matryoshka.GOLD, 8)
+	g.fx.burst(m.position, m.sarafan(), 10)
+	g.sfx.play("doll_open")
+	if g.state != g.State.MENU:  # в меню матрёшек раскрывает демо-змея — без очков и тряски
+		g.add_shake(4.0)
+		g.add_score(Balance.DOLL_OPEN_POINTS, m.position, prefix)
+	var inner := Matryoshka.Size.MIDDLE if m.size == Matryoshka.Size.BIG else Matryoshka.Size.TINY
+	var n := 2 if m.size == Matryoshka.Size.BIG else 1  # большая делится надвое
+	var kids: Array[Matryoshka] = []
+	for i in n:
+		var kid := spawn_doll(inner, m.position, m.set_id, m.paint)
+		kid.pop_out(dir.rotated(0.0 if n == 1 else (-0.8 if i == 0 else 0.8)))
+		kids.append(kid)
+	if m.set_id != 0 and doll_sets.has(m.set_id):
+		doll_sets[m.set_id] = int(doll_sets[m.set_id]) - 1 + n
+	m.queue_free()
+	if g.state != g.State.MENU:
+		g.opened_dolls += 1
+	if g.snake:
+		g.snake.grow(1)
+		squad.scatter(kids, g.snake, g.bounds)
+	if n == 2 and not doll_hinted.has("split"):
+		doll_hinted["split"] = true
+		g.hint(Tips.DOLL_SPLIT_HINT, 3.5)
+	elif inner == Matryoshka.Size.TINY and not doll_hinted.has("tiny"):
+		doll_hinted["tiny"] = true
+		g.hint(Tips.DOLL_TINY_HINT, 3.5)
+
+
+## Съесть малышку. Последняя малышка набора собирает набор — это и есть цель этапа.
+func eat_doll(m: Matryoshka, prefix := "") -> void:
+	if not dolls.has(m):
+		return
+	dolls.erase(m)
+	g.fx.burst(m.position, m.sarafan(), 12)
+	g.fx.burst(m.position, Matryoshka.GOLD, 6)
+	g.sfx.play("eat", 1.4)
+	g.add_score(Balance.DOLL_POINTS, m.position, prefix)
+	m.queue_free()
+	g.snake.grow(2)
+	g.abilities.gain_doll()
+	if not g.debug_run and randf() < KOSCHEI_CHANCE:
+		koschei(m.position)
+	if m.set_id == 0 or not doll_sets.has(m.set_id):
+		return
+	doll_sets[m.set_id] = int(doll_sets[m.set_id]) - 1
+	if int(doll_sets[m.set_id]) > 0:
+		return
+	doll_sets.erase(m.set_id)
+	g.add_score(Balance.DOLL_SET_POINTS, m.position + Vector2(0, -30), "НАБОР СОБРАН! ")
+	g.sfx.play("scale")
+	if g.is_goal_stage(Balance.DOLL_STAGE):
+		g.dolls_done += 1
+		g.goal_progress(Balance.DOLL_STAGE)
+		if g.is_goal_stage(Balance.DOLL_STAGE) and g.goal_done + doll_sets.size() < g.goal_total:
+			spawn_doll_set()
+
+
+## Пасхалка «Кощеева смерть»: в малышке — яйцо, в яйце — игла. Змея получает иглы и премию.
+func koschei(pos: Vector2) -> void:
+	g.fx.popup(pos + Vector2(0, -60), "В МАЛЫШКЕ — ЯЙЦО, В ЯЙЦЕ — ИГЛА!", Color(1, 0.85, 0.4))
+	g.add_score(200, pos + Vector2(0, -30), "КОЩЕЕВА СМЕРТЬ! ")
+	g.abilities.gain(4)  # иглы швеи
+	g.found_secret("koschei")
+
+
+## Малышка приземлилась: давит змею, медведей и раскрывает других матрёшек под собой.
+func _on_doll_landed(pos: Vector2, m: Matryoshka) -> void:
+	if not is_instance_valid(m) or not dolls.has(m):
+		return
+	var snake: Snake = g.snake
+	g.add_shake(6.0)
+	g.fx.burst(pos, Color(0.95, 0.8, 0.6), 10, 0.8)
+	g.vibrate(25)
+	if snake.alive and snake.head_pos.distance_to(pos) < Matryoshka.CRUSH_RADIUS + Snake.HEAD_RADIUS * 0.5:
+		if snake.take_damage(1, "doll"):
+			g.fx.popup(snake.head_pos + Vector2(0, -30), "ПРИДАВИЛА!", Color(1, 0.5, 0.4))
+			g.sfx.play("hurt")
+		snake.push((snake.head_pos - pos).normalized() * 380.0)
+	for b: TeddyBear in bears:
+		if b.position.distance_to(pos) < Matryoshka.CRUSH_RADIUS + TeddyBear.RADIUS:
+			friendly_hit(b, null, (b.position - pos).normalized() * 280.0)
+	for other: Matryoshka in dolls.duplicate():
+		if other != m and not other.is_last() and other.can_bite() \
+				and other.position.distance_to(pos) < Matryoshka.CRUSH_RADIUS + other.radius():
+			friendly_hits += 1
+			open_doll(other, "ФРЕНДЛИ ФАЕР! ")
+
+
+## Атака змеи по матрёшке (вертушка, укол, взрыв, снаряд, рывок). false — не задела (в воздухе).
+func snake_hits_doll(m: Matryoshka, prefix: String) -> bool:
+	if not dolls.has(m) or not m.can_bite():
+		return false
+	bite_doll(m, prefix)
+	return true
+
+
+## Ударная волна змеи: матрёшки переводят дух.
+func daze_dolls(at: Vector2, r: float, time: float) -> void:
+	for m: Matryoshka in dolls:
+		if m.position.distance_to(at) < r:
+			m.daze(time)

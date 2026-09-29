@@ -56,6 +56,8 @@ static func snapshot(g) -> Dictionary:
 		enemies.append(["fork", f.position, f.rotation, f.st])
 	for p in g.enemies.pills:
 		enemies.append(["pill", p.position, p.height, p.st])
+	for m in g.enemies.dolls:
+		enemies.append(["doll", m.position, m.height, m.radius()])
 	var drops: Array = []
 	for d in g.shots.drops:
 		if d.is_missed():  # промах уже безвреден — на «камере наблюдения» только то, что может ударить

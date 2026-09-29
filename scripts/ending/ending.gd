@@ -104,7 +104,7 @@ func start(g) -> void:
 	sfx = g.sfx
 	lab = Lab.new()
 	lab.z_index = -10
-	lab.tally = [g.bears_eaten, g.forks_broken, g.pills_eaten]  # итоги забега — мелом на доске
+	lab.tally = [g.bears_eaten, g.forks_broken, g.pills_eaten, g.dolls_done]  # итоги забега — мелом на доске
 	lab.notes = board_notes(g)
 	g.add_child(lab)
 	fire = Fire.new()
@@ -221,8 +221,8 @@ static func board_notes(g) -> PackedStringArray:
 
 
 func _stats_line() -> String:
-	return "Образец прошёл все этапы: медведей — %d, вилок — %d, таблеток — %d. И яичница." % [
-		game.bears_eaten, game.forks_broken, game.pills_eaten]
+	return "Образец прошёл все этапы: медведей — %d, вилок — %d, таблеток — %d, матрёшек — %d наб. И яичница." % [
+		game.bears_eaten, game.forks_broken, game.pills_eaten, game.dolls_done]
 
 
 func _say(text: String, talk_time: float) -> void:

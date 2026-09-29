@@ -11,6 +11,7 @@ const Pill = preload("res://scripts/entities/pill.gd")
 const FriedEggBoss = preload("res://scripts/entities/fried_egg_boss.gd")
 const OilDrop = preload("res://scripts/entities/oil_drop.gd")
 const Shockwave = preload("res://scripts/entities/shockwave.gd")
+const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
 
 const INNER := Rect2(24, 24, 1232, 672)  # внутри бортиков: сюда падают промахнувшиеся снаряды
 const CONFETTI := [Color(0.95, 0.3, 0.5), Color(0.3, 0.7, 0.95), Color(0.6, 0.9, 0.3), Color(1, 0.85, 0.3)]
@@ -96,6 +97,9 @@ func explode(pos: Vector2, from_snake: bool) -> void:
 	for p: Pill in g.enemies.pills.duplicate():
 		if not p.in_air() and p.position.distance_to(pos) < r + Pill.RADIUS:
 			g.enemies.eat_pill(p, "БАБАХ! ")
+	for m: Matryoshka in g.enemies.dolls.duplicate():
+		if m.position.distance_to(pos) < r + m.radius():
+			g.enemies.snake_hits_doll(m, "БАБАХ! ")
 	var boss: FriedEggBoss = g.boss
 	if boss and g.in_boss_fight() and pos.distance_to(boss.position) < FriedEggBoss.WHITE_RADIUS + r * 0.6:
 		if boss.take_chip(Combat.boss_chip("cracker", g.mods)):
@@ -151,6 +155,11 @@ func _snake_shot_hits(d: OilDrop) -> bool:
 		if not p.in_air() and p.position.distance_to(d.position) < OilDrop.RADIUS + Pill.RADIUS:
 			if d.kind != OilDrop.Kind.CRACKER:
 				g.enemies.eat_pill(p, "МЕТКО! ")
+			return true
+	for m: Matryoshka in g.enemies.dolls:
+		if m.can_bite() and m.position.distance_to(d.position) < OilDrop.RADIUS + m.radius():
+			if d.kind != OilDrop.Kind.CRACKER:
+				g.enemies.snake_hits_doll(m, "МЕТКО! ")
 			return true
 	var boss: FriedEggBoss = g.boss
 	if boss and g.in_boss_fight() and boss.height < 20.0 \

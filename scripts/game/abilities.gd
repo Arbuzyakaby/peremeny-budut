@@ -6,6 +6,8 @@ extends RefCounted
 ##   перед головой. Таблетки — ударная волна, которая оглушает врагов вокруг и сбивает снаряды.
 ##   Атаку даёт каждая Balance.FORK_PILL_EVERY-я вилка или таблетка и только в пустой слот (или в ту же
 ##   атаку): медвежья атака не пропадает оттого, что змея ест таблетки.
+## - Малышки-матрёшки (v9.0): прыжок — змея подпрыгивает (в воздухе неуязвима) и давит всех
+##   в круге приземления. По тому же правилу: каждая 2-я малышка, в пустой слот.
 ## Между атаками — пауза Balance.ABILITY_COOLDOWN, заряды копятся не выше Combat.ability_max.
 
 const Balance = preload("res://scripts/core/balance.gd")
@@ -16,8 +18,9 @@ const Fork = preload("res://scripts/entities/fork.gd")
 const Pill = preload("res://scripts/entities/pill.gd")
 const FriedEggBoss = preload("res://scripts/entities/fried_egg_boss.gd")
 const OilDrop = preload("res://scripts/entities/oil_drop.gd")
+const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
 
-enum { TINES = 10, LUNGE = 11, POGO = 12, WAVE = 13 }
+enum { TINES = 10, LUNGE = 11, POGO = 12, WAVE = 13, HOP = 14 }
 
 var g  # game.gd
 var type := -1
@@ -30,6 +33,8 @@ var infinite := false  # панель разработчика
 var cooldown := 0.0
 var fork_kills := 0    # к следующей атаке вилки
 var pill_kills := 0    # к следующей атаке таблетки
+var doll_kills := 0    # к следующей атаке матрёшки
+var hop_land_t := -1.0 # прыжок малышки: через столько секунд змея приземлится
 
 
 func _init(game) -> void:
@@ -51,6 +56,8 @@ func reset() -> void:
 	cooldown = 0.0
 	fork_kills = 0
 	pill_kills = 0
+	doll_kills = 0
+	hop_land_t = -1.0
 
 
 ## Съеден медведь: его атака (особый) или стамина (обычный).
@@ -80,6 +87,15 @@ func gain_pill() -> void:
 	if pill_kills >= int(g.mods.get("fork_every", Balance.FORK_PILL_EVERY)) and _slot_free_for(Balance.PILL_ABILITY):
 		pill_kills = 0
 		gain(Balance.PILL_ABILITY)
+
+
+## Съедена малышка-матрёшка: каждая FORK_PILL_EVERY-я даёт прыжок малышки.
+func gain_doll() -> void:
+	_count_kill()
+	doll_kills += 1
+	if doll_kills >= int(g.mods.get("fork_every", Balance.FORK_PILL_EVERY)) and _slot_free_for(Balance.DOLL_ABILITY):
+		doll_kills = 0
+		gain(Balance.DOLL_ABILITY)
 
 
 ## Слот пуст или в нём та же атака и есть куда копить.
@@ -112,7 +128,8 @@ func gain(t: int) -> void:
 		g.hud.show_banner(how + " — атака съеденного врага!", Color(0.5, 1, 0.5), 1.8)
 	elif not hinted_sources.has(src):
 		hinted_sources[src] = true
-		var text := "Каждая 2-я вилка даёт её приём" if src == "fork" else "Каждая 2-я таблетка даёт ударную волну"
+		var text: String = {"fork": "Каждая 2-я вилка даёт её приём", "pill": "Каждая 2-я таблетка даёт ударную волну",
+			"doll": "Каждая 2-я малышка даёт прыжок"}.get(src, "")
 		g.hint(text + " — если слот атаки пуст", 3.0)
 
 
@@ -126,6 +143,10 @@ func update(delta: float) -> void:
 			_pill_wave(snake.head_pos)
 		was_sprinting = snake.sprinting
 	update_dash()
+	if hop_land_t >= 0.0:
+		hop_land_t -= delta
+		if hop_land_t < 0.0 and snake and snake.alive:
+			_hop_land(snake.head_pos)
 
 
 func use() -> void:
@@ -191,6 +212,13 @@ func use() -> void:
 			_pogo(snake.head_pos + dir * Balance.POGO_REACH)
 		WAVE:
 			_pill_wave(snake.head_pos)
+		HOP:
+			snake.hop(Balance.HOP_TIME)
+			snake.dash(Balance.HOP_TIME, Snake.DASH_SPEED * 0.55)
+			dash_hit_boss = true  # прыжок бьёт приземлением, а не тараном
+			dash_kind = "hop"
+			hop_land_t = Balance.HOP_TIME
+			g.sfx.play("doll_hop", 0.8)
 	if not infinite:
 		charges -= 1
 	var name: String = info["name"]
@@ -212,6 +240,7 @@ func _spin() -> void:
 	for p: Pill in g.enemies.pills.duplicate():
 		if not p.in_air() and p.position.distance_to(head) < r:
 			g.enemies.eat_pill(p, "ВЕРТУШКА! ")
+	_hit_dolls(head, r, "ВЕРТУШКА! ")
 	g.shots.cut_enemy_drops(head, r, false, Color(1, 1, 0.8))
 	_chip_boss_near(head, r * 0.8, "spin", "kick")
 	g.add_shake(6.0)
@@ -232,6 +261,7 @@ func _pogo(at: Vector2) -> void:
 	for p: Pill in g.enemies.pills.duplicate():
 		if not p.in_air() and p.position.distance_to(at) < r + Pill.RADIUS:
 			g.enemies.eat_pill(p, "УКОЛ! ")
+	_hit_dolls(at, r + 14.0, "УКОЛ! ")
 	var boss: FriedEggBoss = g.boss
 	if boss and g.in_boss_fight() and at.distance_to(boss.position) < FriedEggBoss.WHITE_RADIUS + r * 0.5:
 		if boss.take_chip(Combat.boss_chip("pogo", g.mods)):
@@ -253,6 +283,7 @@ func _pill_wave(at: Vector2) -> void:
 			f.st_t = Balance.PILL_WAVE_STUN
 			f.vel = (f.position - at).normalized() * 160.0
 			f.leave_pincer()
+	g.enemies.daze_dolls(at, r, Balance.PILL_WAVE_STUN)
 	g.shots.cut_enemy_drops(at, r * 0.8, false, Color(0.7, 1, 0.95))
 
 
@@ -269,9 +300,12 @@ func update_dash() -> void:
 	var snake: Snake = g.snake
 	if snake == null or not snake.is_dashing():
 		return
+	if snake.is_hopping():  # прыжок малышки: в воздухе никого не задевает, бьёт приземлением
+		return
 	for bear: TeddyBear in g.enemies.bears.duplicate():
 		if bear.position.distance_to(snake.head_pos) < Snake.HEAD_RADIUS + TeddyBear.RADIUS + 8.0:
 			g.enemies.snake_hits_bear(bear, Vector2.from_angle(snake.heading) * 420.0)
+	_hit_dolls(snake.head_pos, Snake.HEAD_RADIUS + 8.0, "ТАРАН! ")
 	if snake.shadow_dash:  # теневой рывок проходит сквозь снаряды и режет их
 		g.shots.cut_enemy_drops(snake.head_pos, 40.0, true, Color(0.4, 0.4, 0.45))
 	var boss: FriedEggBoss = g.boss
@@ -285,6 +319,35 @@ func update_dash() -> void:
 		snake.push((snake.head_pos - boss.position).normalized() * 600.0)
 		snake.dash_t = 0.0
 
+
+
+## Атака змеи по матрёшкам в круге: малышек съедает, остальных раскрывает.
+func _hit_dolls(at: Vector2, r: float, prefix: String) -> void:
+	for m: Matryoshka in g.enemies.dolls.duplicate():
+		if m.position.distance_to(at) < r + m.radius():
+			g.enemies.snake_hits_doll(m, prefix)
+
+
+## Приземление после прыжка малышки: давит медведей, ломает вилки, съедает таблетки, раскрывает
+## матрёшек в круге; задевает яичницу.
+func _hop_land(at: Vector2) -> void:
+	var r := Balance.HOP_RADIUS
+	g.sfx.play("doll_land", 0.8)
+	g.add_shake(9.0)
+	g.fx.burst(at, Matryoshka.GOLD, 12, 1.0)
+	g.fx.burst(at, Color(0.95, 0.85, 0.7), 10, 0.8)
+	g.shots.spawn_snake_wave(at, r)
+	for bear: TeddyBear in g.enemies.bears.duplicate():
+		if bear.position.distance_to(at) < r + TeddyBear.RADIUS:
+			g.enemies.snake_hits_bear(bear, (bear.position - at).normalized() * 320.0)
+	for f: Fork in g.enemies.forks.duplicate():
+		if f.position.distance_to(at) < r + 16.0:
+			g.enemies.break_fork(f, "ПРЫЖОК! ")
+	for p: Pill in g.enemies.pills.duplicate():
+		if not p.in_air() and p.position.distance_to(at) < r + Pill.RADIUS:
+			g.enemies.eat_pill(p, "ПРЫЖОК! ")
+	_hit_dolls(at, r, "ПРЫЖОК! ")
+	_chip_boss_near(at, r * 0.6, "hop", "punch")
 
 
 ## Мутация «Вампир»: каждый N-й съеденный или сломанный враг возвращает жизнь.

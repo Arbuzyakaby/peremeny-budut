@@ -3,7 +3,8 @@ extends RefCounted
 ## шлифовка латуни, накатка) и палитры материалов. Текстуры — NoiseTexture2D с градиентом: считаются
 ## движком в фоне и кэшируются, одинаково работают на Forward+ и Compatibility.
 
-enum Kind { BAKELITE, BRASS, CHROME, WOOD, ENAMEL, PAPER, VELVET, RUBBER }
+## LACQUER (2.3) — киноварь под толстым лаком с золотой каймой, как у матрёшек и хохломы.
+enum Kind { BAKELITE, BRASS, CHROME, WOOD, ENAMEL, PAPER, VELVET, RUBBER, LACQUER }
 
 ## Палитра: [светлый край/блик, основной, тень/кромка]. Цвет смысла (золото, томат) подмешивается сверху.
 const PALETTE := {
@@ -15,7 +16,10 @@ const PALETTE := {
 	Kind.PAPER: [Color(1.0, 0.98, 0.92), Color(0.95, 0.9, 0.78), Color(0.7, 0.62, 0.48)],
 	Kind.VELVET: [Color(0.3, 0.07, 0.09), Color(0.18, 0.04, 0.06), Color(0.07, 0.01, 0.02)],
 	Kind.RUBBER: [Color(0.22, 0.2, 0.19), Color(0.12, 0.11, 0.1), Color(0.04, 0.035, 0.03)],
+	Kind.LACQUER: [Color(0.98, 0.42, 0.32), Color(0.72, 0.1, 0.07), Color(0.28, 0.03, 0.02)],
 }
+## Золотая кайма лака (2.3).
+const LACQUER_GOLD := Color(0.98, 0.78, 0.28)
 
 static var _textures: Dictionary = {}
 
@@ -56,6 +60,10 @@ static func texture(kind: int) -> Texture2D:
 		Kind.RUBBER:  # матовая шероховатость
 			n.noise_type = FastNoiseLite.TYPE_VALUE
 			n.frequency = 0.6
+		Kind.LACQUER:  # лак: едва заметные наплывы
+			n.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+			n.frequency = 0.02
+			n.fractal_octaves = 2
 		Kind.PAPER, Kind.VELVET:  # волокна бумаги / ворс
 			n.noise_type = FastNoiseLite.TYPE_PERLIN
 			n.frequency = 0.08

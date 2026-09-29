@@ -7,7 +7,7 @@ const Fork = preload("res://scripts/entities/fork.gd")
 const ReplayScreen = preload("res://scripts/ui/screens/replay_screen.gd")
 
 const CAUSES := ["fork_tines", "fork_whirl", "fork_pogo", "tine", "bear", "shot", "blast", "pill", "wave", "boss",
-	"oil", "self", "wall"]
+	"oil", "self", "wall", "doll"]
 
 
 func before_each() -> void:
@@ -17,7 +17,7 @@ func before_each() -> void:
 # ---------------------------------------------------------------- советы
 
 func test_tips_are_plenty_and_unique() -> void:
-	assert_true(Tips.count() >= 45, "советов много: %d" % Tips.count())
+	assert_true(Tips.count() >= 110, "советов много (v9.0 — больше сотни): %d" % Tips.count())
 	var seen := {}
 	for t: String in Tips.GENERAL:
 		assert_false(seen.has(t), "без повторов: " + t)
@@ -58,6 +58,8 @@ func test_bestiary_entries() -> void:
 		assert_has(keys, "bear_%d" % t)
 	for k in Fork.KINDS:
 		assert_has(keys, "fork_%d" % k)
+	for k in 3:
+		assert_has(keys, "doll_%d" % k, "у каждой матрёшки своя карточка")
 	for a in Fork.ATTACK_NAMES.size():
 		assert_has(keys, "fork_atk_%d" % a)
 	assert_has(keys, "pill")

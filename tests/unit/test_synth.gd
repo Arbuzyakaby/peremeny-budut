@@ -50,7 +50,7 @@ func test_fire_loop_is_seamless() -> void:
 
 
 func test_every_stage_track_is_known() -> void:
-	for t in ["level", "boss", "forks", "pills", "sad", "fire"]:
+	for t in ["level", "boss", "forks", "pills", "dolls", "sad", "fire"]:
 		assert_true(t in SynthMusic.TRACKS, t)
 
 

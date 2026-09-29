@@ -105,11 +105,16 @@ func _draw(ci: RID, rect: Rect2) -> void:
 		bottom = mid
 	RenderingServer.canvas_item_add_polygon(ci, body, vgrad(body, body_r, top, bottom))
 	_grain(ci, body, body_r, 1.0)
-	if kind in [Materials.Kind.BRASS, Materials.Kind.CHROME]:  # полоса отражения на металле
+	if kind in [Materials.Kind.BRASS, Materials.Kind.CHROME, Materials.Kind.LACQUER]:  # полоса отражения на металле и лаке
 		var band := Rect2(body_r.position + Vector2(r * 0.5, body_r.size.y * 0.18),
 			Vector2(maxf(body_r.size.x - r, 1.0), body_r.size.y * 0.22))
+		var gloss := 0.3 if kind == Materials.Kind.LACQUER else 0.42
 		RenderingServer.canvas_item_add_polygon(ci, rrect(band, band.size.y / 2.0),
-			vgrad(rrect(band, band.size.y / 2.0), band, Color(1, 1, 1, 0.42), Color(1, 1, 1, 0.0)))
+			vgrad(rrect(band, band.size.y / 2.0), band, Color(1, 1, 1, gloss), Color(1, 1, 1, 0.0)))
+	if kind == Materials.Kind.LACQUER:  # золотая кайма по грани, как у расписной игрушки
+		var rim := body_r.grow(-3.0)
+		RenderingServer.canvas_item_add_polyline(ci, rrect(rim, maxf(r - 4.5, 0.0), true),
+			PackedColorArray([Color(Materials.LACQUER_GOLD, 0.75)]), 1.4, true)
 	if not pressed:
 		_top_line(ci, body_r.grow(-0.5), maxf(r - 2.0, 0.0), Color(hi.lightened(0.3), 0.7), 1.5)
 	else:

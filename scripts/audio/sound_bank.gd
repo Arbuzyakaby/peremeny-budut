@@ -4,7 +4,7 @@ extends "res://scripts/audio/synth.gd"
 ## резкие верха срезаны фильтрами; поправка — третьим аргументом to_stream (дБ).
 
 ## Сколько звуков в build_sounds() — для полосы загрузки (тест сверяет с фактом).
-const SOUND_COUNT := 70
+const SOUND_COUNT := 76
 
 var _bank: Dictionary = {}
 
@@ -185,4 +185,21 @@ func build_sounds() -> Dictionary:
 	for i in 7:
 		melt = mix_at(melt, tone(0.06, randf_range(500, 900), randf_range(250, 400), W.SINE, 0.25, 0.0, 3.0), randf_range(0.05, 0.95))
 	_bank["melt"] = to_stream(melt)
+
+	# ----- матрёшки v9.0: всё деревянное и лакированное
+	# раскрылась: пустотелый «чпок» — щелчок шва и гулкое дерево внутри
+	_bank["doll_open"] = to_stream(mix(mix(_pop(0.02, 0.4, 800, 4000), tone(0.12, 540, 400, W.TRI, 0.3, 0.0, 2.5)),
+		tone(0.2, 262, 250, W.SINE, 0.28, 0.0, 1.8)), false, -3.0)
+	# прыжок малышки: деревянная пружинка вверх
+	_bank["doll_hop"] = to_stream(mix(tone(0.14, 420, 950, W.TRI, 0.2, 0.0, 1.5), _whoosh(0.12, 0.12, 900, 3500)))
+	# приземление: сухой стук дерева о половицу
+	_bank["doll_land"] = to_stream(mix(tone(0.16, 190, 90, W.SINE, 0.55, 0.0, 2.5), _pop(0.025, 0.35, 1200, 5000)), false, -4.0)
+	# «хи-хи» перед прыжком: три коротких писка с дрожью
+	var giggle := seq([tone(0.05, 1250, 1450, W.SQUARE, 0.06), silence(0.03), tone(0.05, 1300, 1500, W.SQUARE, 0.06),
+		silence(0.03), tone(0.07, 1350, 1150, W.SQUARE, 0.06)])
+	_bank["doll_giggle"] = to_stream(lowpass(am(giggle, 30.0, 0.4), 3500), false, -4.0)
+	# лента хоровода: шорох ткани и звон натянутой струны
+	_bank["ribbon"] = to_stream(mix(_whoosh(0.22, 0.2, 1500, 5000), tone(0.3, 330, 318, W.TRI, 0.14, 0.0, 1.5)))
+	# найдена пасхалка: волшебный перезвон
+	_bank["secret"] = to_stream(_notes([784, 988, 1319, 1568, 1976], 0.06, W.SINE, 0.28, 0.5))
 	return _bank

@@ -159,7 +159,7 @@ func test_ui_scale_changes_root() -> void:
 
 
 func test_yolk_open_shades_hud_accent() -> void:
-	await boot_stage(3)
+	await boot_stage(Balance.BOSS_STAGE)
 	game.boss.yolk_opened.emit()
 	await tree.create_timer(0.3).timeout
 	assert_true(game.hud.overlay.modulate.v < 0.6, "желток открыт — табло ушли в тень")

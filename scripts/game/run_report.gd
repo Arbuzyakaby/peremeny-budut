@@ -12,7 +12,8 @@ static func rows(g, win: bool, record: bool, best: int) -> Array:
 	var rows := [
 		["Сложность", g.cfg["name"]],
 		["Дошла до этапа", Balance.STAGES[g.stage]["name"]],
-		["Медведи / вилки / таблетки", "%d / %d / %d" % [g.bears_eaten, g.forks_broken, g.pills_eaten]],
+		["Медведи / вилки / таблетки / матрёшки", "%d / %d / %d / %d" % [g.bears_eaten, g.forks_broken, g.pills_eaten,
+			g.dolls_done]],
 	]
 	if g.enemies.friendly_hits > 0:
 		rows.append(["Враги подрались", "%d раз" % g.enemies.friendly_hits])

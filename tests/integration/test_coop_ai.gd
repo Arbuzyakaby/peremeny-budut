@@ -559,7 +559,7 @@ func test_mercy_on_last_life() -> void:
 
 
 func test_boss_fire_leads_to_yolk() -> void:
-	await boot_stage(3, 2)
+	await boot_stage(Balance.BOSS_STAGE, 2)
 	await wait_state(game.State.BOSS, 400)
 	game.enemies.clear(false)
 	var boss = game.boss

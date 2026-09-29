@@ -54,6 +54,12 @@ var autopilot := false
 var auto_speed := 90.0
 var auto_target := Vector2(640, 360)
 var burnt := 0.0  # 0..1 — обугливание
+## Пасхалки: золотая змея (код Konami в меню, до перезапуска игры) и новогодняя шапка (с 25 декабря по 7 января).
+static var golden := false
+var hat := false
+## Прыжок малышки (атака v9.0): змея подпрыгивает — крупнее и неуязвима, пока в воздухе.
+var hop_t := 0.0
+var hop_total := 0.3
 var small := 1.0  # масштаб (новорождённая змейка в финале)
 ## Сенсорное управление: желаемое направление (длина — чувствительность) и спринт.
 var touch_steer := Vector2.ZERO
@@ -108,6 +114,9 @@ func _input(event: InputEvent) -> void:
 
 func update(delta: float) -> void:
 	anim_t += delta
+	if hop_t > 0.0:
+		hop_t = maxf(hop_t - delta, 0.0)
+		small = 1.0 + 0.32 * sin((1.0 - hop_t / hop_total) * PI) if hop_t > 0.0 else 1.0
 	invuln = maxf(invuln - delta, 0.0)
 	slow_timer = maxf(slow_timer - delta, 0.0)
 	stun_t = maxf(stun_t - delta, 0.0)
@@ -255,6 +264,17 @@ func dash(time: float, speed := DASH_SPEED, shadow := false) -> void:
 	invuln = maxf(invuln, time + (0.9 if shadow else 0.1))
 
 
+## Подпрыгнуть на time секунд: неуязвима, пока в воздухе.
+func hop(time: float) -> void:
+	hop_t = time
+	hop_total = time
+	invuln = maxf(invuln, time + 0.05)
+
+
+func is_hopping() -> bool:
+	return hop_t > 0.0
+
+
 func is_dashing() -> bool:
 	return dash_t > 0.0
 
@@ -350,6 +370,8 @@ func _draw() -> void:
 		var dir := (segs[i - 1] - segs[i]).normalized()
 		var side := dir.orthogonal()
 		var c := Color(0.33, 0.76, 0.28) if (i / 3) % 2 == 0 else Color(0.27, 0.67, 0.23)
+		if golden:
+			c = Color(0.96, 0.76, 0.22) if (i / 3) % 2 == 0 else Color(0.86, 0.62, 0.14)
 		if slowed:
 			c = c.lerp(Color.WHITE, 0.45)
 		c = c.lerp(ash, burnt * 0.9)
@@ -387,7 +409,7 @@ func _draw() -> void:
 		draw_line(tip, tip + dir.rotated(0.5) * 6.0 * small, Color(0.85, 0.1, 0.2), 2.0 * small)
 		draw_line(tip, tip + dir.rotated(-0.5) * 6.0 * small, Color(0.85, 0.1, 0.2), 2.0 * small)
 
-	var hc := Color(0.4, 0.86, 0.34).lerp(ash, burnt * 0.9)
+	var hc := (Color(1.0, 0.82, 0.3) if golden else Color(0.4, 0.86, 0.34)).lerp(ash, burnt * 0.9)
 	var snout := head_pos + dir * head_r * 0.45
 	draw_circle(head_pos, head_r + 2.5, outline)
 	draw_circle(snout, head_r * 0.78 + 2.5, outline)
@@ -411,6 +433,13 @@ func _draw() -> void:
 			draw_line(eye - Vector2(3, -3) * small, eye + Vector2(3, -3) * small, Color.BLACK, 2.0)
 		var out_a: float = (side * s).angle()
 		draw_arc(eye, 6.4 * small, out_a - 1.1, out_a + 1.1, 6, outline, 1.8 * small)  # надбровная чешуя
+	if hat and burnt < 0.5:  # новогодняя шапка с помпоном, съехавшая набок
+		var back := head_pos - dir * head_r * 0.35
+		var tip := back - dir * head_r * 1.5 + side * head_r * 0.9
+		draw_colored_polygon(PackedVector2Array([back + side * head_r * 0.85, back - side * head_r * 0.85, tip]),
+			Color(0.85, 0.1, 0.12))
+		draw_line(back + side * head_r * 0.9, back - side * head_r * 0.9, Color(0.98, 0.97, 0.94), 6.0 * small)
+		draw_circle(tip, 5.0 * small, Color(0.98, 0.97, 0.94))
 	if exhausted and alive:  # капли пота
 		for k in 2:
 			var ph := fmod(anim_t * 1.5 + k * 0.5, 1.0)

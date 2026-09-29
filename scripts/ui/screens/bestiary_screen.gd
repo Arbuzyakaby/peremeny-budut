@@ -22,7 +22,7 @@ func build() -> void:
 	counter = Design.label("", "caption", Design.MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 	content.add_child(counter)
 	grid = GridContainer.new()
-	grid.columns = 6
+	grid.columns = 7
 	grid.add_theme_constant_override("h_separation", Design.SPACE[2])
 	grid.add_theme_constant_override("v_separation", Design.SPACE[2])
 	var gc := CenterContainer.new()
@@ -39,7 +39,7 @@ func build() -> void:
 		grid.add_child(b)
 		cards.append(b)
 	sheet = Control.new()
-	sheet.custom_minimum_size = Vector2(CARD.x * 6 + Design.SPACE[2] * 5, 170)
+	sheet.custom_minimum_size = Vector2(CARD.x * 7 + Design.SPACE[2] * 6, 170)
 	sheet.draw.connect(_draw_sheet)
 	content.add_child(sheet)
 	var back := Design.button("НАЗАД", func() -> void: closed.emit(), "Primary", Vector2(220, Design.TOUCH_MIN))
@@ -85,6 +85,8 @@ static func draw_entry_icon(ci: CanvasItem, e: Dictionary, c: Vector2, s: float,
 			Icons.pill_kind(ci, c, int(e["arg"]), s, a)
 		"egg":
 			Icons.egg(ci, c, s, a)
+		"doll":
+			Icons.doll(ci, c, int(e["arg"]), s, a)
 
 
 func _draw_card(art: Control, i: int) -> void:
@@ -141,7 +143,4 @@ func _draw_sheet() -> void:
 		sheet.draw_multiline_string(mono, Vector2(x, yy), l[0], HORIZONTAL_ALIGNMENT_LEFT, text_w, 14, 2, l[1])
 		yy += 36
 	# штамп «ИЗУЧЕНО»
-	sheet.draw_set_transform(Vector2(r.end.x - 110, r.end.y - 40), -0.2, Vector2.ONE)
-	sheet.draw_rect(Rect2(-56, -18, 112, 34), Color(0.75, 0.15, 0.15, 0.7), false, 3.0)
-	sheet.draw_string(semi, Vector2(-46, 8), "ИЗУЧЕНО", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.75, 0.15, 0.15, 0.7))
-	sheet.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	Design.draw_stamp(sheet, Vector2(r.end.x - 110, r.end.y - 40), "ИЗУЧЕНО", Color(0.75, 0.15, 0.15), -0.2, 20)

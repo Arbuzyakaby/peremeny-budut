@@ -68,12 +68,33 @@ static func egg(ci: CanvasItem, c: Vector2, s := 1.0, a := 1.0) -> void:
 	ci.draw_circle(c + Vector2(-0.5, -2.5) * s, 1.8 * s, Color(1, 1, 1, 0.7 * a))
 
 
-## Иконка цели этапа: 0 медведь, 1 вилка, 2 таблетка, 3 яичница.
+## Матрёшка: size 0 — малышка, 1 — средняя, 2 — большая (крупнее и с другим сарафаном).
+static func doll(ci: CanvasItem, c: Vector2, size := 2, s := 1.0, a := 1.0) -> void:
+	var dress: Color = [Color(0.95, 0.68, 0.12), Color(0.14, 0.36, 0.72), Color(0.8, 0.1, 0.1)][clampi(size, 0, 2)]
+	var k: float = s * [0.8, 0.9, 1.0][clampi(size, 0, 2)]
+	var d := Color(dress, a)
+	ci.draw_circle(c + Vector2(0, 4) * k, 10.5 * k, Color(dress.darkened(0.6), a))
+	ci.draw_circle(c + Vector2(0, -6) * k, 7.8 * k, Color(dress.darkened(0.6), a))
+	ci.draw_circle(c + Vector2(0, 4) * k, 9.5 * k, d)
+	ci.draw_circle(c + Vector2(0, -6) * k, 6.8 * k, Color(0.98, 0.8, 0.22, a))
+	ci.draw_circle(c + Vector2(0, -5.5) * k, 4.6 * k, Color(1.0, 0.88, 0.76, a))
+	ci.draw_circle(c + Vector2(0, 6) * k, 5.2 * k, Color(0.99, 0.95, 0.84, a))
+	ci.draw_circle(c + Vector2(0, 6) * k, 2.2 * k, Color(dress.lightened(0.2), a))
+	for sd in [-1.0, 1.0]:
+		ci.draw_circle(c + Vector2(sd * 1.7, -6) * k, 0.8 * k, Color(0.16, 0.08, 0.05, a))
+		ci.draw_circle(c + Vector2(sd * 2.6, -4.2) * k, 1.0 * k, Color(0.95, 0.45, 0.45, 0.7 * a))
+	if size > 0:  # шов, по которому раскрывается
+		ci.draw_arc(c + Vector2(0, -0.5) * k, 8.2 * k, 0.25, PI - 0.25, 10, Color(dress.darkened(0.6), a), 1.0 * k)
+	ci.draw_arc(c + Vector2(0, 4) * k, 7.5 * k, PI + 0.5, PI + 1.3, 5, Color(1, 1, 1, 0.4 * a), 1.5 * k)
+
+
+## Иконка цели этапа: 0 медведь, 1 вилка, 2 таблетка, 3 матрёшка, 4 яичница.
 static func stage(ci: CanvasItem, c: Vector2, which: int, s := 1.0, a := 1.0) -> void:
 	match which:
 		0: bear(ci, c, s, a)
 		1: fork(ci, c, s, a)
 		2: pill(ci, c, s, a)
+		3: doll(ci, c, 2, s, a)
 		_: egg(ci, c, s, a)
 
 
@@ -110,8 +131,13 @@ static func ability(ci: CanvasItem, c: Vector2, type: int, t: float, s := 1.0) -
 			ci.draw_rect(Rect2(o + Vector2(2, 6) * s, Vector2(15, 5) * s), Color(0.9, 0.12, 0.15))
 
 
-## Атаки вилок (10 залп, 11 выпад, 12 укол вилами) и таблетки (13 ударная волна).
+## Атаки вилок (10 залп, 11 выпад, 12 укол вилами), таблетки (13 ударная волна) и малышки (14 прыжок).
 static func _enemy_ability(ci: CanvasItem, c: Vector2, type: int, t: float, s: float) -> void:
+	if type == 14:
+		var k := absf(sin(t * 4.0))
+		ci.draw_arc(c + Vector2(0, 9) * s, 9.0 * s, 0, TAU, 18, Color(1.0, 0.75, 0.3, 0.8), 1.8 * s)
+		doll(ci, c + Vector2(0, -2.0 - 5.0 * k) * s, 0, s)
+		return
 	if type == 13:
 		pill(ci, c + Vector2(-2, 1) * s, s * 0.85)
 		var k := fmod(t * 1.5, 1.0)

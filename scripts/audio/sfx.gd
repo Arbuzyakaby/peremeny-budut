@@ -19,14 +19,14 @@ const BURST_MAX := 4  # новых звуков за окно BURST_MS — ли�
 const BURST_MS := 100
 ## Мелодичные звуки проигрываются без случайного сдвига высоты — иначе фальшивят.
 const NO_JITTER := ["win", "lose", "power", "ui_move", "ui_select", "ui_toggle", "ui_back", "ui_error", "yolk",
-	"heal", "perk", "stage_clear", "scale", "tick", "ui_key_down", "ui_lever", "ui_rotary", "ui_cover"]
+	"heal", "perk", "stage_clear", "scale", "tick", "ui_key_down", "ui_lever", "ui_rotary", "ui_cover", "secret"]
 ## Мелкие механические щелчки прибора — разброс ±5%, как у настоящего храповика.
 const WIDE_JITTER := ["ui_detent", "ui_fader"]
 const JITTER := 0.03    # остальные повторяющиеся звуки (шаги, укусы, приземления, удары) — ±3%
 const JITTER_DB := 1.0  # и ±1 дБ громкости
 ## Не отбрасываются ограничителем: события, которые игрок обязан услышать.
 const PRIORITY := ["win", "lose", "ignite", "extinguisher", "boss_down", "stage_clear", "hurt", "thunder",
-	"hatch", "phase", "yolk", "perk", "match", "burn"]
+	"hatch", "phase", "yolk", "perk", "match", "burn", "secret"]
 ## Звуки огня идут через шину Ambient — их вместе с петлёй пожара приглушает duck().
 const FIRE_SOUNDS := ["crackle", "burn"]
 ## Музыка 2.0: громкость основы и слоя напряжения (при intensity = 1 слой звучит как основа).
