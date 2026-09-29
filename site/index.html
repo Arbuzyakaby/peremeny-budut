@@ -414,9 +414,9 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 
 <nav class="nav" aria-label="Разделы">
 	<div class="wrap">
-		<a class="logo" href="#top">ЗМЕЯ v9.0</a>
+		<a class="logo" href="#top">ЗМЕЯ v10.1</a>
 		<div class="links">
-			<a href="#v90">Что нового</a>
+			<a href="#v101">Что нового</a>
 			<a href="#stages">Этапы</a>
 			<a href="#egg">Яичница</a>
 			<a href="#moves">Приёмы</a>
@@ -438,7 +438,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 <header class="hero" id="top">
 	<div class="wrap hero-grid">
 		<div>
-			<span class="plate">Эксперимент №47</span> <span class="ver" style="margin-left:10px">v9.0 · матрёшки</span>
+			<span class="plate">Эксперимент №47</span> <span class="ver" style="margin-left:10px">v10.1 · контакт</span>
 			<h1 style="margin-top:22px">Перемены будут</h1>
 			<p class="sub">Змея против Гигантской Яичницы</p>
 			<p class="lead">Аркада на Godot 4.7 для Windows и Android. Змея ест плюшевых медведей, ломает ржавые вилки, глотает прыгающие таблетки, раскрывает матрёшек и перенимает приёмы врагов, чтобы добраться до яичницы. Но всё не то, чем кажется.</p>
@@ -446,7 +446,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 				<a class="key primary" href="https://github.com/Arbuzyakaby/peremeny-budut/releases/latest">Скачать</a>
 				<a class="key" href="https://github.com/Arbuzyakaby/peremeny-budut">Исходники</a>
 			</div>
-			<p class="meta">v9.0 · Windows · Android 7.0+ · GDScript без аддонов</p>
+			<p class="meta">v10.1 · Windows · Android 7.0+ · GDScript без аддонов</p>
 		</div>
 		<div class="hero-shot">
 			<figure class="shot">
@@ -469,9 +469,363 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 		</div>
 		<div class="zero">
 			<div class="gauge"><div class="n">0</div><div class="l">картинок, звуков и шрифтов в репозитории</div></div>
-			<div class="gauge"><div class="n">18,7k</div><div class="l">строк GDScript в 74 файлах; 30 из них рисуют себя сами в <code>_draw()</code></div></div>
-			<div class="gauge"><div class="n">321</div><div class="l">автотест, 3045 проверок, прогон на каждый пуш</div></div>
+			<div class="gauge"><div class="n">21,3k</div><div class="l">строк GDScript в 83 файлах; 37 из них рисуют себя сами в <code>_draw()</code></div></div>
+			<div class="gauge"><div class="n">352</div><div class="l">автотеста, около 4750 проверок, прогон на каждый пуш</div></div>
 			<div class="gauge"><div class="n">1</div><div class="l">сцена: <code>main.tscn</code>, остальное собирается из кода</div></div>
+		</div>
+	</div>
+</section>
+
+<section id="v101">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Версия 10.1 · проверка логики</span>
+			<h2>Что нашли сквозные прогоны</h2>
+			<p class="lead">Десятая версия выросла до 21 тысячи строк, и 10.1 — снова не про новое. Автопилот и случайное управление прошли этапы на всех четырёх сложностях и проверяли инварианты каждый кадр. Нашлись четыре ошибки. Ни одна не роняла игру — все тихо портили цифры и звук.</p>
+		</div>
+		<div class="cols3">
+			<article class="card">
+				<h3><span class="n">01</span>Испытание дня</h3>
+				<ul class="rules">
+					<li><b>«Гололёд» и «Одышка» пропадали.</b> Модификатор дня менял поворот и запас сил змеи один раз, при старте. Первая же выбранная мутация вызывала <code>apply_mods</code>, а тот перезаписывал оба числа.</li>
+					<li>Теперь навыки, мутации и модификатор дня накладываются одним вызовом, в одном порядке — каждый раз.</li>
+				</ul>
+			</article>
+			<article class="card">
+				<h3><span class="n">02</span>Премия</h3>
+				<ul class="rules">
+					<li><b>«+25 чешуек» превращались в 37, а то и в 54.</b> Бонус добавляли до умножения, и «Жадность» с «Чешуйчатой» умножали его вместе со всем остальным.</li>
+					<li><b>Иногда терялась одна.</b> <code>int(24.999999…)</code> отбрасывает дробь, и вместо 25 выходило 24. Добавлена поправка на погрешность.</li>
+				</ul>
+			</article>
+			<article class="card">
+				<h3><span class="n">03</span>Бой с яичницей</h3>
+				<ul class="rules">
+					<li><b>Музыка боя на экране поражения.</b> Змея разбилась о бортик, пока яичница падала, — та всё равно приземлялась, включала музыку и рисовала полоску здоровья.</li>
+					<li><b>Ранение на взлёте.</b> Пока яичница была в воздухе, урон не сбрасывал высоту, и она висела над полом.</li>
+				</ul>
+			</article>
+		</div>
+
+		<div class="diagram" style="margin-top:34px">
+			<p class="fig-title">Схема 1 · порядок наложения на змею</p>
+			<svg viewBox="0 0 960 250" role="img" aria-label="Порядок наложения: в 10.0 модификатор дня применялся один раз при старте и стирался первой мутацией, в 10.1 навыки, мутации и модификатор дня накладываются одним вызовом каждый раз">
+				<defs>
+					<marker id="ar101" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker>
+					<marker id="ar101r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#e5533d"/></marker>
+				</defs>
+				<text x="20" y="26" fill="#e5533d" font-size="13" font-weight="700">10.0</text>
+				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar101)"><path d="M180 66H222"/><path d="M400 66H442"/><path d="M620 66H662"/></g>
+				<path d="M800 66H840" stroke="#e5533d" stroke-width="1.5" fill="none" marker-end="url(#ar101r)"/>
+				<g font-size="12.5" text-anchor="middle">
+					<rect x="20" y="38" width="160" height="56" rx="10" fill="#241811" stroke="#4a3223"/><text x="100" y="62" fill="#ecdfc8" class="mono" font-size="13">start_game()</text><text x="100" y="80" fill="#b3a187">навыки</text>
+					<rect x="224" y="38" width="176" height="56" rx="10" fill="#3a271b"/><text x="312" y="62" fill="#f3d48a" class="mono" font-size="13">модификатор дня</text><text x="312" y="80" fill="#b3a187">множит поворот и запас сил</text>
+					<rect x="444" y="38" width="176" height="56" rx="10" fill="#241811" stroke="#4a3223"/><text x="532" y="62" fill="#ecdfc8" class="mono" font-size="13">выбор мутации</text><text x="532" y="80" fill="#b3a187">_on_perk()</text>
+					<rect x="664" y="38" width="136" height="56" rx="10" fill="#6d1d22"/><text x="732" y="62" fill="#ecdfc8" class="mono" font-size="13">apply_mods()</text><text x="732" y="80" fill="#f3c9c0">пишет поверх</text>
+					<rect x="842" y="38" width="100" height="56" rx="10" fill="#241811" stroke="#e5533d"/><text x="892" y="62" fill="#f3c9c0" font-weight="700">×1,0</text><text x="892" y="80" fill="#f3c9c0">гололёда нет</text>
+				</g>
+				<line x1="20" y1="124" x2="940" y2="124" stroke="#2a1c14"/>
+				<text x="20" y="156" fill="#8ee062" font-size="13" font-weight="700">10.1</text>
+				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar101)"><path d="M180 196H222"/><path d="M400 196H442"/><path d="M620 196H662"/></g>
+				<g font-size="12.5" text-anchor="middle">
+					<rect x="20" y="168" width="160" height="56" rx="10" fill="#241811" stroke="#4a3223"/><text x="100" y="192" fill="#ecdfc8" class="mono" font-size="13">start_game()</text><text x="100" y="210" fill="#b3a187">или выбор мутации</text>
+					<rect x="224" y="168" width="176" height="56" rx="10" fill="#3a271b"/><text x="312" y="192" fill="#f3d48a" class="mono" font-size="13">apply_mods()</text><text x="312" y="210" fill="#b3a187">навыки и мутации</text>
+					<rect x="444" y="168" width="176" height="56" rx="10" fill="#3a271b"/><text x="532" y="192" fill="#f3d48a" class="mono" font-size="13">модификатор дня</text><text x="532" y="210" fill="#b3a187">умножает уже готовое</text>
+					<rect x="664" y="168" width="276" height="56" rx="10" fill="#d8a94f"/><text x="802" y="192" fill="#2d1f0c" class="mono" font-size="13" font-weight="700">_apply_snake_mods()</text><text x="802" y="210" fill="#3d2a12">один вызов, один порядок, каждый раз</text>
+				</g>
+			</svg>
+		</div>
+
+		<div class="two" style="margin-top:34px">
+			<div class="stack">
+				<h3>Премия: ровно двадцать пять</h3>
+				<p class="muted" style="font-size:15.5px">Чешуйки за забег считаются как <code>int(очки × сложность × множитель)</code>. Навык «Премия» обещает +25 сверху, поэтому бонус кладут в очки заранее, поделив на сложность. Осталось поделить ещё и на множитель «Жадности» и «Чешуйчатой» — тогда после умножения выйдет ровно 25.</p>
+				<p class="muted" style="font-size:15.5px">Последняя строчка — про погрешность: деление и умножение на дробях может вернуть 24,99999999. <code>int()</code> отрезает дробную часть, и чешуйка пропадает. Поправка <code>+ 0.0001</code> гасит эту ошибку и слишком мала, чтобы подарить лишнюю.</p>
+				<pre class="code"><span class="c"># было: множитель умножал и бонус</span>
+run_scales += bounty / SCALE_MULT[diff]
+<span class="c"># стало: делится на всё, что потом умножится</span>
+run_scales += bounty / (SCALE_MULT[diff] * <span class="n">scales_mult</span>)
+<span class="k">return</span> int(progress * SCALE_MULT[diff] * mult <span class="n">+ 0.0001</span>)</pre>
+			</div>
+			<div class="stack">
+				<h3>Пересчитай сам</h3>
+				<p class="muted" style="font-size:15.5px">Те же формулы в JavaScript, на тех же дробях двойной точности. Выбери сложность и то, что множит чешуйки, — и сравни бонус до и после.</p>
+				<div class="sandbox" style="grid-template-columns:minmax(0,1fr)">
+					<div class="side">
+						<div class="row" id="bounty-diff">
+							<button class="key small" type="button" data-d="1" aria-pressed="false">Лёгкая ×1</button>
+							<button class="key small" type="button" data-d="1.5" aria-pressed="true">Средняя ×1,5</button>
+							<button class="key small" type="button" data-d="2" aria-pressed="false">Сложная ×2</button>
+							<button class="key small" type="button" data-d="3" aria-pressed="false">Ультра ×3</button>
+						</div>
+						<div class="row" id="bounty-mult">
+							<button class="key small" type="button" data-g="0" data-h="0" aria-pressed="false">Без множителя</button>
+							<button class="key small" type="button" data-g="1" data-h="0" aria-pressed="false">Жадность I</button>
+							<button class="key small" type="button" data-g="3" data-h="0" aria-pressed="false">Жадность III</button>
+							<button class="key small" type="button" data-g="0" data-h="1" aria-pressed="true">Чешуйчатая</button>
+							<button class="key small" type="button" data-g="3" data-h="1" aria-pressed="false">Всё сразу</button>
+						</div>
+						<div class="readout" id="bounty-readout">—</div>
+						<p class="hint">«Жадность» даёт +15% за ранг (до трёх), «Чешуйчатая» — ×1,5. Внизу — перебор всех 32 сочетаний: без поправки на погрешность две из них выдают 24 вместо 25.</p>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="diagram" style="margin-top:34px">
+			<p class="fig-title">Схема 2 · «Премия» по множителям</p>
+			<svg id="bounty-bars-svg" viewBox="0 0 960 300" role="img" aria-label="Столбчатая диаграмма: сколько чешуек давала «Премия» в 10.0 при разных множителях и сколько в 10.1"></svg>
+		</div>
+
+		<div class="two" style="margin-top:34px">
+			<div class="diagram fit">
+				<p class="fig-title">Схема 3 · яичница падает, змея гибнет</p>
+				<svg viewBox="0 0 520 300" role="img" aria-label="Две дорожки событий: в 10.0 приземление яичницы после гибели змеи включало музыку и полоску здоровья, в 10.1 приземление проверяет состояние и выходит">
+					<defs><marker id="ar101b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
+					<line x1="20" y1="70" x2="500" y2="70" stroke="#4a3223" stroke-width="2"/>
+					<g font-size="12" text-anchor="middle">
+						<circle cx="60" cy="70" r="7" fill="#f3d48a"/><text x="60" y="46" fill="#ecdfc8">яичница падает</text>
+						<circle cx="220" cy="70" r="7" fill="#e5533d"/><text x="220" y="46" fill="#f3c9c0">змея о бортик</text>
+						<circle cx="380" cy="70" r="7" fill="#f3d48a"/><text x="380" y="46" fill="#ecdfc8">_on_landed()</text>
+					</g>
+					<text x="20" y="104" fill="#e5533d" font-size="12.5" font-weight="700">10.0</text>
+					<g stroke="#e5533d" stroke-width="1.5" fill="none" marker-end="url(#ar101b)"><path d="M380 84 V126"/></g>
+					<rect x="290" y="128" width="200" height="54" rx="10" fill="#6d1d22"/>
+					<text x="390" y="150" fill="#ecdfc8" font-size="12.5" text-anchor="middle">музыка боя + полоска HP</text><text x="390" y="168" fill="#f3c9c0" font-size="12" text-anchor="middle">на экране «Конец»</text>
+					<text x="20" y="214" fill="#8ee062" font-size="12.5" font-weight="700">10.1</text>
+					<g stroke="#8ee062" stroke-width="1.5" fill="none" marker-end="url(#ar101b)"><path d="M388 80 C 530 96 530 190 492 216" stroke-dasharray="4 4"/></g>
+					<rect x="290" y="198" width="200" height="72" rx="10" fill="#241811" stroke="#8ee062"/>
+					<text x="390" y="220" fill="#ecdfc8" font-size="12.5" text-anchor="middle" class="mono">state ≠ BOSS_INTRO ?</text><text x="390" y="240" fill="#8ee062" font-size="12.5" text-anchor="middle" font-weight="700">return</text><text x="390" y="258" fill="#b3a187" font-size="12" text-anchor="middle">тишина, как и положено</text>
+				</svg>
+			</div>
+			<div class="diagram fit">
+				<p class="fig-title">Схема 4 · ранена в воздухе</p>
+				<svg id="egg-hurt-svg" viewBox="0 0 520 300" role="img" aria-label="Высота яичницы во время прыжка: в 10.0 после ранения на взлёте она остаётся на высоте, в 10.1 сразу опускается на пол"></svg>
+			</div>
+		</div>
+
+		<div class="diagram" style="margin-top:34px">
+			<p class="fig-title">Схема 5 · как ловили: прогон и инварианты</p>
+			<svg viewBox="0 0 960 300" role="img" aria-label="Два водителя, автопилот и случайное управление, проходят четыре сложности; каждый кадр проверяются пять инвариантов">
+				<defs><marker id="ar101c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
+				<g font-size="12.5" text-anchor="middle">
+					<text x="150" y="26" fill="#b3a187">кто ведёт змею</text>
+					<rect x="20" y="40" width="260" height="60" rx="10" fill="#3a271b"/><text x="150" y="66" fill="#f3d48a" class="mono" font-size="13">автопилот</text><text x="150" y="86" fill="#b3a187">проходит этапы и добивает яичницу</text>
+					<rect x="20" y="118" width="260" height="60" rx="10" fill="#3a271b"/><text x="150" y="144" fill="#f3d48a" class="mono" font-size="13">случайное управление</text><text x="150" y="164" fill="#b3a187">все атаки, рывки, повороты наугад</text>
+					<text x="150" y="208" fill="#b3a187">и так на каждой из четырёх сложностей</text>
+					<text x="150" y="228" fill="#8f6c30" font-size="11.5">test_soak.gd · 173 строки</text>
+				</g>
+				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar101c)"><path d="M284 70 C 330 70 330 110 372 110"/><path d="M284 148 C 330 148 330 130 372 130"/></g>
+				<g font-size="12.5" text-anchor="middle">
+					<rect x="376" y="80" width="130" height="80" rx="12" fill="#d8a94f"/><text x="441" y="114" fill="#2d1f0c" font-weight="700" class="mono" font-size="13">каждый</text><text x="441" y="134" fill="#2d1f0c" font-weight="700" class="mono" font-size="13">кадр</text>
+				</g>
+				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar101c)"><path d="M510 120 H560"/></g>
+				<g font-size="12.5">
+					<rect x="564" y="26" width="376" height="42" rx="8" fill="#241811" stroke="#4a3223"/><text x="580" y="52" fill="#ecdfc8">голова змеи — число, а не NaN, и внутри ящика</text>
+					<rect x="564" y="76" width="376" height="42" rx="8" fill="#241811" stroke="#4a3223"/><text x="580" y="102" fill="#ecdfc8">в списках врагов нет удалённых узлов</text>
+					<rect x="564" y="126" width="376" height="42" rx="8" fill="#241811" stroke="#4a3223"/><text x="580" y="152" fill="#ecdfc8">враги не вылетают за пределы ящика</text>
+					<rect x="564" y="176" width="376" height="42" rx="8" fill="#241811" stroke="#4a3223"/><text x="580" y="202" fill="#ecdfc8">цель этапа не перевыполнена: сделано ≤ нужно</text>
+					<rect x="564" y="226" width="376" height="42" rx="8" fill="#241811" stroke="#4a3223"/><text x="580" y="252" fill="#ecdfc8">счётчик набора матрёшек равен числу его кукол на поле</text>
+				</g>
+				<text x="20" y="286" fill="#b3a187" font-size="12.5">Первое нарушение обрывает прогон, и тест падает с описанием. Если цель этапа не двигается 150 секунд подряд, этап считается зависшим.</text>
+			</svg>
+		</div>
+	</div>
+</section>
+
+<section id="v100">
+	<div class="wrap">
+		<div class="head">
+			<span class="plate">Версия 10.0 · контакт</span>
+			<h2>Змея, которая договаривается</h2>
+			<p class="lead">Финал больше не последний. После титров открывается технический режим: те же пять этапов, но никто никого не ест. Змея рисует врагам знаки, убеждённые идут следом, а в конце всё равно приходит учёный со спичкой.</p>
+		</div>
+		<div class="spoiler" id="sp-contact">
+			<div class="veil">
+				<span class="stamp">Спойлер финала</span>
+				<p>Режим «Контакт» открывается только после победы над яичницей. Внутри — как он устроен, схемы и мини-игра со знаками.</p>
+				<button class="key primary" type="button" data-reveal="sp-contact">Показать «Контакт»</button>
+			</div>
+			<div class="inner stack" style="gap:44px">
+
+				<div class="diagram">
+					<p class="fig-title">Схема 6 · дорога после финала</p>
+					<svg viewBox="0 0 960 200" role="img" aria-label="Путь: финал, пересадка, фальшивое меню, режим «Контакт» из пяти этапов, пожар, щель, титры">
+						<defs><marker id="ar100" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
+						<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar100)">
+							<path d="M137 84H151"/><path d="M285 84H299"/><path d="M433 84H447"/><path d="M581 84H595"/><path d="M729 84H743"/><path d="M877 84H891"/>
+						</g>
+						<g font-size="12.5" text-anchor="middle">
+							<rect x="19" y="52" width="118" height="64" rx="10" fill="#241811" stroke="#4a3223"/><text x="78" y="80" fill="#ecdfc8" font-weight="700">Финал</text><text x="78" y="99" fill="#b3a187" font-size="11.5">яичница побеждена</text>
+							<rect x="153" y="52" width="132" height="64" rx="10" fill="#241811" stroke="#4a3223"/><text x="219" y="80" fill="#ecdfc8" font-weight="700">Пересадка</text><text x="219" y="99" fill="#b3a187" font-size="11.5">ящик «ОБРАЗЕЦ №48»</text>
+							<rect x="301" y="52" width="132" height="64" rx="10" fill="#241811" stroke="#4a3223"/><text x="367" y="80" fill="#ecdfc8" font-weight="700">Фальшивое меню</text><text x="367" y="99" fill="#b3a187" font-size="11.5">курсор жмёт сам</text>
+							<rect x="449" y="40" width="132" height="88" rx="10" fill="#d8a94f"/><text x="515" y="72" fill="#2d1f0c" font-weight="700" font-size="14">«КОНТАКТ»</text><text x="515" y="92" fill="#3d2a12" font-size="11.5">пять этапов</text><text x="515" y="108" fill="#3d2a12" font-size="11.5">без драк</text>
+							<rect x="597" y="52" width="132" height="64" rx="10" fill="#3a271b"/><text x="663" y="80" fill="#f3d48a" font-weight="700">Пожар</text><text x="663" y="99" fill="#b3a187" font-size="11.5">спичка и выстрелы</text>
+							<rect x="745" y="52" width="132" height="64" rx="10" fill="#3a271b"/><text x="811" y="80" fill="#f3d48a" font-weight="700">Щель</text><text x="811" y="99" fill="#b3a187" font-size="11.5">змея и медведь-швея</text>
+							<rect x="893" y="52" width="48" height="64" rx="10" fill="#241811" stroke="#8ee062"/><text x="917" y="90" fill="#8ee062" font-weight="700">★</text>
+						</g>
+						<g font-size="12" fill="#b3a187" text-anchor="middle">
+							<text x="515" y="158">убеждённые идут за змеёй</text><text x="515" y="176">и переходят с ней на следующий этап</text>
+							<text x="917" y="140" font-size="11">титры</text>
+						</g>
+					</svg>
+				</div>
+
+				<div class="two">
+					<div class="diagram fit">
+						<p class="fig-title">Схема 7 · один разговор</p>
+						<svg viewBox="0 0 520 350" role="img" aria-label="Цикл разговора: змея ползёт к врагу, встаёт на дыбы, игрок обводит знак; точно — змея рисует знак и шипит, враг убеждён; мимо — враг пугается">
+							<defs>
+								<marker id="ar100b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker>
+								<marker id="ar100c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#e5533d"/></marker>
+							</defs>
+							<g font-size="12.5" text-anchor="middle">
+								<rect x="20" y="30" width="130" height="56" rx="10" fill="#241811" stroke="#4a3223"/><text x="85" y="54" fill="#f3d48a" class="mono" font-size="13">ROAM</text><text x="85" y="72" fill="#b3a187">ползёт к врагу</text>
+								<rect x="195" y="30" width="130" height="56" rx="10" fill="#3a271b"/><text x="260" y="54" fill="#f3d48a" class="mono" font-size="13">TRACE</text><text x="260" y="72" fill="#b3a187">обводка, до 10 с</text>
+								<rect x="370" y="30" width="130" height="56" rx="10" fill="#3a271b"/><text x="435" y="54" fill="#f3d48a" class="mono" font-size="13">PAINT</text><text x="435" y="72" fill="#b3a187">рисует телом</text>
+								<rect x="370" y="150" width="130" height="56" rx="10" fill="#3a271b"/><text x="435" y="174" fill="#f3d48a" class="mono" font-size="13">HISS</text><text x="435" y="192" fill="#b3a187">шипит 0,9 с</text>
+								<rect x="195" y="150" width="130" height="56" rx="10" fill="#d8a94f"/><text x="260" y="174" fill="#2d1f0c" class="mono" font-size="13" font-weight="700">убеждён</text><text x="260" y="192" fill="#3d2a12">идёт следом</text>
+								<rect x="195" y="254" width="180" height="56" rx="10" fill="#6d1d22"/><text x="285" y="278" fill="#ecdfc8" font-weight="700">мимо: враг пугается</text><text x="285" y="296" fill="#f3c9c0" font-size="11.5">доверие падает</text>
+							</g>
+							<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar100b)">
+								<path d="M150 58H193"/><path d="M325 58H368"/><path d="M435 88V148"/><path d="M368 178H327"/>
+							</g>
+							<path d="M260 208 V252" stroke="#e5533d" stroke-width="1.5" fill="none" stroke-dasharray="4 4" marker-end="url(#ar100c)" transform="translate(0,0)"/>
+							<path d="M195 282 C 40 282 40 130 62 90" stroke="#e5533d" stroke-width="1.5" fill="none" stroke-dasharray="4 4" marker-end="url(#ar100c)"/>
+							<path d="M195 178 C 140 178 118 140 108 90" stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar100b)"/>
+							<text x="270" y="232" fill="#b3a187" font-size="11.5">не засчитано</text>
+							<text x="20" y="338" fill="#b3a187" font-size="11.5">Убеждены все враги этапа — смена этапа (2,4 с), убеждённые идут дальше.</text>
+						</svg>
+					</div>
+					<div class="stack">
+						<h3>Знак вместо укуса</h3>
+						<p class="muted" style="font-size:15.5px">Змея подползает к врагу, встаёт на дыбы, и на полу загорается контур — у каждого вида свой. Его обводят мышью или пальцем; на клавиатуре по контуру бежит кисть, её сносит в сторону, и держать её на линии надо стрелками.</p>
+						<p class="muted" style="font-size:15.5px">Засчитывает не глаз, а <code>Gesture.score()</code>: сначала доля контура, до которой дотянулась обводка, потом среднее расстояние между соответственными точками. Порядок обхода важен, поэтому «сердце» не сойдёт за «солнце». Направление и, у замкнутых знаков, место начала — не важны.</p>
+						<ul class="rules">
+							<li><b>Допуск по сложностям:</b> 30, 26, 22 и 19 пикселей.</li>
+							<li><b>Засчитано,</b> если обведено не меньше 85% фигуры.</li>
+							<li><b>Смерти нет:</b> неубеждённые пятятся, но не бьют.</li>
+						</ul>
+					</div>
+				</div>
+
+				<div class="diagram">
+					<p class="fig-title">Схема 8 · пять знаков одной линией</p>
+					<svg id="signs-svg" viewBox="0 0 960 230" role="img" aria-label="Пять знаков: сердце для медведя, волна для вилки, бесконечность для таблетки, спираль для матрёшки, солнце для яичницы"></svg>
+				</div>
+
+				<div class="diagram">
+					<p class="fig-title">Схема 9 · какой знак принимается за какой</p>
+					<svg id="matrix-svg" viewBox="0 0 960 330" role="img" aria-label="Матрица пять на пять: безупречная обводка каждого знака оценивается по шаблону каждого знака; засчитывается только совпадение своего"></svg>
+				</div>
+
+				<div class="two">
+					<div class="diagram fit">
+						<p class="fig-title">Схема 10 · допуск по сложностям</p>
+						<svg id="tol-svg" viewBox="0 0 520 260" role="img" aria-label="Четыре сердца с полосой допуска: на лёгкой 30 пикселей, на средней 26, на сложной 22, на ультра 19"></svg>
+					</div>
+					<div class="diagram fit">
+						<p class="fig-title">Схема 11 · из чего состоит «Контакт»</p>
+						<svg id="files-svg" viewBox="0 0 520 260" role="img" aria-label="Строки кода по файлам режима «Контакт»: contact_mode 623, contact_finale 358, hideout 268, peace_squad 209, fake_menu 145, gesture 132, contact_view 126, floor_paint 44"></svg>
+					</div>
+				</div>
+
+				<div class="stack" style="gap:16px">
+					<h3>Нарисуй знак сам</h3>
+					<p class="muted prose" style="font-size:15.5px">Порт <code>gesture.gd</code>: те же шаблоны, ресемплинг на 64 точки, охват и средняя ошибка по порядку обхода. Выбери врага и сложность, обведи контур мышью или пальцем и отпусти — оценка придёт сразу.</p>
+					<div class="sandbox">
+						<div class="screen"><canvas id="sign-cv" width="1280" height="720" aria-label="Поле для обводки знака: светящийся контур, поверх — след игрока" style="touch-action:none;cursor:crosshair"></canvas></div>
+						<div class="side">
+							<div class="row" id="sign-kinds">
+								<button class="key small" type="button" data-kind="bear" aria-pressed="true">Медведь · сердце</button>
+								<button class="key small" type="button" data-kind="fork" aria-pressed="false">Вилка · волна</button>
+								<button class="key small" type="button" data-kind="pill" aria-pressed="false">Таблетка · бесконечность</button>
+								<button class="key small" type="button" data-kind="doll" aria-pressed="false">Матрёшка · спираль</button>
+								<button class="key small" type="button" data-kind="egg" aria-pressed="false">Яичница · солнце</button>
+							</div>
+							<div class="row" id="sign-diff">
+								<button class="key small" type="button" data-d="0" aria-pressed="false">Лёгкая</button>
+								<button class="key small" type="button" data-d="1" aria-pressed="true">Средняя</button>
+								<button class="key small" type="button" data-d="2" aria-pressed="false">Сложная</button>
+								<button class="key small" type="button" data-d="3" aria-pressed="false">Ультра</button>
+							</div>
+							<div class="readout" id="sign-readout">—</div>
+							<p class="hint">Зажми кнопку мыши у контура и веди по нему. Светлая полоса вокруг линии — допуск выбранной сложности. Два подряд «мимо» в игре подскажут: «Веди точно по светящемуся контуру».</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="two">
+					<div class="diagram fit">
+						<p class="fig-title">Схема 12 · как растёт доверие</p>
+						<svg id="trust-svg" viewBox="0 0 520 300" role="img" aria-label="Доверие неубеждённого по времени: одна спокойная змея — 15 секунд, с одним вестником — 3, с двумя — 1,7"></svg>
+					</div>
+					<div class="stack">
+						<h3>Мирный отряд</h3>
+						<p class="muted" style="font-size:15.5px">Боевой отряд загоняет змею в клещи, мирный — сводит её с врагами. Роли те же по духу: у каждой минимум полторы секунды, чтобы никто не дёргался туда-сюда.</p>
+						<ul class="rules">
+							<li><b>Колонна:</b> убеждённые идут по следу головы змеи, в шахматном порядке.</li>
+							<li><b>Вестник:</b> до двух убеждённых, сородичи — первыми, идут к неубеждённому и стоят рядом. Пока они рядом, у него растёт доверие. Яичница вестником не ходит — слишком велика.</li>
+							<li><b>Разговор:</b> когда доверия хватает (0,6), неубеждённый сам подходит к змее — над головой «!». Спокойная змея рядом тоже потихоньку внушает доверие.</li>
+						</ul>
+						<p class="muted" style="font-size:15.5px">Обычный режим этого ИИ не видит: в нём враги по-прежнему помогают яичнице, как в 9.0.</p>
+					</div>
+				</div>
+
+				<div class="two">
+					<div class="stack">
+						<h3>Игровой финал</h3>
+						<p class="muted" style="font-size:15.5px">Это не ролик: змея всё время под управлением. Вся компания лезет к верхнему борту, над ящиком нависает тень, рука роняет спичку. Пожар — та же симуляция, что в обычном финале, только ящик чистый. Огонь бежит по маслу вниз, враги сгорают. Змею он не жжёт, но отбрасывает.</p>
+						<p class="muted" style="font-size:15.5px">Потом рука возвращается с пистолетом: выстрелы по змее (мимо — толчок) и по отряду. От жара трескается доска в углу — выход. Выживают двое: медведь-швея и змея. Они прячутся в щель напольной тумбы, учёный ищет их с фонарём — и сдаётся.</p>
+					</div>
+					<div class="diagram fit">
+						<p class="fig-title">Схема 13 · финал по секундам</p>
+						<svg viewBox="0 0 520 300" role="img" aria-label="Шкала времени финала: лезут к борту, рука, вспышка, через две секунды пистолет, через 4,6 секунды трескается доска, потом щель">
+							<line x1="20" y1="120" x2="500" y2="120" stroke="#4a3223" stroke-width="2"/>
+							<g font-size="12" text-anchor="middle">
+								<rect x="20" y="88" width="112" height="24" rx="6" fill="#3a271b"/><text x="76" y="105" fill="#f3d48a">CLIMB 2,5–7 с</text>
+								<rect x="136" y="88" width="80" height="24" rx="6" fill="#3a271b"/><text x="176" y="105" fill="#f3d48a">HAND 2,6 с</text>
+								<circle cx="220" cy="120" r="7" fill="#ff8a2a"/><text x="220" y="146" fill="#ffb23d">вспышка</text><text x="220" y="162" fill="#b3a187" font-size="11">спичка упала</text>
+								<circle cx="304" cy="120" r="6" fill="#f3d48a"/><text x="304" y="82" fill="#ecdfc8">+2,0 с</text><text x="304" y="66" fill="#b3a187" font-size="11">пистолет</text>
+								<circle cx="420" cy="120" r="6" fill="#8ee062"/><text x="420" y="82" fill="#ecdfc8">+4,6 с</text><text x="420" y="66" fill="#b3a187" font-size="11">доска треснула</text>
+								<text x="470" y="146" fill="#b3a187">щель</text>
+							</g>
+							<rect x="220" y="196" width="280" height="14" rx="7" fill="#6b2a14"/><rect x="220" y="196" width="280" height="14" rx="7" fill="none" stroke="#ff8a2a" stroke-opacity=".5"/>
+							<text x="20" y="207" fill="#b3a187" font-size="12">огонь по маслу вниз</text>
+							<rect x="304" y="222" width="196" height="14" rx="7" fill="#4b2a5a"/>
+							<text x="20" y="233" fill="#b3a187" font-size="12">выстрелы</text>
+							<rect x="420" y="248" width="80" height="14" rx="7" fill="#2d5a1f"/>
+							<text x="20" y="259" fill="#b3a187" font-size="12">выход открыт</text>
+							<text x="20" y="288" fill="#8f6c30" font-size="11.5">Времена — константы contact_finale.gd, отсчёт от вспышки.</text>
+						</svg>
+					</div>
+				</div>
+
+				<div class="cols3">
+					<article class="card">
+						<h3><span class="n">01</span>Пересадка</h3>
+						<ul class="rules">
+							<li>Утром учёный возвращается и переселяет змейку в чистый ящик: опускается щепоть пальцев.</li>
+							<li>Дальше мы смотрим глазами змейки. Веки моргают, между морганиями мелькает лаборатория: банки с образцами, окно, лицо учёного снизу.</li>
+						</ul>
+					</article>
+					<article class="card">
+						<h3><span class="n">02</span>Фальшивое меню</h3>
+						<ul class="rules">
+							<li>Похоже на главное меню, но вместо карточек сложностей — одна кнопка «НОВАЯ ИГРА» с помехами.</li>
+							<li>Курсор сам едет к ней и нажимает. Из помех, машинописью: «ТЕХНИЧЕСКИЙ РЕЖИМ «КОНТАКТ»».</li>
+						</ul>
+					</article>
+					<article class="card">
+						<h3><span class="n">03</span>После</h3>
+						<ul class="rules">
+							<li>Режим открывается после победы, пока не пройден. Потом — кнопка <b>КОНТАКТ</b> в главном меню и <b>восьмая пасхалка</b>.</li>
+							<li><b>Три новых звука:</b> шипение, выстрел, рикошет. В панели разработчика — кнопки «КОНТАКТ» и «ФИНАЛ КОНТАКТА».</li>
+							<li>Итоги: строки обычного забега и строки режима, 352 автотеста.</li>
+						</ul>
+					</article>
+				</div>
+			</div>
 		</div>
 	</div>
 </section>
@@ -497,7 +851,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 		</div>
 
 		<div class="diagram" style="margin-top:34px">
-			<p class="fig-title">Схема 0 · один набор матрёшек</p>
+			<p class="fig-title">Схема 14 · один набор матрёшек</p>
 			<svg viewBox="0 0 960 230" role="img" aria-label="Набор: большая матрёшка раскрывается в две средние, каждая средняя — в малышку; последняя съеденная малышка собирает набор">
 				<defs><marker id="ar90" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
 				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar90)">
@@ -604,7 +958,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 
 		<div class="two" style="margin-top:34px">
 			<div class="diagram fit">
-				<p class="fig-title">Схема 1 · 60 кадров пола</p>
+				<p class="fig-title">Схема 15 · 60 кадров пола</p>
 				<svg id="bake-svg" viewBox="0 0 520 250" role="img" aria-label="Шестьдесят кадров: в 8.0 каждый кадр пересчитывает шейдер пола, в 8.1 только первый"></svg>
 			</div>
 			<div class="stack">
@@ -656,13 +1010,13 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 				<p class="muted" style="font-size:15.5px"><code>_end()</code> стал идемпотентным: если забег уже в <code>WIN</code> или <code>GAME_OVER</code>, второй вызов ничего не делает. А после победы змея получает флаг <code>safe</code> — до финала её ничто не ранит.</p>
 			</div>
 			<div class="diagram fit">
-				<p class="fig-title">Схема 2 · фриз окна на 3 секунды</p>
+				<p class="fig-title">Схема 16 · фриз окна на 3 секунды</p>
 				<svg id="clamp-svg" viewBox="0 0 520 260" role="img" aria-label="График положения змеи: без ограничения шага после фриза она влетает в бортик, с ограничением продолжает плавно"></svg>
 			</div>
 		</div>
 
 		<div class="diagram" style="margin-top:34px">
-			<p class="fig-title">Схема 3 · путь сохранения</p>
+			<p class="fig-title">Схема 17 · путь сохранения</p>
 			<svg viewBox="0 0 960 190" role="img" aria-label="Путь сохранения: старый save.cfg переносится один раз, запись идёт в save.dat.tmp и атомарно подменяет save.dat">
 				<defs><marker id="ar81" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
 				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ar81)">
@@ -745,7 +1099,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: 
 
 		<div class="habit" style="margin-top:40px">
 			<div class="diagram fit" style="padding:18px">
-				<p class="fig-title">Схема 4 · чтение манеры, живая модель</p>
+				<p class="fig-title">Схема 18 · чтение манеры, живая модель</p>
 				<svg id="habit-svg" viewBox="0 0 520 440" role="img" aria-label="Яичница в центре, кольца ближней и дальней дистанции, змея кружит, уходит далеко и подходит близко"></svg>
 			</div>
 			<div class="stack" style="gap:12px">
@@ -778,7 +1132,7 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 		</div>
 
 		<div class="diagram" style="margin-top:34px">
-			<p class="fig-title">Схема 5 · цикл яичницы</p>
+			<p class="fig-title">Схема 19 · цикл яичницы</p>
 			<svg viewBox="0 0 960 280" role="img" aria-label="Цикл яичницы: покой, телеграф, атака, после серии открытый желток или окно наказания, рёв при смене фазы">
 				<defs><marker id="are" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
 				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#are)">
@@ -851,7 +1205,7 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 		</div>
 		<div class="two" style="margin-top:34px">
 			<div class="diagram fit">
-				<p class="fig-title">Схема 6 · слот атаки за восемь событий</p>
+				<p class="fig-title">Схема 20 · слот атаки за восемь событий</p>
 				<svg id="slot-svg" viewBox="0 0 560 300" role="img" aria-label="Лента событий: вилки, таблетки, атаки и медведь, под ними состояние слота атаки с лампами зарядов"></svg>
 			</div>
 			<div class="stack">
@@ -1331,7 +1685,7 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 				</ul>
 			</div>
 			<div class="diagram fit">
-				<p class="fig-title">Схема 7 · укус, посчитанный этим же кодом</p>
+				<p class="fig-title">Схема 21 · укус, посчитанный этим же кодом</p>
 				<svg id="chain-svg" viewBox="0 0 520 420" role="img" aria-label="Цепочка укуса: шум, фильтр, огибающая; квадрат с огибающей; смесь; ограничитель и затухание"></svg>
 			</div>
 		</div>
@@ -1374,7 +1728,7 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 		<span class="k">return</span> t * t + t + t + <span class="s">1.0</span>
 	<span class="k">return</span> <span class="s">0.0</span></pre>
 				<div class="diagram fit" style="padding:16px">
-					<p class="fig-title">Схема 8 · пила 2 205 Гц, 10 отсчётов на период</p>
+					<p class="fig-title">Схема 22 · пила 2 205 Гц, 10 отсчётов на период</p>
 					<svg id="blep-svg" viewBox="0 0 520 250" role="img" aria-label="Наивная пила со ступенькой и пила с PolyBLEP, у которой скачок сглажен в двух соседних отсчётах"></svg>
 				</div>
 			</div>
@@ -1386,7 +1740,7 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 		</div>
 		<div class="music">
 			<div class="diagram fit" style="padding:18px">
-				<p class="fig-title">Схема 9 · форма трека и два слоя</p>
+				<p class="fig-title">Схема 23 · форма трека и два слоя</p>
 				<svg id="form-svg" viewBox="0 0 640 250" role="img" aria-label="Восемь тактов песни по форме, дорожки мелодии, пэда и баса, ударных и слоя напряжения, бегущая позиция"></svg>
 			</div>
 			<div class="stack" style="gap:12px">
@@ -1586,17 +1940,17 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 	<div class="wrap">
 		<div class="head">
 			<span class="plate">Как делалась игра</span>
-			<h2>Четыре дня, двенадцать версий</h2>
-			<p class="lead">Первая публичная версия вышла 26 сентября в 10 утра, 9.0 — 29 сентября рано утром. За это время игра выросла с 4 до почти 19 тысяч строк, а начиная с шестой ни одна версия не выходила без зелёных тестов. Нажми на версию, чтобы увидеть, что в ней появилось.</p>
+			<h2>Четыре дня, тринадцать версий</h2>
+			<p class="lead">Первая публичная версия вышла 26 сентября в 10 утра, 10.1 — 29 сентября в полдень. За это время игра выросла с 4 до почти 21 тысячи строк, а начиная с шестой ни одна версия не выходила без зелёных тестов. Нажми на версию, чтобы увидеть, что в ней появилось.</p>
 		</div>
 		<div class="diagram timeline-chart">
-			<p class="fig-title">Схема 10 · строки кода и тесты по версиям</p>
-			<svg id="tl-svg" viewBox="0 0 960 300" role="img" aria-label="График роста кода и тестов от версии 4.0 до 9.0"></svg>
+			<p class="fig-title">Схема 24 · строки кода и тесты по версиям</p>
+			<svg id="tl-svg" viewBox="0 0 960 300" role="img" aria-label="График роста кода и тестов от версии 4.0 до 10.1"></svg>
 		</div>
 		<div class="tl-panel" id="tl-panel" aria-live="polite"></div>
 
 		<div class="diagram" style="margin-top:34px">
-			<p class="fig-title">Схема 11 · цикл одной правки</p>
+			<p class="fig-title">Схема 25 · цикл одной правки</p>
 			<svg viewBox="0 0 960 250" role="img" aria-label="Цикл правки: идея, код, тест, кадры, плейтест, сборка и релиз">
 				<defs><marker id="ard" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d8a94f"/></marker></defs>
 				<g stroke="#d8a94f" stroke-width="1.5" fill="none" marker-end="url(#ard)">
@@ -1754,9 +2108,9 @@ aim_to = predict(head, <span class="s">0.35</span>)</pre>
 	<div class="wrap two">
 		<div class="stack">
 			<span class="plate" style="align-self:flex-start">Тесты и сборка</span>
-			<h2>321 тест без аддонов</h2>
+			<h2>352 теста без аддонов</h2>
 			<div class="prose">
-				<p>Своя лёгкая система: раннер, базовый класс с проверками и ожидание кадров через <code>await</code>. Юнит-тесты покрывают баланс, навыки, синтез, симуляцию пожара и приборные контролы. Интеграционные проходят весь забег, финал, тач-управление и настоящие нажатия F1, ё и Ctrl+Shift+D на паузе. В 8.1 добавились проверки аудита: поражение не перекрывает победу, огромный кадр не бросает змею в бортик, отредактированное сохранение не читается. В 9.0 — матрёшки: кольцо прыжка не догоняет змею, в хороводе всегда есть просвет не уже 120°, укус танцующей рвёт круг, пасхалки меню находятся настоящими нажатиями клавиш.</p>
+				<p>Своя лёгкая система: раннер, базовый класс с проверками и ожидание кадров через <code>await</code>. Юнит-тесты покрывают баланс, навыки, синтез, симуляцию пожара и приборные контролы. Интеграционные проходят весь забег, финал, тач-управление и настоящие нажатия F1, ё и Ctrl+Shift+D на паузе. В 8.1 добавились проверки аудита: поражение не перекрывает победу, огромный кадр не бросает змею в бортик, отредактированное сохранение не читается. В 9.0 — матрёшки: кольцо прыжка не догоняет змею, в хороводе всегда есть просвет не уже 120°, укус танцующей рвёт круг, пасхалки меню находятся настоящими нажатиями клавиш. В 10.0 — «Контакт»: оценка знака не путает сердце с солнцем, убеждённые переходят между этапами, финал проходит от спички до щели. В 10.1 — сквозные прогоны автопилотом и случайным управлением с проверкой инвариантов на всех четырёх сложностях.</p>
 				<p>Тесты пишут во временную папку и не трогают настоящие сохранения. На GitHub они идут при каждом пуше в Godot 4.7.2 под Linux.</p>
 			</div>
 		</div>
@@ -1777,13 +2131,19 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 	assert_near(n.value, <span class="s">1.0</span>, <span class="s">0.01</span>, <span class="s">"подпись к провалу"</span>)</pre>
 		</div>
 	</div>
+<div class="wrap" style="margin-top:44px">
+		<div class="diagram">
+			<p class="fig-title">Схема 26 · сколько тестов добавляла каждая версия</p>
+			<svg id="tests-bars-svg" viewBox="0 0 960 270" role="img" aria-label="Число автотестов по версиям от 6.0 до 10.1 и прирост каждой версии"></svg>
+		</div>
+	</div>
 </section>
 
 </main>
 
 <footer>
 	<div class="wrap">
-		<span>«Перемены будут» · Змея против Гигантской Яичницы v9.0 · Godot 4.7</span>
+		<span>«Перемены будут» · Змея против Гигантской Яичницы v10.1 · Godot 4.7</span>
 		<span><a href="https://github.com/Arbuzyakaby/peremeny-budut">GitHub</a> · <a href="https://github.com/Arbuzyakaby/peremeny-budut/releases/latest">Скачать</a> · <a href="https://github.com/Arbuzyakaby/peremeny-budut/tree/main/docs">Документация</a></span>
 	</div>
 </footer>
@@ -2187,7 +2547,7 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 	}
 
 	/* =====================================================================
-	   Схема 1 · 60 кадров пола
+	   Схема 15 · 60 кадров пола
 	   ===================================================================== */
 	(function bake() {
 		const svg = document.getElementById("bake-svg"); if (!svg) return;
@@ -2217,7 +2577,7 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 	})();
 
 	/* =====================================================================
-	   Схема 2 · фриз окна: без потолка шага и с ним
+	   Схема 16 · фриз окна: без потолка шага и с ним
 	   ===================================================================== */
 	(function clampGraph() {
 		const svg = document.getElementById("clamp-svg"); if (!svg) return;
@@ -2256,7 +2616,7 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 	})();
 
 	/* =====================================================================
-	   Схема 4 · яичница читает манеру змеи (формулы из fried_egg_boss.gd)
+	   Схема 18 · яичница читает манеру змеи (формулы из fried_egg_boss.gd)
 	   ===================================================================== */
 	(function habit() {
 		const svg = document.getElementById("habit-svg"); if (!svg) return;
@@ -2349,7 +2709,7 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 	})();
 
 	/* =====================================================================
-	   Схема 6 · слот атаки (правила из abilities.gd)
+	   Схема 20 · слот атаки (правила из abilities.gd)
 	   ===================================================================== */
 	(function slot() {
 		const svg = document.getElementById("slot-svg"); if (!svg) return;
@@ -2385,7 +2745,7 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 	})();
 
 	/* =====================================================================
-	   Схема 7 · анатомия укуса (рецепт bite)
+	   Схема 21 · анатомия укуса (рецепт bite)
 	   ===================================================================== */
 	(function chain() {
 		const svg = document.getElementById("chain-svg"); if (!svg) return;
@@ -2429,7 +2789,7 @@ godot --path . --fixed-fps <span class="s">60</span> -- --ending --shots=<span c
 	})();
 
 	/* =====================================================================
-	   Схема 8 · PolyBLEP: наивная пила против сглаженной
+	   Схема 22 · PolyBLEP: наивная пила против сглаженной
 	   ===================================================================== */
 	(function blepSvg() {
 		const svg = document.getElementById("blep-svg"); if (!svg) return;
@@ -3371,20 +3731,24 @@ void main() {
 			{ v: "8.1", at: "28.09 12:39", h: 50.6, loc: 16260, files: 71, tests: 274, items: ["<b>Аудит:</b> девять находок, десять новых тестов", "Зашифрованное сохранение, атомарная запись", "Пол запекается один раз"] },
 			{ v: "8.2", at: "28.09 16:36", h: 54.55, loc: 16629, files: 71, tests: 283, items: ["Детская на этапе медведей", "Древо навыков 4 × 5, мутации трёх редкостей", "Испытание дня 2.0 с серией дней", "Протокол мелом на доске"] },
 			{ v: "9.0", at: "29.09 06:51", h: 68.8, loc: 18728, files: 74, tests: 321, items: ["<b>Матрёшки</b> и пятый этап — терем", "Хоровод, разбег, заслон, дуэт малышек", "Дизайн-язык 2.3, меню 3.0, панель разработчика 2.0", "Семь пасхалок, 115 советов"] },
+			{ v: "10.0", at: "29.09 11:39", h: 73.6, loc: 21260, files: 83, tests: 345, items: ["<b>Технический режим «Контакт»:</b> знаки вместо укусов", "Мирный кооперативный ИИ: колонна, вестники, доверие", "Игровой финал от лица змеи: пожар, выстрелы, щель", "Пересадка, фальшивое меню, восьмая пасхалка"] },
+			{ v: "10.1", at: "29.09 12:09", h: 74.1, loc: 21271, files: 83, tests: 352, items: ["<b>Проверка логики:</b> четыре находки сквозных прогонов", "«Гололёд» и «Одышка» переживают выбор мутации", "«Премия» — ровно +25 чешуек", "Автопилот и случайное управление, 352 автотеста"] },
 		];
-		const X = h => 70 + h / 70 * 830, YL = l => 250 - l / 20000 * 200, YT = t => 250 - t / 350 * 200;
+		const X = h => 70 + h / 76 * 830, YL = l => 250 - l / 22000 * 200, YT = t => 250 - t / 350 * 200;
 		for (let k = 0; k <= 20000; k += 4000) { el("line", { x1: 60, x2: 910, y1: YL(k), y2: YL(k), stroke: "#2a1c14" }, svg); el("text", { x: 54, y: YL(k) + 4, fill: C.muted, "font-size": 10.5, "text-anchor": "end", class: "mono" }, svg, k / 1000 + "k"); }
 		for (let t = 0; t <= 350; t += 100) el("text", { x: 916, y: YT(t) + 4, fill: C.green, "font-size": 10.5, class: "mono" }, svg, t);
 		[["26.09", 0], ["27.09", 14], ["28.09", 38], ["29.09", 62]].forEach(([d, h]) => { el("line", { x1: X(h), x2: X(h), y1: 44, y2: 256, stroke: "#4a3223", "stroke-dasharray": "2 5" }, svg); el("text", { x: X(h) + 4, y: 272, fill: C.muted, "font-size": 11, class: "mono" }, svg, d); });
 		el("text", { x: 60, y: 20, fill: C.brass, "font-size": 11.5 }, svg, "■ строки GDScript");
 		el("text", { x: 190, y: 20, fill: C.green, "font-size": 11.5 }, svg, "● автотесты");
 		el("path", { d: "M" + V.map(p => X(p.h).toFixed(1) + " " + YT(p.tests).toFixed(1)).join("L"), fill: "none", stroke: C.green, "stroke-width": 2 }, svg);
+		const lv = []; V.forEach((p, i) => { lv[i] = i && X(p.h) - X(V[i - 1].h) < 30 ? (lv[i - 1] + 1) % 3 : 0; });
 		const groups = V.map((p, i) => {
 			const gv = el("g", { class: "tl-v", tabindex: 0, role: "button", "aria-label": "Версия " + p.v }, svg);
-			el("rect", { class: "hit", x: X(p.h) - 22, y: 30, width: 44, height: 232, fill: "transparent", rx: 6 }, gv);
-			el("rect", { x: X(p.h) - 9, y: YL(p.loc), width: 18, height: 250 - YL(p.loc), rx: 3, fill: C.brass, opacity: 0.8 }, gv);
+			const hx0 = p.v === "10.0" ? X(p.h) - 30 : p.v === "10.1" ? X(p.h) : X(p.h) - 22, hw = p.v === "10.0" || p.v === "10.1" ? 30 : 44;
+			el("rect", { class: "hit", x: hx0, y: 30, width: hw, height: 232, fill: "transparent", rx: 6 }, gv);
+			el("rect", { x: X(p.h) - 6, y: YL(p.loc), width: 12, height: 250 - YL(p.loc), rx: 3, fill: C.brass, opacity: 0.8 }, gv);
 			el("circle", { cx: X(p.h), cy: YT(p.tests), r: 4.5, fill: C.green }, gv);
-			el("text", { x: X(p.h), y: YL(p.loc) - 8 - (i % 2) * 14, fill: C.hi, "font-size": 12, "font-weight": 700, "text-anchor": "middle", class: "mono" }, gv, p.v);
+			el("text", { x: X(p.h), y: YL(p.loc) - 8 - lv[i] * 14, fill: C.hi, "font-size": 12, "font-weight": 700, "text-anchor": "middle", class: "mono" }, gv, p.v);
 			gv.addEventListener("click", () => pick(i));
 			gv.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(i); } });
 			return gv;
@@ -3398,6 +3762,276 @@ void main() {
 			panel.innerHTML = '<div><div class="big">v' + p.v + '</div><div class="when">' + p.at + ' · ' + p.loc.toLocaleString("ru-RU") + ' ' + plural(p.loc, "строка", "строки", "строк") + ' (' + (dl >= 0 ? "+" : "") + dl.toLocaleString("ru-RU") + ')<br>' + p.files + ' ' + plural(p.files, "файл", "файла", "файлов") + ' · ' + p.tests + ' ' + plural(p.tests, "тест", "теста", "тестов") + ' (' + (dt >= 0 ? "+" : "") + dt + ')</div></div><ul>' + p.items.map(t => "<li>" + t + "</li>").join("") + "</ul>";
 		}
 		pick(V.length - 1);
+	})();
+
+	/* =====================================================================
+	   10.1: «Премия» — формулы game.gd и skills.gd на тех же дробях
+	   ===================================================================== */
+	(function bountyDemo() {
+		const out = document.getElementById("bounty-readout"); if (!out) return;
+		const dRow = document.getElementById("bounty-diff"), mRow = document.getElementById("bounty-mult");
+		let d = 1.5, g = 0, h = 1;
+		const mult = (gr, ho) => (1 + 0.15 * gr) * (ho ? 1.5 : 1);
+		const oldBounty = (d, m) => Math.trunc((25 / d) * d * m);          // 10.0: бонус делили только на сложность
+		const rawBounty = (d, m) => { const rs = 25 / (d * m); return Math.trunc(rs * d * m); };  // 10.1 без поправки
+		const newBounty = (d, m) => { const rs = 25 / (d * m); return Math.trunc(rs * d * m + 0.0001); };
+		function draw() {
+			const m = mult(g, h), o = oldBounty(d, m), r = rawBounty(d, m), n = newBounty(d, m);
+			let bad = 0, tot = 0;
+			for (const dd of [1, 1.5, 2, 3]) for (let gr = 0; gr <= 3; gr++) for (const ho of [0, 1]) { tot++; if (rawBounty(dd, mult(gr, ho)) !== 25) bad++; }
+			out.innerHTML = "множитель <b>×" + fmt(m, 3) + "</b><br>10.0 · бонус <b style=\"color:" + (o === 25 ? "inherit" : C.tomato) + "\">+" + o + "</b> чешуек<br>10.1 без поправки · <b style=\"color:" + (r === 25 ? "inherit" : C.tomato) + "\">+" + r + "</b><br>10.1 · <b class=\"on\">+" + n + "</b><br>сочетаний с ошибкой: <b>" + bad + " из " + tot + "</b>";
+		}
+		function bind(row, fn) { row.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { row.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false")); fn(b); draw(); })); }
+		bind(dRow, b => { d = +b.dataset.d; });
+		bind(mRow, b => { g = +b.dataset.g; h = +b.dataset.h; });
+		draw();
+	})();
+
+	/* =====================================================================
+	   10.1: яичница ранена в воздухе — высота прыжка
+	   ===================================================================== */
+	(function eggHurt() {
+		const svg = document.getElementById("egg-hurt-svg"); if (!svg) return;
+		const X0 = 50, X1 = 490, FLOOR = 250, TOP = 60;
+		const T = t => X0 + t * (X1 - X0), Hy = t => FLOOR - 4 * t * (1 - t) * (FLOOR - TOP);
+		const hit = 0.32;
+		el("line", { x1: X0 - 10, x2: X1 + 10, y1: FLOOR, y2: FLOOR, stroke: "#4a3223", "stroke-width": 2 }, svg);
+		el("text", { x: X0 - 10, y: FLOOR + 22, fill: C.muted, "font-size": 12 }, svg, "пол");
+		el("text", { x: X0 - 10, y: 24, fill: C.muted, "font-size": 12 }, svg, "высота яичницы");
+		let arc = ""; for (let i = 0; i <= 40; i++) { const t = i / 40; arc += (i ? "L" : "M") + T(t).toFixed(1) + " " + Hy(t).toFixed(1); }
+		el("path", { d: arc, fill: "none", stroke: "#6d5238", "stroke-width": 1.5, "stroke-dasharray": "4 5" }, svg);
+		let pre = ""; for (let i = 0; i <= 13; i++) { const t = hit * i / 13; pre += (i ? "L" : "M") + T(t).toFixed(1) + " " + Hy(t).toFixed(1); }
+		el("path", { d: pre, fill: "none", stroke: C.hi, "stroke-width": 2.5 }, svg);
+		const hx = T(hit), hy = Hy(hit);
+		el("path", { d: "M" + hx + " " + hy + "H" + (X1 - 20), fill: "none", stroke: C.tomato, "stroke-width": 2.5 }, svg);
+		el("path", { d: "M" + (hx + 6) + " " + (hy + 4) + "V" + FLOOR + "H" + (X1 - 20), fill: "none", stroke: C.green, "stroke-width": 2.5 }, svg);
+		el("circle", { cx: hx, cy: hy, r: 6, fill: C.fire }, svg);
+		el("text", { x: hx + 10, y: hy - 12, fill: C.warn, "font-size": 12.5 }, svg, "укус на взлёте");
+		el("text", { x: X1 - 22, y: hy - 8, fill: C.tomato, "font-size": 12.5, "text-anchor": "end" }, svg, "10.0 · висит над полом");
+		el("text", { x: X1 - 22, y: FLOOR - 8, fill: C.green, "font-size": 12.5, "text-anchor": "end" }, svg, "10.1 · height = 0, vel = 0");
+		el("text", { x: 20, y: 292, fill: C.muted, "font-size": 12 }, svg, "Пунктир — прыжок, который должен был быть.");
+	})();
+
+	/* =====================================================================
+	   10.0: пять знаков режима «Контакт» — формулы и оценка из gesture.gd
+	   ===================================================================== */
+	const SignGeom = (function () {
+		const KINDS = ["bear", "fork", "pill", "doll", "egg"];
+		const NAMES = { bear: "СЕРДЦЕ", fork: "ВОЛНА", pill: "БЕСКОНЕЧНОСТЬ", doll: "СПИРАЛЬ", egg: "СОЛНЦЕ" };
+		const WHO = { bear: "медведь", fork: "вилка", pill: "таблетка", doll: "матрёшка", egg: "яичница" };
+		const HALF = { bear: 115, fork: 115, pill: 115, doll: 115, egg: 150 };
+		const COLORS = { bear: "#e0a36b", fork: "#c9ced6", pill: "#ff8a8a", doll: "#e5533d", egg: "#ffd24a" };
+		const TOL = [30, 26, 22, 19], MIN_COVERAGE = 0.85, SAMPLES = 64;
+		const P = (x, y) => ({ x, y });
+		function unit(kind) {
+			const o = [];
+			if (kind === "bear") for (let i = 0; i <= 72; i++) { const a = 2 * Math.PI * i / 72, x = 16 * Math.pow(Math.sin(a), 3), y = 13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a); o.push(P(x / 17, -(y + 2.5) / 15)); }
+			else if (kind === "fork") for (let i = 0; i <= 60; i++) { const k = i / 60; o.push(P(-1 + 2 * k, Math.sin(k * 2 * Math.PI * 2) * 0.45)); }
+			else if (kind === "pill") for (let i = 0; i <= 80; i++) { const a = 2 * Math.PI * i / 80, d = 1 + Math.sin(a) * Math.sin(a); o.push(P(Math.cos(a) / d, Math.sin(a) * Math.cos(a) / d * 1.3)); }
+			else if (kind === "doll") for (let i = 0; i <= 80; i++) { const k = i / 80, a = k * 2 * Math.PI * 2, r = 0.12 + 0.88 * k; o.push(P(Math.cos(a) * r, Math.sin(a) * r)); }
+			else for (let i = 0; i <= 16; i++) { const a = 2 * Math.PI * i / 16 - Math.PI / 2, r = i % 2 === 0 ? 1 : 0.5; o.push(P(Math.cos(a) * r, Math.sin(a) * r)); }
+			return o;
+		}
+		const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+		function length(pts) { let s = 0; for (let i = 1; i < pts.length; i++) s += dist(pts[i - 1], pts[i]); return s; }
+		function pointAt(pts, d) {
+			for (let i = 1; i < pts.length; i++) { const seg = dist(pts[i - 1], pts[i]); if (d <= seg && seg > 0) { const k = d / seg; return P(pts[i - 1].x + (pts[i].x - pts[i - 1].x) * k, pts[i - 1].y + (pts[i].y - pts[i - 1].y) * k); } d -= seg; }
+			return pts[pts.length - 1];
+		}
+		function resample(pts, n = SAMPLES) { if (pts.length < 2) return pts.slice(); const tot = length(pts), o = []; for (let i = 0; i < n; i++) o.push(pointAt(pts, tot * i / (n - 1))); return o; }
+		function distTo(p, pts) {
+			let best = Infinity;
+			for (let i = 1; i < pts.length; i++) {
+				const a = pts[i - 1], b = pts[i], dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
+				const k = l2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0;
+				best = Math.min(best, Math.hypot(p.x - a.x - dx * k, p.y - a.y - dy * k));
+			}
+			return best;
+		}
+		function seqError(tr, tp, closed) {
+			const n = tp.length; let best = Infinity;
+			for (const rev of [false, true]) {
+				const a = rev ? tr.slice().reverse() : tr, shifts = closed ? n - 1 : 1;
+				for (let k = 0; k < shifts; k++) {
+					let sum = 0;
+					for (let i = 0; i < n; i++) { sum += dist(a[i], closed ? tp[(i + k) % (n - 1)] : tp[i]); if (sum >= best * n) break; }
+					best = Math.min(best, sum / n);
+				}
+			}
+			return best;
+		}
+		function score(trace, tmpl, tol) {
+			if (trace.length < 2 || tmpl.length < 2) return { coverage: 0, error: Infinity, ok: false };
+			const tr = resample(trace), tp = resample(tmpl); let covered = 0;
+			for (const p of tp) if (distTo(p, tr) <= tol) covered++;
+			const cov = covered / tp.length, err = seqError(tr, tp, dist(tmpl[0], tmpl[tmpl.length - 1]) < 4);
+			return { coverage: cov, error: err, ok: cov >= MIN_COVERAGE && err <= tol };
+		}
+		return { KINDS, NAMES, WHO, HALF, COLORS, TOL, MIN_COVERAGE, unit, score };
+	})();
+
+	(function signsScheme() {
+		const svg = document.getElementById("signs-svg"); if (!svg) return;
+		SignGeom.KINDS.forEach((k, i) => {
+			const cx = 96 + i * 192, cy = 100, half = 72, u = SignGeom.unit(k);
+			el("rect", { x: cx - 86, y: 14, width: 172, height: 172, rx: 12, fill: "#1b120d", stroke: "#3a271b" }, svg);
+			el("path", { d: "M" + u.map(p => (cx + p.x * half).toFixed(1) + " " + (cy + p.y * half).toFixed(1)).join("L"), fill: "none", stroke: SignGeom.COLORS[k], "stroke-width": 3.2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+			el("circle", { cx: cx + u[0].x * half, cy: cy + u[0].y * half, r: 4.5, fill: C.green }, svg);
+			el("text", { x: cx, y: 208, fill: C.text, "font-size": 12.5, "text-anchor": "middle", "font-weight": 700 }, svg, SignGeom.NAMES[k]);
+			el("text", { x: cx, y: 224, fill: C.muted, "font-size": 11.5, "text-anchor": "middle" }, svg, SignGeom.WHO[k]);
+		});
+	})();
+
+	(function trustChart() {
+		const svg = document.getElementById("trust-svg"); if (!svg) return;
+		const X0 = 50, X1 = 490, Y0 = 250, Y1 = 40, TMAX = 16;
+		const X = t => X0 + t / TMAX * (X1 - X0), Y = v => Y0 - v * (Y0 - Y1);
+		for (let v = 0; v <= 1.001; v += 0.2) { el("line", { x1: X0, x2: X1, y1: Y(v), y2: Y(v), stroke: "#2a1c14" }, svg); el("text", { x: X0 - 6, y: Y(v) + 4, fill: C.muted, "font-size": 10.5, "text-anchor": "end", class: "mono" }, svg, fmt(v, 1)); }
+		for (let t = 0; t <= TMAX; t += 4) el("text", { x: X(t), y: Y0 + 18, fill: C.muted, "font-size": 10.5, "text-anchor": "middle", class: "mono" }, svg, t + " с");
+		el("line", { x1: X0, x2: X1, y1: Y(0.6), y2: Y(0.6), stroke: C.brass, "stroke-dasharray": "5 5" }, svg);
+		el("text", { x: 190, y: Y(0.6) - 6, fill: C.hi, "font-size": 11.5 }, svg, "0,6 — сам подходит поговорить («!»)");
+		const CALM = 0.04, HERALD = 0.16;
+		[[0, C.muted, "только спокойная змея"], [1, C.hi, "+ вестник"], [2, C.green, "+ два вестника"]].forEach(([n, col, name], i) => {
+			const rate = CALM + HERALD * n, tEnd = Math.min(TMAX, 1 / rate), tLead = 0.6 / rate;
+			el("path", { d: "M" + X(0) + " " + Y(0) + "L" + X(tEnd).toFixed(1) + " " + Y(Math.min(1, rate * tEnd)).toFixed(1), stroke: col, "stroke-width": 2.5, fill: "none" }, svg);
+			el("circle", { cx: X(tLead), cy: Y(0.6), r: 4.5, fill: col }, svg);
+			el("text", { x: 250, y: 202 + i * 17, fill: col, "font-size": 12 }, svg, "— " + name + ": " + fmt(tLead, 1) + " с");
+		});
+		el("text", { x: 20, y: 290, fill: C.muted, "font-size": 12 }, svg, "Скорость: 0,04 в секунду от змеи, ещё 0,16 от каждого вестника рядом.");
+	})();
+
+	(function signSandbox() {
+		const cv = document.getElementById("sign-cv"); if (!cv) return;
+		const g = cv.getContext("2d"), out = document.getElementById("sign-readout");
+		const kindRow = document.getElementById("sign-kinds"), diffRow = document.getElementById("sign-diff");
+		const CX = 640, CY = 360, HALF_PX = 240;
+		let kind = "bear", diff = 1, trace = [], down = false, res = null;
+		const k = () => SignGeom.HALF[kind] / HALF_PX;                          // пиксели поля → пиксели игры
+		const tmplCv = () => SignGeom.unit(kind).map(p => ({ x: CX + p.x * HALF_PX, y: CY + p.y * HALF_PX }));
+		const tolGame = () => SignGeom.TOL[diff];
+		function line(pts, style, w) { if (pts.length < 2) return; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.strokeStyle = style; g.lineWidth = w; g.lineJoin = "round"; g.lineCap = "round"; g.stroke(); }
+		function draw() {
+			g.fillStyle = "#1a110c"; g.fillRect(0, 0, 1280, 720);
+			g.strokeStyle = "rgba(216,169,79,.08)"; g.lineWidth = 1;
+			for (let x = 0; x <= 1280; x += 80) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 720); g.stroke(); }
+			for (let y = 0; y <= 720; y += 80) { g.beginPath(); g.moveTo(0, y); g.lineTo(1280, y); g.stroke(); }
+			const t = tmplCv(), col = SignGeom.COLORS[kind];
+			line(t, "rgba(255,210,120,.13)", 2 * tolGame() / k());
+			line(t, col, 4);
+			g.beginPath(); g.arc(t[0].x, t[0].y, 9, 0, 7); g.fillStyle = C.green; g.fill();
+			line(trace, res ? (res.ok ? C.green : C.tomato) : C.hi, 7);
+			g.font = "700 22px system-ui, sans-serif"; g.fillStyle = "rgba(236,223,200,.8)"; g.textAlign = "center";
+			g.fillText(SignGeom.NAMES[kind], CX, 60);
+		}
+		function show() {
+			if (!res) { out.innerHTML = "обведи контур: зелёная точка — начало.<br>допуск <b>" + tolGame() + " px</b> · охват от <b>85%</b>"; return; }
+			out.innerHTML = "охват <b>" + Math.round(res.coverage * 100) + "%</b> (нужно 85%)<br>ошибка <b>" + (isFinite(res.error) ? fmt(res.error, 1) : "—") + " px</b> (допуск " + tolGame() + ")<br><b class=\"" + (res.ok ? "on" : "") + "\">" + (res.ok ? "УБЕЖДЁН · змея рисует знак" : "НЕ ПОНЯЛ…") + "</b>";
+		}
+		function pos(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * 1280, y: (e.clientY - r.top) / r.height * 720 }; }
+		function finish() {
+			if (!down) return; down = false;
+			const kk = k(), c = p => ({ x: (p.x - CX) * kk, y: (p.y - CY) * kk });
+			const tr = trace.map(c), tp = tmplCv().map(c);
+			res = SignGeom.score(tr, tp, tolGame());
+			draw(); show();
+		}
+		cv.addEventListener("pointerdown", e => { e.preventDefault(); cv.setPointerCapture(e.pointerId); down = true; res = null; trace = [pos(e)]; draw(); show(); });
+		cv.addEventListener("pointermove", e => { if (!down) return; const p = pos(e), l = trace[trace.length - 1]; if (Math.hypot(p.x - l.x, p.y - l.y) > 3) { trace.push(p); draw(); } });
+		cv.addEventListener("pointerup", finish); cv.addEventListener("pointercancel", finish);
+		function bind(row, fn) { row.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { row.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false")); fn(b); trace = []; res = null; draw(); show(); })); }
+		bind(kindRow, b => { kind = b.dataset.kind; });
+		bind(diffRow, b => { diff = +b.dataset.d; });
+		draw(); show();
+	})();
+
+	/* =====================================================================
+	   Новые графики 10.0 и 10.1
+	   ===================================================================== */
+	(function bountyBars() {
+		const svg = document.getElementById("bounty-bars-svg"); if (!svg) return;
+		const rows = [["без множителя", 1], ["Жадность I", 1.15], ["Жадность II", 1.3], ["Жадность III", 1.45], ["Чешуйчатая", 1.5], ["Ж I + Ч", 1.725], ["Ж II + Ч", 1.95], ["Ж III + Ч", 2.175]];
+		const X0 = 60, X1 = 930, Y0 = 250, Y1 = 40, MAX = 60, W = (X1 - X0) / rows.length;
+		const Y = v => Y0 - v / MAX * (Y0 - Y1);
+		for (let v = 0; v <= MAX; v += 10) { el("line", { x1: X0, x2: X1, y1: Y(v), y2: Y(v), stroke: "#2a1c14" }, svg); el("text", { x: X0 - 8, y: Y(v) + 4, fill: C.muted, "font-size": 10.5, "text-anchor": "end", class: "mono" }, svg, v); }
+		el("line", { x1: X0, x2: X1, y1: Y(25), y2: Y(25), stroke: C.brass, "stroke-dasharray": "5 5" }, svg);
+		el("text", { x: 190, y: 22, fill: C.hi, "font-size": 11.5 }, svg, "- - - обещано навыком: +25");
+		rows.forEach(([name, m], i) => {
+			const cx = X0 + W * (i + 0.5), old = Math.trunc(25 * m);
+			el("rect", { x: cx - 26, y: Y(old), width: 24, height: Y0 - Y(old), rx: 3, fill: C.tomato, opacity: 0.85 }, svg);
+			el("rect", { x: cx + 2, y: Y(25), width: 24, height: Y0 - Y(25), rx: 3, fill: C.green, opacity: 0.85 }, svg);
+			el("text", { x: cx - 14, y: Y(old) - 6, fill: C.text, "font-size": 11.5, "text-anchor": "middle", class: "mono" }, svg, old);
+			el("text", { x: cx + 14, y: Y(25) - 6, fill: C.text, "font-size": 11.5, "text-anchor": "middle", class: "mono" }, svg, 25);
+			el("text", { x: cx, y: Y0 + 18, fill: C.muted, "font-size": 11.5, "text-anchor": "middle" }, svg, name);
+			el("text", { x: cx, y: Y0 + 33, fill: "#8f6c30", "font-size": 10.5, "text-anchor": "middle", class: "mono" }, svg, "×" + fmt(m, 3).replace(/,?0+$/, ""));
+		});
+		el("text", { x: 60, y: 22, fill: C.tomato, "font-size": 11.5 }, svg, "■ 10.0");
+		el("text", { x: 118, y: 22, fill: C.green, "font-size": 11.5 }, svg, "■ 10.1");
+	})();
+
+	(function signMatrix() {
+		const svg = document.getElementById("matrix-svg"); if (!svg) return;
+		const K = SignGeom.KINDS, N = 5, CW = 120, CH = 50, X0 = 190, Y0 = 62, TOL = 26, HALF = 115;
+		const pts = (kind) => SignGeom.unit(kind).map(p => ({ x: p.x * HALF, y: p.y * HALF }));
+		el("text", { x: X0 + CW * N / 2, y: 22, fill: C.muted, "font-size": 12.5, "text-anchor": "middle" }, svg, "шаблон, который нужно обвести");
+		el("text", { x: 20, y: Y0 - 12, fill: C.muted, "font-size": 12.5 }, svg, "безупречная обводка знака…");
+		K.forEach((k, j) => el("text", { x: X0 + CW * (j + 0.5), y: Y0 - 12, fill: C.text, "font-size": 12, "text-anchor": "middle", "font-weight": 700 }, svg, SignGeom.NAMES[k]));
+		K.forEach((r, i) => {
+			el("text", { x: X0 - 12, y: Y0 + CH * (i + 0.5) + 4, fill: C.text, "font-size": 12, "text-anchor": "end", "font-weight": 700 }, svg, SignGeom.NAMES[r]);
+			K.forEach((c, j) => {
+				const res = SignGeom.score(pts(r), pts(c), TOL);
+				const ok = res.ok, close = !ok && res.coverage >= SignGeom.MIN_COVERAGE;
+				const x = X0 + CW * j, y = Y0 + CH * i;
+				el("rect", { x: x + 3, y: y + 3, width: CW - 6, height: CH - 6, rx: 8, fill: ok ? "#25401c" : close ? "#4a3413" : "#241811", stroke: ok ? C.green : close ? C.warn : "#3a271b" }, svg);
+				el("text", { x: x + CW / 2, y: y + CH / 2 - 2, fill: ok ? C.green : close ? C.warn : C.muted, "font-size": 12.5, "text-anchor": "middle", "font-weight": 700, class: "mono" }, svg, ok ? "УБЕЖДЁН" : "мимо");
+				el("text", { x: x + CW / 2, y: y + CH / 2 + 14, fill: C.muted, "font-size": 10.5, "text-anchor": "middle", class: "mono" }, svg, Math.round(res.coverage * 100) + "% · " + (res.error < 999 ? fmt(res.error, 0) : "—") + " px");
+			});
+		});
+		el("text", { x: 20, y: 322, fill: C.muted, "font-size": 12 }, svg, "Ячейка: охват контура и ошибка. Допуск «Средней» 26 px. Жёлтым — охват набрался, но точки следа идут не в том порядке, и знак не принят.");
+	})();
+
+	(function tolBands() {
+		const svg = document.getElementById("tol-svg"); if (!svg) return;
+		const names = ["Лёгкая", "Средняя", "Сложная", "Ультра"], u = SignGeom.unit("bear"), half = 46, sc = half / 115;
+		SignGeom.TOL.forEach((tol, i) => {
+			const cx = 65 + i * 130, cy = 108, d = "M" + u.map(p => (cx + p.x * half).toFixed(1) + " " + (cy + p.y * half).toFixed(1)).join("L");
+			el("path", { d, fill: "none", stroke: "rgba(255,210,120,.2)", "stroke-width": 2 * tol * sc, "stroke-linejoin": "round" }, svg);
+			el("path", { d, fill: "none", stroke: SignGeom.COLORS.bear, "stroke-width": 2 }, svg);
+			el("text", { x: cx, y: 188, fill: C.text, "font-size": 12.5, "text-anchor": "middle", "font-weight": 700 }, svg, names[i]);
+			el("text", { x: cx, y: 206, fill: C.hi, "font-size": 12, "text-anchor": "middle", class: "mono" }, svg, tol + " px");
+		});
+		el("text", { x: 20, y: 240, fill: C.muted, "font-size": 12 }, svg, "Светлая полоса — где след ещё считается «на контуре».");
+	})();
+
+	(function contactFiles() {
+		const svg = document.getElementById("files-svg"); if (!svg) return;
+		const rows = [["contact_mode", 623, "разговор, обводка"], ["contact_finale", 358, "пожар, выстрелы"], ["hideout", 268, "щель, развязка"], ["peace_squad", 209, "мирный ИИ"], ["fake_menu", 145, "фальшивое меню"], ["gesture", 132, "знаки и оценка"], ["contact_view", 126, "вид режима"], ["floor_paint", 44, "борозда на полу"]];
+		const X0 = 138, X1 = 495, MAX = 650;
+		rows.forEach(([name, n, note], i) => {
+			const y = 20 + i * 28, w = n / MAX * (X1 - X0);
+			el("text", { x: X0 - 8, y: y + 14, fill: C.text, "font-size": 11.5, "text-anchor": "end", class: "mono" }, svg, name);
+			el("rect", { x: X0, y, width: w, height: 20, rx: 3, fill: C.brass, opacity: 0.85 }, svg);
+			el("text", { x: X0 + w + 6, y: y + 14, fill: C.hi, "font-size": 11.5, class: "mono" }, svg, n);
+			if (w > 210) el("text", { x: X0 + 8, y: y + 14, fill: "#2d1f0c", "font-size": 11 }, svg, note);
+		});
+		el("text", { x: 20, y: 252, fill: C.muted, "font-size": 12 }, svg, "Всего 1 905 строк в 8 файлах каталога scripts/contact.");
+	})();
+
+	(function testsBars() {
+		const svg = document.getElementById("tests-bars-svg"); if (!svg) return;
+		const V = [["6.0", 85], ["7.0", 188], ["7.1", 191], ["7.2", 240], ["8.0", 264], ["8.1", 274], ["8.2", 283], ["9.0", 321], ["10.0", 345], ["10.1", 352]];
+		const X0 = 60, X1 = 930, Y0 = 220, Y1 = 30, MAX = 400, W = (X1 - X0) / V.length;
+		const Y = v => Y0 - v / MAX * (Y0 - Y1);
+		for (let v = 0; v <= MAX; v += 100) { el("line", { x1: X0, x2: X1, y1: Y(v), y2: Y(v), stroke: "#2a1c14" }, svg); el("text", { x: X0 - 8, y: Y(v) + 4, fill: C.muted, "font-size": 10.5, "text-anchor": "end", class: "mono" }, svg, v); }
+		V.forEach(([v, n], i) => {
+			const cx = X0 + W * (i + 0.5), prev = i ? V[i - 1][1] : 0, d = n - prev;
+			el("rect", { x: cx - 22, y: Y(prev), width: 44, height: Y0 - Y(prev), rx: 3, fill: C.dim, opacity: 0.7 }, svg);
+			el("rect", { x: cx - 22, y: Y(n), width: 44, height: Y(prev) - Y(n), rx: 3, fill: C.green }, svg);
+			el("text", { x: cx, y: Y(n) - 6, fill: C.text, "font-size": 12, "text-anchor": "middle", class: "mono", "font-weight": 700 }, svg, n);
+			el("text", { x: cx, y: Y0 + 18, fill: C.muted, "font-size": 12, "text-anchor": "middle", class: "mono" }, svg, v);
+			el("text", { x: cx, y: Y0 + 34, fill: C.green, "font-size": 11, "text-anchor": "middle", class: "mono" }, svg, "+" + d);
+		});
+		el("text", { x: 60, y: 16, fill: C.green, "font-size": 11.5 }, svg, "■ добавлено версией");
+		el("text", { x: 220, y: 16, fill: C.dim, "font-size": 11.5 }, svg, "■ было раньше");
 	})();
 
 	/* =====================================================================
