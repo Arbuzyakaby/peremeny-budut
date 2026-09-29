@@ -51,6 +51,7 @@ var roles_label: Label
 var secrets_box: VBoxContainer
 var run_lamp: Control
 var route: Control
+var tabs: Segmented
 var t := 0.0
 
 
@@ -107,7 +108,7 @@ func _ready() -> void:
 		var cur: int = game.stage if game.state not in [game.State.MENU, game.State.LOADING] else -1
 		Design.draw_route(route, Vector2(x0, 20), cur, step, t, 0.85))
 	col.add_child(route)
-	var tabs := Segmented.new()
+	tabs = Segmented.new()
 	tabs.setup(TABS, 0, 0.0, true)
 	tabs.changed.connect(_show_page)
 	col.add_child(tabs)
@@ -162,6 +163,8 @@ func toggle() -> void:
 
 
 func _show_page(i: int) -> void:
+	if tabs:
+		tabs.select(i)  # вкладку могли открыть из кода (тесты, снимки) — клавиша тоже утоплена
 	for k in pages.size():
 		pages[k].visible = k == i
 	if i == PAGE_DEBUG:
