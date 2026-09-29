@@ -4,29 +4,11 @@ extends "res://scripts/audio/synth.gd"
 ## резкие верха срезаны фильтрами; поправка — третьим аргументом to_stream (дБ).
 
 ## Сколько звуков в build_sounds() — для полосы загрузки (тест сверяет с фактом).
-const SOUND_COUNT := 79
+const SOUND_COUNT := 80
+
+const Foley = preload("res://scripts/audio/foley.gd")
 
 var _bank: Dictionary = {}
-
-
-## Ручка по бумаге: росчерки букв с паузами между буквами и словами. Шорох шарика — мягкий
-## высокий шум, громкость которого следует скорости пера (петли букв), без треска и щелчков.
-func _pen(dur: float) -> PackedFloat32Array:
-	var out := silence(dur)
-	var at := 0.03
-	while at < dur - 0.12:
-		var stroke := randf_range(0.06, 0.17)
-		var buf := bandpass(noise(stroke, 1.0, 0.0), randf_range(2200, 3000), randf_range(5200, 7000))
-		buf = mix(buf, lowpass(noise(stroke, 0.35, 0.0), 900))  # бумага под пером
-		_normalize(buf, 1.0)
-		var loops := randf_range(2.0, 4.0)
-		for i in buf.size():
-			var k := float(i) / buf.size()
-			var speed := sin(PI * k) * (0.6 + 0.4 * absf(sin(PI * loops * k)))
-			buf[i] *= 0.26 * speed * speed
-		out = mix_at(out, buf, at)
-		at += stroke + (randf_range(0.015, 0.05) if randf() < 0.8 else randf_range(0.12, 0.22))
-	return out
 
 
 func build_sounds() -> Dictionary:
@@ -36,7 +18,6 @@ func build_sounds() -> Dictionary:
 	_bank["hurt"] = to_stream(mix(tone(0.35, 320, 70, W.SAW, 0.35, 0.0, 1.5), noise(0.25, 0.3, 2.0, 1800)))
 	_bank["bite"] = to_stream(mix(noise(0.1, 0.5, 3.0, 3000), tone(0.25, 260, 90, W.SQUARE, 0.28)), false, -2.0)
 	_bank["shoot"] = to_stream(mix(noise(0.2, 0.4, 2.5, 2200, 250), tone(0.18, 320, 110, W.SINE, 0.3)))
-	_bank["tick"] = to_stream(mix(tone(0.05, 2100, 1900, W.SINE, 0.3, 0.0, 6.0), noise(0.02, 0.25, 4.0, 0.0, 4000)))
 	_bank["charge"] = to_stream(mix(tone(0.45, 90, 420, W.SAW, 0.25, 0.0, 0.8), _whoosh(0.45, 0.2, 300, 1500)))
 	_bank["slam"] = to_stream(mix(tone(0.6, 110, 30, W.SINE, 0.9, 0.0, 1.5), noise(0.45, 0.5, 3.0, 900)), false, -3.0)
 	_bank["yolk"] = to_stream(_notes([660, 880, 1100, 1320], 0.07, W.TRI, 0.35, 0.2))
@@ -58,38 +39,13 @@ func build_sounds() -> Dictionary:
 	_bank["ui_select"] = to_stream(mix(_pop(0.016, 0.34, 1800, 6500), tone(0.05, 1900, 1700, W.SINE, 0.1, 0.0, 5.0)))
 	_bank["boss_down"] = to_stream(mix(noise(1.3, 0.6, 1.5, 1400), tone(1.3, 200, 20, W.SINE, 0.7, 0.0, 1.2)), false, -2.0)
 	_bank["bonk"] = to_stream(mix(noise(0.07, 0.35, 3.0, 2500), tone(0.22, 620, 180, W.TRI, 0.45)))
-	# спичка: чирк по коробку + вспышка серы
-	var scratch := am(noise(0.14, 0.55, 0.5, 6000, 1800), 90.0, 0.7, true)
-	_bank["match"] = to_stream(seq([scratch, mix(noise(0.55, 0.4, 1.6, 3000, 400), tone(0.5, 180, 90, W.SINE, 0.12))]))
-	# воспламенение: глухое «вух» с нарастанием и треском сверху
-	var whoomp := noise(1.8, 0.8, 1.3, 500, 0.0, 0.18)
-	whoomp = mix(whoomp, tone(1.6, 70, 35, W.SINE, 0.55, 0.0, 1.3))
-	for i in 10:
-		whoomp = mix_at(whoomp, _pop(randf_range(0.01, 0.03), randf_range(0.15, 0.35), 1200, 5000), randf_range(0.15, 1.3))
-	_bank["ignite"] = to_stream(whoomp, false, -2.0)
-	_bank["crackle"] = to_stream(seq([_pop(0.02, 0.4, 1500, 4500), silence(0.05), _pop(0.015, 0.3, 1800, 5000)]), false, -3.0)
-	# горение: шипение и потрескивание
-	var sizzle := noise(1.3, 0.22, 1.0, 5000, 2000, 0.1)
-	sizzle = mix(sizzle, noise(1.3, 0.35, 1.4, 600))
-	for i in 12:
-		sizzle = mix_at(sizzle, _pop(randf_range(0.01, 0.025), randf_range(0.2, 0.45), 1500, 6000), randf_range(0.0, 1.1))
-	_bank["burn"] = to_stream(sizzle, false, -3.0)
 	_bank["hiya"] = to_stream(seq([tone(0.05, 500, 900, W.SQUARE, 0.18), tone(0.16, 900, 700, W.SAW, 0.2, 0.1, 1.2)]))
 	_bank["kick"] = to_stream(mix(noise(0.1, 0.45, 3.0, 2200), tone(0.25, 260, 60, W.SINE, 0.8, 0.0, 1.8)), false, -4.0)
 	_bank["needle"] = to_stream(mix(tone(0.16, 2400, 1500, W.SINE, 0.18), _whoosh(0.1, 0.12, 3000, 8000)))
 	_bank["snake_shot"] = to_stream(seq([noise(0.03, 0.3, 3.0, 4000), tone(0.08, 700, 1100, W.TRI, 0.3)]))
 	_bank["spin"] = to_stream(mix(_whoosh(0.35, 0.4, 400, 2500), tone(0.35, 200, 600, W.TRI, 0.22)))
-	# шаг учёного по кафелю: щелчок каблука и мягкий шлепок подошвы — без гула в басах
-	var heel := mix(_pop(0.03, 0.2, 500, 2600), tone(0.06, 150, 110, W.SINE, 0.14, 0.0, 3.0))
-	_bank["step"] = to_stream(mix_at(heel, noise(0.09, 0.07, 2.5, 1500, 250), 0.045))
 	_bank["power"] = to_stream(_notes([523, 659, 784, 1047], 0.06, W.SQUARE, 0.16, 0.18))
 	_bank["no_stamina"] = to_stream(tone(0.25, 220, 140, W.TRI, 0.25, 0.2, 1.2))
-	# гром: резкий треск и долгий раскат с «биением»
-	var crack := noise(0.3, 0.6, 4.0, 5000, 1200)
-	var rumble := am(noise(3.2, 0.9, 1.3, 170, 0.0, 0.25), 7.0, 0.6, true)
-	rumble = lowpass(rumble, 220)
-	_normalize(rumble, 0.9)
-	_bank["thunder"] = to_stream(mix(mix(crack, rumble), tone(2.5, 48, 30, W.SINE, 0.5, 0.0, 1.4)), false, -1.5)
 
 	# ----- новые звуки v5.0
 	_bank["clang"] = to_stream(mix(_metal([523, 1187, 1873, 2711], 0.7, 0.4), noise(0.05, 0.2, 3.0, 5500, 2000)), false, -5.0)
@@ -127,19 +83,6 @@ func build_sounds() -> Dictionary:
 	_bank["perk"] = to_stream(_notes([523, 659, 784, 1047, 1319], 0.07, W.SQUARE, 0.14, 0.35))
 	_bank["stage_clear"] = to_stream(_notes([523, 659, 784, 659, 784, 1047], 0.1, W.TRI, 0.38, 0.5))
 	_bank["scale"] = to_stream(seq([tone(0.05, 1400, 1400, W.SINE, 0.3, 0.0, 0.5), tone(0.14, 2100, 2100, W.SINE, 0.3, 0.0, 1.5)]))
-	_bank["scribble"] = to_stream(_pen(1.4))
-	_bank["stamp"] = to_stream(mix(noise(0.08, 0.6, 3.0, 1200), tone(0.22, 150, 55, W.SINE, 0.75, 0.0, 2.0)), false, -4.0)
-	# огнетушитель: щелчок клапана, толчок газа и ровная мягкая струя с лёгкой турбулентностью
-	var jet := am(noise(2.0, 0.3, 0.6, 3200, 350, 0.08), 6.0, 0.18)
-	jet = mix(jet, noise(2.0, 0.2, 0.8, 700, 110, 0.12))
-	var valve := mix(_pop(0.015, 0.25, 700, 3500), tone(0.05, 170, 120, W.SINE, 0.15, 0.0, 3.0))
-	_bank["extinguisher"] = to_stream(mix(jet, valve))
-	_bank["lamp_click"] = to_stream(mix(noise(0.03, 0.4, 4.0, 0.0, 2500), tone(0.03, 1600, 1500, W.SINE, 0.2, 0.0, 4.0)))
-	var hatch := silence(0.9)
-	for i in 3:
-		hatch = mix_at(hatch, _pop(0.03, 0.35, 1000, 4500), 0.05 + i * 0.22)
-	hatch = mix_at(hatch, tone(0.12, 1300, 1900, W.SINE, 0.25, 0.0, 1.5), 0.75)
-	_bank["hatch"] = to_stream(hatch)
 
 	# ----- звуки интерфейса: дизайн-язык 2.0, всё — механика прибора
 	# защёлка клавиши-вкладки: металлический язычок и щелчок
@@ -180,11 +123,6 @@ func build_sounds() -> Dictionary:
 	_bank["fork_pogo"] = to_stream(mix(spring, _whoosh(0.35, 0.2, 400, 2000)))
 	_bank["fork_thud"] = to_stream(mix(mix(tone(0.3, 95, 40, W.SINE, 0.8, 0.0, 2.2), lowpass(noise(0.12, 0.5, 3.0), 1200)),
 		_metal([740, 1460], 0.45, 0.12)), false, -4.0)
-	# плавление: шипение с каплями
-	var melt := noise(1.1, 0.2, 0.8, 4500, 1500, 0.15)
-	for i in 7:
-		melt = mix_at(melt, tone(0.06, randf_range(500, 900), randf_range(250, 400), W.SINE, 0.25, 0.0, 3.0), randf_range(0.05, 0.95))
-	_bank["melt"] = to_stream(melt)
 
 	# ----- матрёшки v9.0: всё деревянное и лакированное
 	# раскрылась: пустотелый «чпок» — щелчок шва и гулкое дерево внутри
@@ -206,9 +144,9 @@ func build_sounds() -> Dictionary:
 	# ----- «Контакт» v10.0
 	# шипение змеи: высокий шум с нарастанием и дрожью языка
 	_bank["hiss"] = to_stream(am(noise(0.75, 0.3, 0.6, 9000, 3200, 0.3), 18.0, 0.25), false, -4.0)
-	# выстрел: сухой хлопок, короткий низкий удар и хвост эха
-	var bang := mix(noise(0.05, 0.9, 5.0, 6000), tone(0.16, 150, 45, W.SINE, 0.8, 0.0, 2.5))
-	_bank["gunshot"] = to_stream(mix_at(bang, lowpass(noise(0.45, 0.22, 1.6), 1400), 0.03), false, -2.0)
-	# рикошет: свист пули, уходящий вниз, и звон
-	_bank["ricochet"] = to_stream(mix(tone(0.35, 2600, 900, W.SINE, 0.18, 0.0, 1.2), _pop(0.02, 0.3, 2000, 7000)), false, -6.0)
+	# ----- лаборатория (v11.2): фоли-звуки на 44,1 кГц — шаги, часы, спичка, гром, огонь, огнетушитель,
+	# штамп, выключатель, скорлупа, выстрел, рикошет и дождь по окну (foley.gd)
+	var fol := Foley.new().build()
+	_bank.merge(fol, true)
+	built_count += fol.size()
 	return _bank

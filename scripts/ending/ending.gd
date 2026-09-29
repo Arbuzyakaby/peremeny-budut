@@ -98,14 +98,16 @@ var in_dark := false
 var tw_flare: Tween
 var crackle_t := 0.0
 var crackles := 0  # сколько раз трещало (тесты)
-## Тушение: учёный держит рычаг не меньше SPRAY_MIN и дальше — пока не погаснет пламя (fire.spraying),
-## но не дольше SPRAY_MAX (баллон ОУ-5 пустеет примерно за 8 с).
+## Тушение: один проход струёй (fire.spraying) — не меньше SPRAY_MIN и не дольше SPRAY_MAX секунд.
 const SPRAY_MIN := 3.0
-const SPRAY_MAX := 8.5
+const SPRAY_MAX := 4.0
 var spray_t := -1.0
-## Кошма: сколько ждать под ней, пока пламя не задохнётся.
-const BLANKET_MAX := 8.0
-var blanket_t := -1.0
+## Гроза за окном (v11.2): изредка вдали сверкает — отсвет в окне и на стенах, а раскат приходит позже:
+## свет долетает мгновенно, звук — со скоростью 343 м/с (молния в километре — гром через 3 с).
+const STORM_EVERY := Vector2(9.0, 18.0)
+const STORM_KM := Vector2(0.8, 2.6)
+const SOUND_SPEED := 343.0
+var storm_t := 7.0
 ## Финал продолжается «Контактом»: после вылупления — пересадка, фальшивое меню, технический режим.
 var to_contact := false
 var transfer: Transfer
@@ -153,6 +155,7 @@ func start(g) -> void:
 	snake.auto_speed = 80.0
 	hud.set_cinematic(true)
 	sfx.play_music("sad")
+	sfx.play_room("rain", -17.0, 4.0)  # за окном лаборатории дождь — теперь его слышно
 
 	tw = create_tween()
 	tw.tween_interval(0.8)
@@ -283,6 +286,28 @@ func _thunder_drop() -> void:
 	t2.tween_property(lab, "startle", 0.0, 1.2)
 
 
+## Дальняя молния: двойная вспышка (отсвет, без разряда в окне) и раскат через d / 343 м/с —
+## тем тише и глуше, чем дальше. Не мешает сюжетным моментам: выбору со спичкой и первой вспышке.
+func _update_storm(delta: float) -> void:
+	if lab == null or waiting_choice or (fire and fire.active and fire.t < 2.0):
+		return
+	storm_t -= delta
+	if storm_t > 0.0:
+		return
+	storm_t = randf_range(STORM_EVERY.x, STORM_EVERY.y)
+	var km := randf_range(STORM_KM.x, STORM_KM.y)
+	var k := (km - STORM_KM.x) / (STORM_KM.y - STORM_KM.x)
+	var flick := create_tween()
+	flick.tween_callback(func() -> void: lab.flash = maxf(lab.flash, lerpf(0.45, 0.25, k)))
+	flick.tween_interval(0.12)
+	flick.tween_callback(func() -> void: lab.flash = maxf(lab.flash, lerpf(0.35, 0.18, k)))
+	var rumble := create_tween()
+	rumble.tween_interval(km * 1000.0 / SOUND_SPEED)
+	rumble.tween_callback(func() -> void:
+		if not done:
+			sfx.play("thunder", lerpf(1.0, 0.8, k), lerpf(-8.0, -16.0, k)))
+
+
 func _end_choice(what: String) -> void:
 	waiting_choice = false
 	choice = what
@@ -364,20 +389,8 @@ func _process(delta: float) -> void:
 		foam.direction = (fire.aim - foam.position).normalized()  # раструб следит за очагом
 		if (spray_t >= SPRAY_MIN and not fire.spraying) or spray_t >= SPRAY_MAX:
 			spray_t = -1.0
-			if fire.sim.burning_cells > 0:  # баллон пуст, а ящик ещё горит: накрыть кошмой
-				fire.stop_extinguisher()
-				foam.emitting = false
-				lab.spraying = false
-				fire.cover(true)
-				_say("Кошму. Без кислорода не погорит.", 2.0)
-				blanket_t = 0.0
-			else:
-				_after_spray()
-	if blanket_t >= 0.0:
-		blanket_t += delta
-		if (blanket_t >= 1.0 and fire.sim.burning_cells == 0) or blanket_t >= BLANKET_MAX:
-			blanket_t = -1.0
 			_after_spray()
+	_update_storm(delta)
 	if lab and lab.walking:
 		step_t -= delta
 		if step_t <= 0.0:
@@ -481,10 +494,7 @@ func _after_spray() -> void:
 		tick_t = 0.6)
 	tw_end.tween_property(darkness, "color", Color(0.26, 0.28, 0.42), 0.25)
 	tw_end.tween_interval(1.2)
-	tw_end.tween_callback(func() -> void:
-		lab.walking = true
-		if fire.blanket > 0.0:  # уходя, учёный забирает кошму — ящик уже остыл
-			fire.cover(false, 1.0))
+	tw_end.tween_callback(func() -> void: lab.walking = true)
 	tw_end.tween_property(lab, "sx", Lab.OUTSIDE_X + 200.0, 4.0)
 	tw_end.parallel().tween_property(lab, "hand", Vector2(Lab.OUTSIDE_X - 360, 700), 4.0)
 	tw_end.tween_callback(func() -> void: lab.walking = false)
@@ -575,6 +585,7 @@ func _hatch() -> void:
 
 ## Пересадка в новый ящик (v10.0) — дальше «Контакт».
 func _transfer() -> void:
+	sfx.stop_room(2.0)
 	transfer = Transfer.new()
 	add_child(transfer)
 	transfer.done.connect(_finish)
@@ -636,8 +647,6 @@ func skip() -> void:
 	lab.hand = Vector2(Lab.STAND_X - 560, 700)
 	lab.glow = 1.0
 	fire.fill_instantly()
-	if fire.blanket > 0.0:  # пропуск под кошмой — пепелище видно
-		fire.cover(false, 0.01)
 	snake.alive = false
 	snake.burnt = 1.0
 	snake_burnt = true
@@ -647,7 +656,6 @@ func skip() -> void:
 	if transfer:
 		transfer.queue_free()
 	spray_t = -1.0
-	blanket_t = -1.0
 	_finish()
 
 
@@ -655,6 +663,8 @@ func _finish() -> void:
 	if done:
 		return
 	done = true
+	if is_instance_valid(sfx):
+		sfx.stop_room(1.5)
 	Design.panic = 0.0
 	finished.emit()
 
@@ -667,10 +677,13 @@ func cleanup() -> void:
 	Design.panic = 0.0
 	if is_instance_valid(sfx):
 		sfx.stop_ambient(0.3)
+		sfx.stop_room(0.3)
 	queue_free()
 
 
 func _exit_tree() -> void:
 	Design.panic = 0.0  # выход в меню посреди пожара — интерфейс не должен остаться в панике
+	if is_instance_valid(sfx) and sfx.room_player:
+		sfx.room_player.stop()
 	if is_instance_valid(sfx) and sfx.music_player:
 		sfx.music_player.stream_paused = false

@@ -4,6 +4,7 @@ extends "res://tests/test_case.gd"
 const Sfx = preload("res://scripts/audio/sfx.gd")
 const SoundBank = preload("res://scripts/audio/sound_bank.gd")
 const SynthMusic = preload("res://scripts/audio/synth_music.gd")
+const Synth = preload("res://scripts/audio/synth.gd")
 
 
 func _samples(s: AudioStreamWAV) -> PackedFloat32Array:
@@ -32,6 +33,14 @@ func test_no_clipping_and_no_end_clicks() -> void:
 		for v in buf:
 			peak = maxf(peak, absf(v))
 		assert_true(peak <= 0.95, "%s: пик %.2f" % [name, peak])
+		if (Sfx.sounds[name] as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED:
+			# петля (дождь): конец не глохнет, а стыкуется с началом без скачка
+			var jump := 0.0
+			for i in range(1, buf.size()):
+				jump = maxf(jump, absf(buf[i] - buf[i - 1]))
+			var seam := absf(buf[buf.size() - 1 - Synth.LOOP_GUARD] - buf[0])
+			assert_true(seam <= jump + 0.001, "%s: шов петли (%.3f)" % [name, seam])
+			continue
 		var tail := 0.0
 		for i in range(maxi(buf.size() - 8, 0), buf.size()):
 			tail = maxf(tail, absf(buf[i]))

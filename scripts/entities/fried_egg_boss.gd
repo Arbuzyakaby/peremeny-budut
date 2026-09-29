@@ -28,7 +28,6 @@ signal defeated
 
 const Snake = preload("res://scripts/entities/snake.gd")
 const Tex = preload("res://scripts/gfx/tex.gd")
-const OilFilm = preload("res://scripts/entities/oil_film.gd")
 const Design = preload("res://scripts/ui/design.gd")
 
 enum Act { IDLE, TELL, RING, WINDUP, CHARGE, AIMED, SPIRAL, JUMP, FALL, PEPPER, SIZZLE, YOLK_OPEN, DAZED, HIT, ROAR, DEAD }
@@ -92,10 +91,7 @@ var habit_dist := 300.0
 var habit_orbit := 0.0
 var head_vel := Vector2.ZERO
 var _prev_head := Vector2.INF
-## Горящие лужи масла: {pos, t (с рождения), r — радиус, до которого лужа растечётся}. Горят после
-## PUDDLE_TELL, гаснут после PUDDLE_BURN. Растекание, нагрев и пламя — по физике масла (oil_film.gd):
-## лужа растекается вязким течением, греется сковородой, дымит с 230 °C и вспыхивает с 340 °C —
-## как раз к концу телеграфа.
+## Горящие лужи масла: {pos, t (с рождения), r}. Горят после PUDDLE_TELL, гаснут после PUDDLE_BURN.
 var puddles: Array[Dictionary] = []
 var stats := {"orbit": 0, "far": 0, "close": 0, "daze_wall": 0, "daze_slam": 0, "puddles": 0}
 var lace: Array[Vector3] = []     # хрустящее кружево по краю: угол, радиус, размер
@@ -483,11 +479,6 @@ func add_puddle(at: Vector2) -> void:
 	stats["puddles"] += 1
 
 
-## Текущий радиус лужи, px: она ещё растекается (Хапперт), но не шире своего предела.
-static func puddle_radius(pd: Dictionary) -> float:
-	return float(OilFilm.state(float(pd["r"]), float(pd["t"]))["r_px"])
-
-
 static func puddle_burning(pd: Dictionary) -> bool:
 	return float(pd["t"]) >= PUDDLE_TELL and float(pd["t"]) < PUDDLE_TELL + PUDDLE_BURN
 
@@ -500,7 +491,7 @@ func _update_puddles(delta: float, snake: Snake) -> void:
 			puddles.remove_at(i)
 			continue
 		if active and act != Act.DEAD and snake and snake.alive and puddle_burning(pd) \
-				and snake.head_pos.distance_to(pd["pos"]) < puddle_radius(pd) * 0.8:
+				and snake.head_pos.distance_to(pd["pos"]) < float(pd["r"]) * 0.8:
 			if snake.take_damage(1, "oil"):
 				snake.slow(0.8)
 
@@ -798,40 +789,25 @@ func _draw_tell() -> void:
 func _draw_puddles() -> void:
 	for pd in puddles:
 		var c: Vector2 = pd["pos"] - position
+		var r: float = pd["r"]
 		var tt: float = pd["t"]
-		var st := OilFilm.state(float(pd["r"]), tt)
-		var r: float = st["r_px"]
-		if tt < PUDDLE_TELL:  # масло растекается и греется: блестит, пузырится, с 230 °C дымит
+		if tt < PUDDLE_TELL:  # масло легло, пузырится — ещё не горит
 			var k := tt / PUDDLE_TELL
-			var hot := clampf((float(st["temp"]) - OilFilm.T_SPIT) / (OilFilm.T_FIRE - OilFilm.T_SPIT), 0.0, 1.0)
-			draw_circle(c, r, Color(0.55, 0.38, 0.08, 0.45).lerp(Color(0.45, 0.25, 0.05, 0.55), hot))
-			draw_arc(c + Vector2(-r * 0.3, -r * 0.3), r * 0.5, 3.6, 4.6, 8, Color(1, 0.95, 0.75, 0.5), 2.0)  # блик
-			Design.draw_tell_ring(self, c, float(pd["r"]), Design.Tell.AREA, k)
+			draw_circle(c, r * (0.6 + 0.4 * k), Color(0.55, 0.38, 0.08, 0.45))
+			Design.draw_tell_ring(self, c, r, Design.Tell.AREA, k)
 			for i in 4:
 				var bp := c + Vector2.from_angle(i * 1.6 + tt * 3.0) * r * 0.45
 				draw_arc(bp, 3.0 + 3.0 * fmod(tt * 2.0 + i * 0.3, 1.0), 0, TAU, 8, Color(1, 0.9, 0.6, 0.6), 1.2)
-			if st["smoking"]:  # точка дымления: сизый дымок
-				for i in 3:
-					var ph := fmod(tt * 1.5 + i * 0.33, 1.0)
-					Tex.blob(self, c + Vector2(sin(i * 2.1 + tt) * r * 0.3, -ph * 40.0), Vector2.ONE * (8.0 + 12.0 * ph),
-						Color(0.8, 0.82, 0.88, 0.3 * (1.0 - ph)))
 			continue
 		var fade := 1.0 - clampf((tt - PUDDLE_TELL - PUDDLE_BURN) / 0.4, 0.0, 1.0)
 		draw_circle(c, r, Color(0.3, 0.16, 0.04, 0.7 * fade))
 		Tex.blob(self, c, Vector2.ONE * r * 1.25, Color(1.0, 0.45, 0.08, 0.35 * fade))
-		# пламя: высота по Хескестаду (в виде сверху укорочена), пульсации 1,5/√D
-		var fl0 := clampf(float(st["flame_m"]) / OilFilm.PX_M * 0.06, 8.0, 34.0)
-		var ph0 := tt * TAU * float(st["puff_hz"])
-		for i in 7:  # язычки пламени на масле: у основания синие, выше — жёлтые от сажи
+		for i in 7:  # язычки пламени на масле
 			var a := i * TAU / 7.0 + seeds[i % 3]
 			var fp := c + Vector2.from_angle(a) * r * 0.55
-			var fl := fl0 * (0.85 + 0.15 * sin(ph0 + i * 0.9))
-			var sway := sin(ph0 * 0.5 + i) * 3.0
-			var tongue := PackedVector2Array([fp + Vector2(-6, 0), fp + Vector2(6, 0), fp + Vector2(sway, -fl)])
-			draw_colored_polygon(tongue, Color(1.0, 0.62, 0.15, 0.85 * fade))
-			var core := PackedVector2Array([fp + Vector2(-3, 0), fp + Vector2(3, 0), fp + Vector2(sway * 0.5, -fl * 0.45)])
-			draw_colored_polygon(core, Color(1.0, 0.92, 0.55, 0.9 * fade))
-			draw_line(fp + Vector2(-5, 0), fp + Vector2(5, 0), Color(0.35, 0.5, 1.0, 0.7 * fade), 2.0)
+			var fl := 10.0 + 8.0 * sin(t * 12.0 + i * 2.0)
+			var tongue := PackedVector2Array([fp + Vector2(-6, 0), fp + Vector2(6, 0), fp + Vector2(sin(t * 9.0 + i) * 3.0, -fl)])
+			draw_colored_polygon(tongue, Color(1.0, 0.6 + 0.2 * sin(t * 7.0 + i), 0.15, 0.85 * fade))
 		draw_arc(c, r, 0, TAU, 28, Color(1, 0.35, 0.05, 0.6 * fade), 2.0)
 
 

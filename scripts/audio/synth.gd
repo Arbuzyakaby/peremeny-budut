@@ -7,6 +7,8 @@ extends RefCounted
 enum W { SINE, SQUARE, SAW, TRI, NOISE }
 
 const SR := 22050
+## Частота дискретизации этого синтезатора: по умолчанию SR, звуки лаборатории (foley.gd) — 44 100 Гц.
+var sr := SR
 
 const LOOP_GUARD := 8
 
@@ -18,14 +20,14 @@ var built_count := 0
 
 func tone(dur: float, f0: float, f1: float, wave: int, vol: float,
 		noise_mix := 0.0, decay_pow := 2.0) -> PackedFloat32Array:
-	var n := int(dur * SR)
+	var n := int(dur * sr)
 	var out := PackedFloat32Array()
 	out.resize(n)
 	var ph := 0.0
-	var attack := 0.004 * SR
+	var attack := 0.004 * sr
 	for i in n:
 		var k := float(i) / n
-		var dt := lerpf(f0, f1, k) / SR
+		var dt := lerpf(f0, f1, k) / sr
 		ph = fmod(ph + dt, 1.0)
 		var v := _wave(wave, ph, dt)
 		if noise_mix > 0.0:
@@ -36,7 +38,7 @@ func tone(dur: float, f0: float, f1: float, wave: int, vol: float,
 
 ## Шум через фильтры. Перед огибающей нормализуется, поэтому громкость не зависит от фильтра.
 func noise(dur: float, vol: float, decay_pow := 2.0, lp := 0.0, hp := 0.0, swell := 0.0) -> PackedFloat32Array:
-	var n := int(dur * SR)
+	var n := int(dur * sr)
 	var raw := PackedFloat32Array()
 	raw.resize(n)
 	for i in n:
@@ -46,7 +48,7 @@ func noise(dur: float, vol: float, decay_pow := 2.0, lp := 0.0, hp := 0.0, swell
 	if hp > 0.0:
 		raw = highpass(raw, hp)
 	_normalize(raw, 1.0)
-	var attack := maxf(0.004, swell) * SR
+	var attack := maxf(0.004, swell) * sr
 	for i in n:
 		var k := float(i) / n
 		var env := minf(i / attack, 1.0)
@@ -86,7 +88,7 @@ func _blep(t: float, dt: float) -> float:
 # ---------------------------------------------------------------- обработка
 
 func lowpass(buf: PackedFloat32Array, cutoff: float) -> PackedFloat32Array:
-	var a := 1.0 - exp(-TAU * cutoff / SR)
+	var a := 1.0 - exp(-TAU * cutoff / sr)
 	var y := 0.0
 	var out := buf.duplicate()
 	for i in out.size():
@@ -127,11 +129,11 @@ func am(buf: PackedFloat32Array, rate: float, depth: float, jitter := false) -> 
 		if jitter:
 			hold -= 1
 			if hold <= 0:
-				hold = int(SR / rate * randf_range(0.5, 1.5))
+				hold = int(sr / rate * randf_range(0.5, 1.5))
 				lvl = randf_range(1.0 - depth, 1.0)
 			out[i] *= lvl
 		else:
-			out[i] *= 1.0 - depth * (0.5 + 0.5 * sin(TAU * rate * i / SR))
+			out[i] *= 1.0 - depth * (0.5 + 0.5 * sin(TAU * rate * i / sr))
 	return out
 
 
@@ -148,7 +150,7 @@ func mix(a: PackedFloat32Array, b: PackedFloat32Array) -> PackedFloat32Array:
 
 ## Наложить b на a со смещением (сек).
 func mix_at(a: PackedFloat32Array, b: PackedFloat32Array, offset: float) -> PackedFloat32Array:
-	var off := int(offset * SR)
+	var off := int(offset * sr)
 	var out := a.duplicate()
 	if out.size() < off + b.size():
 		out.resize(off + b.size())
@@ -159,7 +161,7 @@ func mix_at(a: PackedFloat32Array, b: PackedFloat32Array, offset: float) -> Pack
 
 func silence(dur: float) -> PackedFloat32Array:
 	var out := PackedFloat32Array()
-	out.resize(int(dur * SR))
+	out.resize(int(dur * sr))
 	return out
 
 
@@ -176,7 +178,7 @@ func to_stream(buf: PackedFloat32Array, loop := false, gain_db := 0.0) -> AudioS
 		for i in buf.size():
 			buf[i] *= g
 	if not loop:  # фейд в конце — без щелчка
-		var f := mini(int(0.006 * SR), buf.size())
+		var f := mini(int(0.006 * sr), buf.size())
 		for i in f:
 			buf[buf.size() - 1 - i] *= float(i) / f
 	var bytes := PackedByteArray()
@@ -185,7 +187,7 @@ func to_stream(buf: PackedFloat32Array, loop := false, gain_db := 0.0) -> AudioS
 		bytes.encode_s16(i * 2, int(clampf(buf[i], -1.0, 1.0) * 32767.0))
 	var s := AudioStreamWAV.new()
 	s.format = AudioStreamWAV.FORMAT_16_BITS
-	s.mix_rate = SR
+	s.mix_rate = sr
 	s.stereo = false
 	s.data = bytes
 	if loop:
@@ -199,7 +201,7 @@ func to_stream(buf: PackedFloat32Array, loop := false, gain_db := 0.0) -> AudioS
 
 ## Бесшовная петля: хвост плавно переходит в начало.
 func make_loop(buf: PackedFloat32Array, xfade: float) -> PackedFloat32Array:
-	var x := int(xfade * SR)
+	var x := int(xfade * sr)
 	var n := buf.size() - x
 	var out := buf.slice(0, n)
 	for i in x:
@@ -250,4 +252,4 @@ func build_fire_loop() -> AudioStreamWAV:
 			buf = mix_at(buf, _pop(randf_range(0.004, 0.018), randf_range(0.12, 0.5), randf_range(1200, 2500), randf_range(3500, 8000)), at)
 		else:  # хлопок покрупнее — лопается смола
 			buf = mix_at(buf, _pop(randf_range(0.02, 0.05), randf_range(0.3, 0.55), 250, 1400), at)
-	return to_stream(make_loop(buf.slice(0, int(total * SR)), 0.4), true)
+	return to_stream(make_loop(buf.slice(0, int(total * sr)), 0.4), true)

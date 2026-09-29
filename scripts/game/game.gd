@@ -23,7 +23,6 @@ const Design = preload("res://scripts/ui/design.gd")
 const Hud = preload("res://scripts/ui/hud.gd")
 const DevPanel = preload("res://scripts/ui/dev_panel.gd")
 const Sfx = preload("res://scripts/audio/sfx.gd")
-const Rebound = preload("res://scripts/audio/rebound/rebound.gd")
 const Tex = preload("res://scripts/gfx/tex.gd")
 const Ending = preload("res://scripts/ending/ending.gd")
 const Arena = preload("res://scripts/game/arena.gd")
@@ -91,7 +90,6 @@ var arena: Arena
 var camera: Camera2D
 var hud: Hud
 var sfx: Sfx
-var rebound: Rebound
 var dev_panel: DevPanel
 var snake: Snake
 var boss: FriedEggBoss
@@ -137,9 +135,6 @@ func _ready() -> void:
 	boss_fight = BossFight.new(self)
 	sfx = Sfx.new()
 	add_child(sfx)
-	rebound = Rebound.new()  # Audio Rebound: шина World с отражениями (после шины SFX — туда она отправляет звук)
-	rebound.game = self
-	add_child(rebound)
 	hud = Hud.new()
 	hud.sfx = sfx
 	add_child(hud)

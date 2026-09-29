@@ -79,7 +79,6 @@ var gas_oxy := PackedFloat32Array()   # 0..1 — кислород над кле�
 var burn_acc := PackedFloat32Array()  # сгоревшее топливо с прошлого шага газов
 var pyro_acc := PackedFloat32Array()  # разложившееся без пламени (белый дым)
 var flaming := PackedByteArray()      # клетка горит пламенем (пилот для соседей на следующем подшаге)
-var gas_ref: WeakRef  # gas_sim.gd — слабая ссылка: газы держат этот объект, обратная сильная дала бы цикл и утечку
 var time := 0.0
 ## Время первого воспламенения каждого материала (индекс — Mat, −1 — ещё не горел) и их порядок.
 var ignited_at := PackedFloat32Array()
@@ -327,7 +326,7 @@ func _substep(dt: float) -> void:
 		nt += _flux[i] * dt * (1.0 - foam[i])
 		# горение: выше самовоспламенения — всегда, выше пилотного — если рядом уже есть пламя
 		var f := fuel[i]
-		var ox := gas_oxy[i] if gas_coupled else oxy[i]
+		var ox := gas_oxy[i] * (1.0 - foam[i]) if gas_coupled else oxy[i]  # снег и облако CO₂ отрезают воздух
 		if gas_coupled:
 			oxy[i] = ox
 		var lit := false
@@ -360,7 +359,7 @@ func _substep(dt: float) -> void:
 		# пена: холодный слой отбирает тепло
 		if foam[i] > 0.0:
 			nt -= foam[i] * 900.0 * dt
-			foam[i] = maxf(foam[i] - (0.22 + maxf(t - AMBIENT, 0.0) / 800.0) * dt, 0.0)  # снег сублимирует (на горячем — быстрее), пена оседает
+			foam[i] = maxf(foam[i] - 0.22 * dt, 0.0)  # снег оседает, под ним — уголь и зола
 		_next[i] = clampf(nt, AMBIENT, MAX_T)
 		# копоть и окалина — только растут: скорлупа коптится, металл темнеет и раскаляется
 		if t > 180.0:
@@ -431,12 +430,6 @@ func _radiate() -> void:
 				continue
 			var up := 1.6 if o.y < 0 else (0.7 if o.y > 0 else 1.0)  # пламя тянется вверх
 			_flux[j] += power * up * (ti - tj) / float(o.z)
-
-
-## Средняя по ящику доля углекислого газа (0, если газы не подключены) — для скорости звука в Audio Rebound.
-func gas_co2_mean() -> float:
-	var g = gas_ref.get_ref() if gas_ref else null
-	return g.co2_mean() if g != null else 0.0
 
 
 ## Мгновенно довести пожар до конца: всё выгорело, осталась зола (пропуск финала).

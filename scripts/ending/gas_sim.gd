@@ -31,7 +31,7 @@ extends RefCounted
 
 const FireSim = preload("res://scripts/ending/fire_sim.gd")
 
-const PX_M := 0.00125          # метров в пикселе ящика (как в Audio Rebound)
+const PX_M := 0.00125          # метров в пикселе ящика
 const LAYER_H := 0.35          # столб газа над клеткой — вся высота ящика, м (ящик держит тяжёлый газ, как ведро)
 const BOX_H := 0.35            # высота бортиков, м
 const G := 9.81
@@ -108,9 +108,6 @@ var o2_used := 0.0                  # кг
 ## Огнетушитель: {"on", "left" (кг), "aim" (px), "from" (px)}.
 var spray := {"on": false, "left": CO2_CHARGE, "aim": Vector2.ZERO, "from": Vector2.ZERO}
 var co2_released := 0.0
-## Ящик накрыт противопожарным полотном (кошмой): 0 — открыт, 1 — воздух сверху не поступает.
-## Тогда пламя само съедает кислород ящика и гаснет, когда адиабатическая температура падает ниже 1600 К.
-var sealed := 0.0
 const SNOW_FLAKES := 40        # сколько кучек снега падает за шаг
 var _rng := RandomNumberGenerator.new()
 var jet_speed := PackedFloat32Array()  # скорость струи у дна, м/с (срыв пламени)
@@ -190,7 +187,7 @@ func flame_temp(c: int) -> float:
 	return minf(tg[c], T_REACT_MAX) + 273.15 + o2[c] * HUGGETT * ETA_AD / _cp_hot(c)
 
 
-## Средняя по ящику мольная доля CO₂ (для скорости звука в Audio Rebound).
+## Средняя по ящику мольная доля CO₂ (панель, отладка).
 func co2_mean() -> float:
 	var s := 0.0
 	for c in w * h:
@@ -461,7 +458,7 @@ func _vent(dt: float) -> void:
 		var buoy := maxf((rho0 - rho) / rho0, 0.0)
 		var heavy := maxf((rho - rho0) / rho0, 0.0)
 		# тяжёлый слой перемешивается с воздухом сверху слабо: устойчивая стратификация (большое число Ричардсона)
-		var lam := (VENT0 / (1.0 + 400.0 * heavy) + sqrt(2.0 * G * BOX_H * buoy) / BOX_H) * (1.0 - sealed)
+		var lam := (VENT0 / (1.0 + 400.0 * heavy) + sqrt(2.0 * G * BOX_H * buoy) / BOX_H)
 		var k := 1.0 - exp(-lam * dt)
 		o2[c] += (AIR_O2 - o2[c]) * k
 		co2[c] += (AIR_CO2 - co2[c]) * k

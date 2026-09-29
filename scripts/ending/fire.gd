@@ -255,22 +255,11 @@ var _puff := 3.0        # частота пульсаций, плавно дог
 var _puff_phase := 0.0
 var _rise := 0.0
 var _foam_time := 2.4
-## Огнетушитель: сначала проход струёй справа налево (_foam_time), затем струя наводится на оставшиеся
-## очаги — как учат на пожарно-техническом минимуме: «бить в основание пламени», — пока пламя не погаснет
-## (и ещё SPRAY_HOLD с) или не кончится заряд.
+## Огнетушитель (v11.1 — как в кино): один проход струёй справа налево за _foam_time секунд. За фронтом
+## струи ложится снег сухого льда и стелется облако CO₂ — пламя там гаснет сразу, без добивания очагов.
 var spraying := false
 var aim := Vector2(1250, 360)
-var _hold := 0.0
-const SPRAY_HOLD := 0.6
-var _rng := RandomNumberGenerator.new()  # выбор очагов (от сида пожара — повторяемо)
-const DWELL := 0.7         # с — сколько держать струю на очаге (сбить пламя и охладить)
-var _dwell := 0.0
-var _spot := Vector2(640, 360)
-const AIM_SPEED := 1200.0  # px/с — как быстро учёный переводит раструб
 var debris: Node2D
-## Противопожарное полотно (кошма) поверх ящика: 0 — нет, 1 — накрыт. Воздух сверху перекрыт (gas.sealed).
-var blanket := 0.0
-var blanket_node: Node2D
 var embers: CPUParticles2D
 var smoke: CPUParticles2D
 var steam: CPUParticles2D
@@ -288,16 +277,10 @@ func _ready() -> void:
 		layout = build_layout(sim, seed_value)
 	gas = GasSim.new(sim)
 	sim.gas_coupled = true
-	sim.gas_ref = weakref(gas)
-	add_to_group("fire_box")  # Audio Rebound слушает пол и воздух ящика
 	debris = Node2D.new()  # обломки лежат под змеёй, огонь — над ней
 	debris.z_index = -5
 	debris.draw.connect(_draw_debris)
 	add_child(debris)
-	blanket_node = Node2D.new()
-	blanket_node.z_index = 40
-	blanket_node.draw.connect(_draw_blanket)
-	add_child(blanket_node)
 
 
 ## Карта материалов: пол — масляная плёнка на чугунной сковороде, бортики — дерево, обломки битвы
@@ -431,8 +414,8 @@ func fill_instantly() -> void:
 	_upload()
 
 
-## Потушить за time секунд углекислотным огнетушителем: учёный ведёт струю справа налево по огню,
-## CO₂ вытесняет кислород (пламя гаснет по критерию Бейлера), снег сухого льда охлаждает, облако стелется.
+## Потушить за time секунд углекислотным огнетушителем: учёный проводит струю справа налево через весь ящик,
+## за фронтом — снег сухого льда и облако CO₂, пламя гаснет следом за струёй.
 func extinguish(time: float) -> void:
 	if not active:
 		return
@@ -440,11 +423,7 @@ func extinguish(time: float) -> void:
 	_foam_time = time
 	steam.emitting = true
 	spraying = true
-	_hold = SPRAY_HOLD
 	aim = Vector2(1250, 360)
-	_rng.seed = seed_value * 31 + 7
-	_spot = aim
-	_dwell = 0.0
 	var tw := create_tween()
 	tw.tween_property(self, "strength", 0.0, time).set_ease(Tween.EASE_IN)
 	tw.tween_callback(func() -> void:
@@ -540,63 +519,15 @@ func _process(delta: float) -> void:
 
 func _update_spray(delta: float) -> void:
 	_foam_t += delta
-	# учёный бьёт в основание пламени — туда, где горит, очаг за очагом: следующий очаг — один из
-	# ближайших горящих участков (кто первым попался на глаза), а не точка заранее заданной кривой.
-	# На погашенном месте струю держат DWELL с — пока оно не остынет, иначе уголь вспыхнет снова от соседей;
-	# в первые _foam_time секунд руку переводят быстрее — сбить пламя по всему фронту.
-	_dwell -= delta
-	if _dwell <= 0.0:
-		var spots: Array = []
-		for c in gas.w * gas.h:
-			if gas.hrr[c] > 1.0:
-				var p := sim.area.position + (Vector2(c % gas.w, c / gas.w) + Vector2(0.5, 0.5)) * sim.area.size / Vector2(gas.w, gas.h)
-				spots.append([p.distance_squared_to(aim), p])
-		if not spots.is_empty():
-			spots.sort_custom(func(x: Array, y: Array) -> bool: return x[0] < y[0])
-			var pick: Array = spots[_rng.randi_range(0, mini(7, spots.size() - 1))]
-			_spot = pick[1] + Vector2(_rng.randf_range(-20, 20), _rng.randf_range(-20, 20))
-		_dwell = DWELL * (0.5 if _foam_t <= _foam_time else 1.0) * _rng.randf_range(0.7, 1.3)
-	if sim.burning_cells > 0:
-		_hold = SPRAY_HOLD
-	else:
-		_hold -= delta
-	aim = aim.move_toward(_spot, AIM_SPEED * delta)
+	var k := clampf(_foam_t / _foam_time, 0.0, 1.0)
+	var front := lerpf(1400.0, -200.0, k * k * (3.0 - 2.0 * k))  # рука разгоняется и притормаживает
+	# пятно струи гуляет по высоте, как рука, — снег за фронтом ровный, поэтому след этого не повторяет
+	aim = Vector2(clampf(front, 30.0, 1250.0), 360.0 + sin(t * 2.7) * 150.0 + sin(t * 4.3 + 1.0) * 80.0)
 	gas.start_spray(aim + SPRAY_FROM, aim)
-	if _hold <= 0.0 or float(gas.spray["left"]) <= 0.0:
+	sim.add_foam(aim, 240.0, delta * 3.0)
+	sim.add_foam_rect(Rect2(front + 120.0, -20.0, 1400.0, 760.0), delta * 1.6)
+	if _foam_t > _foam_time + 0.3:
 		stop_extinguisher()
-
-
-## Накрыть ящик кошмой (on) или снять её. Воздух перекрывается сразу, полотно ложится за time секунд.
-func cover(on: bool, time := 0.6) -> void:
-	if gas:
-		gas.sealed = 1.0 if on else 0.0
-	var tw := create_tween()
-	tw.tween_method(func(k: float) -> void:
-		blanket = k
-		blanket_node.queue_redraw(), blanket, 1.0 if on else 0.0, time)
-
-
-## Кошма — плотное серо-бежевое полотно с провисшими складками, обшитым краем и нашивкой.
-func _draw_blanket() -> void:
-	if blanket <= 0.01:
-		return
-	var a := blanket
-	var r := AREA.grow(10.0)
-	r.size.y *= a  # ложится сверху вниз
-	blanket_node.draw_rect(r.grow(4.0), Color(0, 0, 0, 0.3 * a))
-	blanket_node.draw_rect(r, Color(0.62, 0.58, 0.5, a))
-	for i in 9:  # складки: провисает между бортиками
-		var x := r.position.x + r.size.x * (i + 0.5) / 9.0
-		blanket_node.draw_line(Vector2(x, r.position.y), Vector2(x + sin(i * 1.7) * 30.0, r.end.y),
-			Color(0.45, 0.42, 0.36, 0.5 * a), 10.0)
-		blanket_node.draw_line(Vector2(x + 14.0, r.position.y), Vector2(x + 14.0 + sin(i * 1.7) * 30.0, r.end.y),
-			Color(0.75, 0.71, 0.63, 0.35 * a), 4.0)
-	blanket_node.draw_rect(r, Color(0.35, 0.3, 0.25, a), false, 8.0)  # обшитый край
-	if a > 0.95:
-		var tag := Rect2(r.get_center() - Vector2(90, 30), Vector2(180, 60))
-		blanket_node.draw_rect(tag, Color(0.85, 0.15, 0.12, a))
-		blanket_node.draw_string(ThemeDB.fallback_font, tag.position + Vector2(18, 42), "КОШМА", HORIZONTAL_ALIGNMENT_LEFT,
-			-1, 34, Color(1, 1, 1, a))
 
 
 ## Учёный отпустил рычаг.

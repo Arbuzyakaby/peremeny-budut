@@ -27,7 +27,6 @@ const SCHEMA := [
 	{"key": "music", "tab": "sound", "kind": Kind.FLOAT, "default": 0.7, "label": "Музыка"},
 	{"key": "sfx", "tab": "sound", "kind": Kind.FLOAT, "default": 0.8, "label": "Звуковые эффекты"},
 	{"key": "ambient", "tab": "sound", "kind": Kind.FLOAT, "default": 0.8, "label": "Фоновые звуки (огонь, дождь)"},
-	{"key": "rebound", "tab": "sound", "kind": Kind.BOOL, "default": false, "label": "Audio Rebound: отражения звука"},
 	{"key": "mute_unfocused", "tab": "sound", "kind": Kind.BOOL, "default": true, "label": "Тишина, когда игра свёрнута"},
 	{"key": "vibration", "tab": "sound", "kind": Kind.BOOL, "default": true, "label": "Вибрация", "only": "mobile"},
 
@@ -184,7 +183,7 @@ static func set_value(key: String, v: Variant) -> void:
 	ensure_loaded()
 	values[key] = sanitize(key, v)
 	match key:
-		"master", "music", "sfx", "ambient", "rebound":
+		"master", "music", "sfx", "ambient":
 			apply_audio()
 		"fullscreen", "vsync", "fps_limit", "antialias":
 			apply_video()
@@ -217,16 +216,6 @@ static func apply_audio() -> void:
 	_set_bus("Music", num("music"))
 	_set_bus("SFX", num("sfx"))
 	_set_bus("Ambient", num("ambient"))
-	_set_rebound(flag("rebound"))
-
-
-## Audio Rebound: эффекты шины World (отражения) работают или обходятся. Шину создаёт rebound.gd.
-static func _set_rebound(on: bool) -> void:
-	var idx := AudioServer.get_bus_index("World")
-	if idx < 0:
-		return
-	for i in AudioServer.get_bus_effect_count(idx):
-		AudioServer.set_bus_effect_enabled(idx, i, on)
 
 
 static func _set_bus(bus_name: String, value: float) -> void:

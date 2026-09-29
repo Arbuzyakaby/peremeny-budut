@@ -29,9 +29,6 @@ const PRIORITY := ["win", "lose", "ignite", "extinguisher", "boss_down", "stage_
 	"hatch", "phase", "yolk", "perk", "match", "burn", "secret"]
 ## Звуки огня идут через шину Ambient — их вместе с петлёй пожара приглушает duck().
 const FIRE_SOUNDS := ["crackle", "burn"]
-## Игровые звуки идут через шину World (Audio Rebound: отражения от ящика и лаборатории, v11.0),
-## звуки интерфейса (ui_*) — сухими прямо в SFX.
-const WORLD_BUS := "World"
 ## Музыка 2.0: громкость основы и слоя напряжения (при intensity = 1 слой звучит как основа).
 const MUSIC_DB := -11.0
 const HI_SILENT_DB := -60.0
@@ -54,6 +51,9 @@ var intensity := 0.0         # цель 0..1
 var intensity_shown := 0.0   # плавно догоняет цель
 var ambient_player: AudioStreamPlayer
 var ambient_tween: Tween
+## Фон комнаты (v11.2): дождь по окну лаборатории — отдельно от петли пожара, под ней.
+var room_player: AudioStreamPlayer
+var room_tween: Tween
 var wanted_ambient := ""
 var ambient_db := -8.0
 var wanted_track := ""
@@ -91,6 +91,10 @@ func _ready() -> void:
 	ambient_player.volume_db = -60.0
 	ambient_player.bus = "Ambient"
 	add_child(ambient_player)
+	room_player = AudioStreamPlayer.new()
+	room_player.volume_db = -60.0
+	room_player.bus = "Ambient"
+	add_child(room_player)
 	AudioServer.set_bus_mute(0, muted)
 
 
@@ -223,20 +227,11 @@ func play(sound_name: String, pitch := 1.0, volume_db := 0.0) -> void:
 	started[idx] = now
 	voice_names[idx] = sound_name
 	p.stream = sounds[sound_name]
-	p.bus = bus_for(sound_name)
+	p.bus = "Ambient" if sound_name in FIRE_SOUNDS else "SFX"
 	p.pitch_scale = pitch * jitter_of(sound_name)
 	var vol_jitter := 0.0 if sound_name in NO_JITTER else randf_range(-JITTER_DB, JITTER_DB)
 	p.volume_db = -4.0 + volume_db + vol_jitter
 	p.play()
-
-
-## Шина звука: огонь — Ambient, интерфейс — SFX, остальное — World (если Audio Rebound её создал).
-static func bus_for(sound_name: String) -> String:
-	if sound_name in FIRE_SOUNDS:
-		return "Ambient"
-	if sound_name.begins_with("ui_") or AudioServer.get_bus_index(WORLD_BUS) < 0:
-		return "SFX"
-	return WORLD_BUS
 
 
 ## Случайный множитель высоты: мелодичные — ровно, щелчки прибора — ±5%, остальные — ±3%.
@@ -354,6 +349,30 @@ func set_ambient_volume(volume_db: float) -> void:
 	ambient_db = volume_db
 	if ambient_player.playing and (ambient_tween == null or not ambient_tween.is_running()):
 		ambient_player.volume_db = volume_db
+
+
+## Фон комнаты: зацикленный звук из банка (например, "rain") с плавным появлением.
+func play_room(sound_name: String, volume_db := -16.0, fade := 2.5) -> void:
+	if not sounds.has(sound_name):
+		return
+	if room_player.stream != sounds[sound_name] or not room_player.playing:
+		room_player.stream = sounds[sound_name]
+		room_player.volume_db = -50.0
+		room_player.play()
+	if room_tween:
+		room_tween.kill()
+	room_tween = create_tween()
+	room_tween.tween_property(room_player, "volume_db", volume_db, fade)
+
+
+func stop_room(fade := 1.5) -> void:
+	if not room_player.playing:
+		return
+	if room_tween:
+		room_tween.kill()
+	room_tween = create_tween()
+	room_tween.tween_property(room_player, "volume_db", -50.0, fade)
+	room_tween.tween_callback(room_player.stop)
 
 
 func stop_ambient(fade := 1.5) -> void:
