@@ -3,9 +3,11 @@ extends Node2D
 ## EnemyDirector (враги), Projectiles (снаряды и волны), Abilities (атаки змеи), BossFight (яичница),
 ## MenuDemo (фон меню), Fx (частицы и надписи), Arena (ящик), Hud (интерфейс).
 ## Этапы: 0 — медведи, 1 — ржавые вилки, 2 — прыгающие таблетки, 3 — терем матрёшек (v9.0),
-## 4 — гигантская яичница.
+## 4 — гигантская яичница. После финала (v10.0) — фальшивое меню и технический режим «Контакт»
+## (scripts/contact/): та же сцена, без перезагрузки; итоги обычного забега записываются до него.
 ## Отладка (аргументы после `--`): --stage=N, --diff=N, --ending, --autopilot, --dump-sfx, --skills,
-## --perks, --touch (сенсорный режим на ПК), --dev (открыть панель разработчика).
+## --perks, --touch (сенсорный режим на ПК), --dev (открыть панель разработчика), --contact,
+## --contact-finale, --fake-menu.
 
 const Balance = preload("res://scripts/core/balance.gd")
 const Combat = preload("res://scripts/core/combat.gd")
@@ -36,8 +38,10 @@ const Daily = preload("res://scripts/core/daily.gd")
 const Replay = preload("res://scripts/game/replay.gd")
 const Darkness = preload("res://scripts/game/darkness.gd")
 const Secrets = preload("res://scripts/core/secrets.gd")
+const ContactMode = preload("res://scripts/contact/contact_mode.gd")
+const FakeMenu = preload("res://scripts/contact/fake_menu.gd")
 
-enum State { LOADING, MENU, LEVEL, PERK, BOSS_INTRO, BOSS, OUTRO, CUTSCENE, WIN, GAME_OVER }
+enum State { LOADING, MENU, LEVEL, PERK, BOSS_INTRO, BOSS, OUTRO, CUTSCENE, WIN, GAME_OVER, FAKE_MENU, CONTACT }
 
 ## Самый длинный шаг симуляции за кадр. Перетаскивание окна, сворачивание или фризы дают кадр
 ## в секунды — без ограничения змея за один шаг улетает в бортик или проскакивает сквозь снаряды.
@@ -93,7 +97,11 @@ var hint_tween: Tween
 var daily: Dictionary = {}   # модификатор испытания дня (пусто — обычный забег)
 var replay := Replay.new()   # последние секунды — для повтора гибели
 var darkness: Darkness
-var args := {"stage": -1, "ending": false, "skills": false, "perks": false, "dev": false}
+var args := {"stage": -1, "ending": false, "skills": false, "perks": false, "dev": false, "contact": false,
+	"contact-finale": false, "fake-menu": false}
+var contact: ContactMode
+var fake_menu: FakeMenu
+var contact_report := {}  # итоги обычного забега перед «Контактом» (строки экрана итогов)
 var shot_frames: Array[int] = []  # --shots=30,90: снимки экрана на этих кадрах (проверка раскладки)
 
 
@@ -134,7 +142,10 @@ func _ready() -> void:
 	hud.menu_pressed.connect(restart.bind(false))
 	hud.records_reset.connect(_reset_records)
 	hud.perk_chosen.connect(_on_perk)
-	hud.attack_pressed.connect(_try_attack)
+	hud.attack_pressed.connect(_try_attack.bind("touch"))
+	hud.contact_chosen.connect(func() -> void:
+		if state == State.MENU:
+			start_contact())
 	hud.skip_pressed.connect(_skip_ending)
 	hud.dev_toggled.connect(func() -> void: dev_panel.toggle())
 	hud.secret_found.connect(found_secret)
@@ -162,7 +173,13 @@ func _ready() -> void:
 
 func _boot() -> void:
 	sfx.play_music("level")
-	if auto_start or args["stage"] >= 0 or args["ending"]:
+	if args["contact"] or args["contact-finale"]:
+		start_contact()
+		if args["contact-finale"]:
+			contact.debug_skip_to_finale()
+	elif args["fake-menu"]:
+		show_fake_menu()
+	elif auto_start or args["stage"] >= 0 or args["ending"]:
 		auto_start = false
 		start_game(difficulty)
 	else:
@@ -234,10 +251,11 @@ func _parse_args(user_args := OS.get_cmdline_user_args()) -> void:
 		elif a.begins_with("--settings-tab="):
 			args["settings"] = true
 			args["tab"] = int(a.get_slice("=", 1))
-		elif a in ["--ending", "--skills", "--perks", "--dev", "--settings"]:
+		elif a in ["--ending", "--skills", "--perks", "--dev", "--settings", "--contact", "--contact-finale", "--fake-menu"]:
 			args[a.trim_prefix("--")] = true
 	# --open=end/win/restart завершают забег с выдуманным счётом — это тоже отладка, не рекорд
-	debug_run = autopilot or args["stage"] >= 0 or args["ending"] or args.get("open", "") in ["end", "win", "restart"]
+	debug_run = autopilot or args["stage"] >= 0 or args["ending"] or args.get("open", "") in ["end", "win", "restart"] \
+		or args["contact"] or args["contact-finale"] or args["fake-menu"]
 
 
 # ---------------------------------------------------------------- меню и старт
@@ -465,16 +483,25 @@ func start_ending() -> void:
 	hud.set_boss(false)
 	ending = Ending.new()
 	add_child(ending)
-	ending.finished.connect(func() -> void:
-		hud.set_cinematic(false)
-		_end(true))
+	ending.finished.connect(_on_ending_finished)
 	ending.start(self)
+
+
+func _on_ending_finished() -> void:
+	hud.set_cinematic(false)
+	if ending.to_contact:
+		_to_contact()
+	else:
+		_end(true)
 
 
 var _skip_armed_ms := -1
 
 
 func _skip_ending() -> void:
+	if state == State.CONTACT and contact and contact.in_cutscene():
+		contact.skip()
+		return
 	if state != State.CUTSCENE or ending == null:
 		return
 	var now := Time.get_ticks_msec()
@@ -486,9 +513,14 @@ func _skip_ending() -> void:
 	ending.skip()
 
 
-func _try_attack() -> void:
-	if state in [State.LEVEL, State.BOSS] and not get_tree().paused:
+## Атака. В «Контакте» — встать на дыбы и заговорить; via — чем нажали (mouse, touch, keys).
+func _try_attack(via := "keys") -> void:
+	if get_tree().paused:
+		return
+	if state in [State.LEVEL, State.BOSS]:
 		abilities.use()
+	elif state == State.CONTACT and contact:
+		contact.talk(via)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -507,16 +539,26 @@ func _unhandled_input(event: InputEvent) -> void:
 			ending.choose_throw()  # тап по экрану на телефоне — тоже бросок
 		elif event is InputEventScreenTouch and event.pressed:
 			ending.choose_throw()
+	elif state == State.CONTACT and contact and contact.in_cutscene():
+		if event.is_action_pressed("pause"):
+			get_viewport().set_input_as_handled()
+			_skip_ending()
 	elif event.is_action_pressed("ability"):
 		# эмулированный из касания клик — не атака: для атаки есть кнопка
 		if event is InputEventMouseButton and event.device == InputEvent.DEVICE_ID_EMULATION:
 			return
-		_try_attack()
+		_try_attack("mouse" if event is InputEventMouseButton else "keys")
 
 
 func _end(win: bool) -> void:
 	if state in [State.WIN, State.GAME_OVER]:  # итоги уже подведены: второй раз рекорд не пишем
 		return
+	var res := _commit_run(win)
+	hud.show_end(win, "КОНЕЦ" if win else "", res["line"], res["rows"])
+
+
+## Подвести итоги забега: рекорд, чешуйки, серия испытаний. Возвращает строки экрана итогов.
+func _commit_run(win: bool) -> Dictionary:
 	state = State.WIN if win else State.GAME_OVER
 	if boss:
 		boss.active = false
@@ -544,9 +586,98 @@ func _end(win: bool) -> void:
 		scales_gained += streak_bonus
 	if scales_gained > 0 and not debug_run:
 		Skills.add_scales(scales_gained)
-	var rows := RunReport.rows(self, win, record, best)
-	var line := RunReport.headline(win)
-	hud.show_end(win, "КОНЕЦ" if win else "", line, rows)
+	return {"rows": RunReport.rows(self, win, record, best), "line": RunReport.headline(win)}
+
+
+# ---------------------------------------------------------------- «Контакт» (v10.0)
+
+## Финал закончился пересадкой: итоги забега записаны, сцена очищена — фальшивое меню.
+func _to_contact() -> void:
+	contact_report = _commit_run(true)
+	ending.cleanup()
+	ending = null
+	show_fake_menu()
+
+
+## Убрать с поля всё от прошлого забега: змею, врагов, снаряды, яичницу, камеру — на место.
+func _clear_world() -> void:
+	enemies.clear(false)
+	shots.clear()
+	if snake:
+		snake.queue_free()
+		snake = null
+	if boss:
+		boss.queue_free()
+		boss = null
+	if darkness:
+		darkness.queue_free()
+		darkness = null
+	camera.position = Balance.ARENA.get_center()
+	camera.zoom = Vector2.ONE
+	shake = 0.0
+
+
+func show_fake_menu() -> void:
+	_clear_world()
+	state = State.FAKE_MENU
+	arena.set_floor(Balance.STAGES[0]["floor"])
+	sfx.play_music("menu")
+	fake_menu = FakeMenu.new()
+	add_child(fake_menu)
+	fake_menu.done.connect(start_contact)
+	fake_menu.start(self)
+
+
+## Технический режим «Контакт»: новая змейка (образец №48), никаких навыков и жизней — смерти нет.
+func start_contact() -> void:
+	if fake_menu:
+		fake_menu.queue_free()
+		fake_menu = null
+	if menu_demo:
+		menu_demo.clear()
+		menu_demo = null
+	_clear_world()
+	state = State.CONTACT
+	cfg = Balance.difficulty(difficulty)
+	daily = {}
+	daily_mode = false
+	perks = {}
+	mods = Skills.mods(perks, true)
+	stage = 0
+	play_time = 0.0
+	snake = Snake.new()
+	snake.bounds = bounds
+	snake.z_index = 2
+	snake.small = 0.85
+	snake.length = 10
+	snake.max_lives = 1
+	snake.lives = 1
+	snake.safe = true
+	snake.reset(Vector2(640, 560))
+	world.add_child(snake)
+	hud.show_game("КОНТАКТ", Design.PLUM, 0)
+	hud.set_score(0)
+	hud.set_ability(-1, "", 0)
+	hud.set_dev_run(debug_run)
+	contact = ContactMode.new(self)
+	contact.start()
+
+
+## «Контакт» пройден: экран итогов — строки прошлого забега (если был) и строки режима.
+func contact_done(c: ContactMode) -> void:
+	state = State.WIN
+	hud.set_cinematic(false)
+	var secs := int(play_time)
+	var rows: Array = [
+		["Технический режим", "КОНТАКТ"],
+		["Убеждено", "%d  (медведей %d, вилок %d, таблеток %d, матрёшек %d, яичница)" % [c.convinced_total(),
+			c.counts["bear"], c.counts["fork"], c.counts["pill"], c.counts["doll"]]],
+		["Выжили", "змея и медведь-швея"],
+		["Время в «Контакте»", "%d:%02d" % [secs / 60, secs % 60]],
+	]
+	if not contact_report.is_empty():
+		rows = contact_report["rows"] + rows
+	hud.show_end(true, "КОНТАКТ", "Образец №48 договорился со всеми… кроме своего создателя.", rows)
 
 
 # ---------------------------------------------------------------- цикл
@@ -559,11 +690,12 @@ func _process(delta: float) -> void:
 	if snake:
 		var head_screen := get_viewport().get_canvas_transform() * snake.head_pos
 		hud.track_snake(snake.stamina, snake.exhausted, snake.shield, head_screen, play_time)
-		hud.pause_allowed = state in [State.LEVEL, State.BOSS_INTRO, State.BOSS]
+		hud.pause_allowed = state in [State.LEVEL, State.BOSS_INTRO, State.BOSS] \
+			or (state == State.CONTACT and contact != null and not contact.in_cutscene())
 		hud.pause_summary = "%s  •  этап %d: %s  •  счёт %d" % [cfg["name"], stage + 1, Balance.STAGES[stage]["short"], score]
 		snake.touch_steer = hud.touch.steer if hud.touch.active else Vector2.ZERO
 		snake.touch_sprint = hud.touch.active and hud.touch.sprint_held
-	if state in [State.LEVEL, State.BOSS_INTRO, State.BOSS]:
+	if state in [State.LEVEL, State.BOSS_INTRO, State.BOSS, State.CONTACT]:
 		play_time += delta
 		if snake and snake.alive:
 			replay.record(self, delta)
@@ -580,6 +712,9 @@ func _process(delta: float) -> void:
 		State.MENU:
 			if menu_demo:
 				menu_demo.update(delta)
+		State.CONTACT:
+			if contact:
+				contact.update(delta)
 		State.WIN, State.GAME_OVER, State.OUTRO, State.BOSS_INTRO, State.CUTSCENE:
 			if snake:
 				snake.update(delta)

@@ -369,6 +369,25 @@ func update(delta: float, head: Vector2, snake_alive: bool) -> void:
 	queue_redraw()
 
 
+## Технический режим «Контакт»: вилка семенит со скоростью want и смотрит на look (INF — по ходу).
+func calm_update(delta: float, want: Vector2, look := Vector2.INF) -> void:
+	t += delta
+	st = St.ROAM
+	slot = Vector2.INF
+	coop_tag = 0.0
+	shake = maxf(shake - delta * 3.0, 0.0)
+	tines_k = minf(tines_k + delta * 0.8, 1.0)
+	vel = vel.lerp(want, 3.0 * delta)
+	height = absf(sin(t * 9.0)) * 4.0 * clampf(vel.length() / 120.0, 0.0, 1.0)  # семенит
+	position += vel * delta
+	var inner := bounds.grow(-26.0)
+	position = position.clamp(inner.position, inner.end)
+	var face := look if look != Vector2.INF else position + vel
+	if face.distance_to(position) > 4.0:
+		rotation = rotate_toward(rotation, (face - position).angle(), 4.0 * delta)
+	queue_redraw()
+
+
 func _fire_tines() -> void:
 	var n: int = KINDS[kind]["tines"]
 	var count := n + (1 if aggr >= 1.5 else 0)

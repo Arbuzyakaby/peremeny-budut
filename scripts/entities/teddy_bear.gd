@@ -374,6 +374,24 @@ func _follow_order(delta: float, dist: float) -> bool:
 	return true
 
 
+## Технический режим «Контакт»: ни атак, ни бросков — медведь идёт со скоростью want и покачивается.
+func calm_update(delta: float, want: Vector2) -> void:
+	t += delta
+	st = St.ROAM
+	feint = false
+	fade = move_toward(fade, 1.0, delta * 3.0)
+	hit_flash = maxf(hit_flash - delta * 4.0, 0.0)
+	heal_glow = maxf(heal_glow - delta * 1.5, 0.0)
+	vel = vel.lerp(want, 4.0 * delta)
+	position += vel * delta
+	var inner := bounds.grow(-RADIUS - 4.0)
+	position = position.clamp(inner.position, inner.end)
+	wobble += delta * (6.0 + vel.length() * 0.05)
+	rotation = sin(wobble) * 0.18
+	modulate.a = fade
+	queue_redraw()
+
+
 func _recover(time: float) -> void:
 	st = St.RECOVER
 	st_t = time

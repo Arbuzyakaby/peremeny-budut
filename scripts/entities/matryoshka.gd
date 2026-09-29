@@ -221,6 +221,26 @@ func update(delta: float, head: Vector2, head_vel: Vector2, snake_alive: bool) -
 	queue_redraw()
 
 
+## Технический режим «Контакт»: без прыжков и хоровода — переваливается со скоростью want.
+func calm_update(delta: float, want: Vector2) -> void:
+	t += delta
+	st = St.ROAM
+	dancing = false
+	ribbon_to = null
+	order_pos = Vector2.INF
+	sync_jump = -1.0
+	coop_tag = 0.0
+	height = 0.0
+	squash = maxf(squash - delta * 3.0, 0.0)
+	hit_flash = maxf(hit_flash - delta * 3.0, 0.0)
+	vel = vel.lerp(want, 4.0 * delta)
+	position += vel * delta
+	var inner := bounds.grow(-radius() - 6.0)
+	position = position.clamp(inner.position, inner.end)
+	rock += delta * (3.0 + vel.length() * 0.05)
+	queue_redraw()
+
+
 ## Присесть перед прыжком. Точка приземления выбирается сейчас и больше не меняется — кольцо честное.
 func crouch(head: Vector2, head_vel: Vector2) -> void:
 	st = St.CROUCH

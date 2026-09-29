@@ -5,6 +5,7 @@ extends CanvasLayer
 
 signal difficulty_chosen(index: int)
 signal daily_chosen
+signal contact_chosen
 signal retry_pressed
 signal menu_pressed
 signal secret_found(id: String)
@@ -91,6 +92,7 @@ func _ready() -> void:
 	menu.settings_requested.connect(func() -> void: push(settings_screen))
 	menu.quit_requested.connect(quit)
 	menu.daily_requested.connect(daily_chosen.emit)
+	menu.contact_requested.connect(contact_chosen.emit)
 	menu.bestiary_requested.connect(func() -> void: push(bestiary_screen))
 	menu.secret_found.connect(secret_found.emit)
 	pause_screen = _screen(PauseScreen.new())

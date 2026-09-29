@@ -401,6 +401,15 @@ func _build_world(p: VBoxContainer) -> void:
 			game.state = game.State.OUTRO
 			game.start_ending()
 		toggle()))
+	g.add_child(_btn("КОНТАКТ", func() -> void:  # технический режим v10.0 с начала
+		_cheat()
+		game.start_contact()
+		toggle()))
+	g.add_child(_btn("ФИНАЛ КОНТАКТА", func() -> void:  # все убеждены — сразу к пожару в ящике
+		_cheat()
+		game.start_contact()
+		game.contact.debug_skip_to_finale()
+		toggle()))
 	_toggle(p, "Автопилот", game.autopilot, func(on: bool) -> void:
 		_cheat()
 		game.autopilot = on

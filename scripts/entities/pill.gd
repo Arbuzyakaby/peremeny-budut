@@ -143,6 +143,22 @@ func update(delta: float, head: Vector2, head_vel: Vector2, snake_alive: bool) -
 	queue_redraw()
 
 
+## Технический режим «Контакт»: не прыгает на змею — мирно подскакивает, передвигаясь со скоростью want.
+func calm_update(delta: float, want: Vector2) -> void:
+	t += delta
+	st = St.IDLE
+	herd = false
+	aim_offset = Vector2.ZERO
+	herd_k = move_toward(herd_k, 0.0, delta * 3.0)
+	squash = maxf(squash - delta * 3.0, 0.0)
+	var moving := clampf(want.length() / 80.0, 0.0, 1.0)
+	height = absf(sin(t * 6.0)) * lerpf(3.0, 16.0, moving)
+	var inner := bounds.grow(-RADIUS - 10.0)
+	position = (position + want * delta).clamp(inner.position, inner.end)
+	roll += want.length() * delta / 14.0
+	queue_redraw()
+
+
 ## Цвета половинок/лица с учётом роли загонщика.
 func tint(c: Color) -> Color:
 	return c.lerp(HERD_TINT, 0.55 * herd_k)

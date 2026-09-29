@@ -4,7 +4,7 @@ extends "res://scripts/audio/synth.gd"
 ## резкие верха срезаны фильтрами; поправка — третьим аргументом to_stream (дБ).
 
 ## Сколько звуков в build_sounds() — для полосы загрузки (тест сверяет с фактом).
-const SOUND_COUNT := 76
+const SOUND_COUNT := 79
 
 var _bank: Dictionary = {}
 
@@ -202,4 +202,13 @@ func build_sounds() -> Dictionary:
 	_bank["ribbon"] = to_stream(mix(_whoosh(0.22, 0.2, 1500, 5000), tone(0.3, 330, 318, W.TRI, 0.14, 0.0, 1.5)))
 	# найдена пасхалка: волшебный перезвон
 	_bank["secret"] = to_stream(_notes([784, 988, 1319, 1568, 1976], 0.06, W.SINE, 0.28, 0.5))
+
+	# ----- «Контакт» v10.0
+	# шипение змеи: высокий шум с нарастанием и дрожью языка
+	_bank["hiss"] = to_stream(am(noise(0.75, 0.3, 0.6, 9000, 3200, 0.3), 18.0, 0.25), false, -4.0)
+	# выстрел: сухой хлопок, короткий низкий удар и хвост эха
+	var bang := mix(noise(0.05, 0.9, 5.0, 6000), tone(0.16, 150, 45, W.SINE, 0.8, 0.0, 2.5))
+	_bank["gunshot"] = to_stream(mix_at(bang, lowpass(noise(0.45, 0.22, 1.6), 1400), 0.03), false, -2.0)
+	# рикошет: свист пули, уходящий вниз, и звон
+	_bank["ricochet"] = to_stream(mix(tone(0.35, 2600, 900, W.SINE, 0.18, 0.0, 1.2), _pop(0.02, 0.3, 2000, 7000)), false, -6.0)
 	return _bank

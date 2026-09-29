@@ -14,6 +14,7 @@ signal quit_requested
 signal daily_requested
 signal bestiary_requested
 signal secret_found(id: String)
+signal contact_requested
 
 const Tips = preload("res://scripts/core/tips.gd")
 const Bestiary = preload("res://scripts/core/bestiary.gd")
@@ -59,6 +60,15 @@ var keys: Array[int] = []      # последние нажатые клавиш�
 var title_clicks := 0
 var title_click_t := 0.0
 var scales_now := 0
+## v10.0: фальшивое меню (одна кнопка вместо карточек — глюк) и скрытый вход в «Контакт».
+var bay: PanelContainer
+var choose_label: Label
+var extra_row: BoxContainer
+var action_row: BoxContainer
+var glitch_button: Button
+var glitch := false
+var glitch_text := ""
+var contact_button: Button
 
 
 func _init() -> void:
@@ -80,9 +90,10 @@ func build() -> void:
 	subtitle.label_settings.font_size = 25
 	content.add_child(subtitle)
 	content.add_child(Design.spacer(Design.SPACE[1]))
-	content.add_child(Design.label("ВЫБЕРИ СЛОЖНОСТЬ", "overline", Design.MUTED, HORIZONTAL_ALIGNMENT_CENTER))
+	choose_label = Design.label("ВЫБЕРИ СЛОЖНОСТЬ", "overline", Design.MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+	content.add_child(choose_label)
 	# карточки сложностей сидят в утопленной рамке, как клавиши в приборной панели
-	var bay := PanelContainer.new()
+	bay = PanelContainer.new()
 	bay.add_theme_stylebox_override("panel", Design.well(Design.RADIUS_MD + 4, Vector2(Design.SPACE[3], Design.SPACE[3])))
 	bay.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	content.add_child(bay)
@@ -110,6 +121,7 @@ func build() -> void:
 	content.add_child(desc_label)
 	content.add_child(HSeparator.new())  # фрезерованная канавка: ниже — второстепенное
 	var extra := Design.hbox(Design.SPACE[3])  # испытание дня и картотека
+	extra_row = extra
 	content.add_child(extra)
 	daily_button = Design.button("", daily_requested.emit, "", Vector2(290, Design.TOUCH_MIN))
 	daily_button.add_theme_font_size_override("font_size", 15)
@@ -119,10 +131,16 @@ func build() -> void:
 	bestiary_button = Design.button("", bestiary_requested.emit, "", Vector2(150, Design.TOUCH_MIN))
 	bestiary_button.add_theme_font_size_override("font_size", 15)
 	extra.add_child(bestiary_button)
+	contact_button = Design.button("КОНТАКТ", contact_requested.emit, "Ghost", Vector2(110, Design.TOUCH_MIN))
+	contact_button.add_theme_font_size_override("font_size", 15)
+	contact_button.tooltip_text = "Технический режим «Контакт»"
+	contact_button.visible = false
+	extra.add_child(contact_button)
 	for b in [daily_button, bestiary_button]:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		fade_items.append(b)
 	var row := Design.hbox(Design.SPACE[3])  # навыки, настройки и выход — одним рядом
+	action_row = row
 	content.add_child(row)
 	tree_button = Design.button("НАВЫКИ", skills_requested.emit, "Primary", Vector2(214, Design.TOUCH_MIN))
 	row.add_child(tree_button)
@@ -214,6 +232,7 @@ func _build_journal() -> void:
 
 
 func show_menu(diffs: Array, best_scores: Array, selected: int, scales: int, touch: bool) -> void:
+	set_glitch(false)
 	set_data(diffs, best_scores, selected, scales, touch)
 	open()
 	_play_intro()
@@ -240,6 +259,7 @@ func set_data(diffs: Array, best_scores: Array, selected: int, scales: int, touc
 	daily_button.text = "ИСПЫТАНИЕ ДНЯ%s%s" % ["  •  %d" % best_today if best_today > 0 else "",
 		"  •  серия %d" % run if run > 1 else ""]
 	bestiary_button.text = "КАРТОТЕКА %d/%d" % [Bestiary.known_count(), Bestiary.total()]
+	contact_button.visible = Secrets.is_found("contact") and not glitch
 	quit_button.visible = not touch or not OS.has_feature("mobile")
 	var version := "v" + str(ProjectSettings.get_setting("application/config/version", ""))
 	if touch:
@@ -350,7 +370,7 @@ func _next_tip() -> void:
 
 
 func _show_desc(i: int) -> void:
-	if difficulties.is_empty():
+	if difficulties.is_empty() or glitch:
 		return
 	var d: Dictionary = difficulties[i]
 	desc_label.text = d["desc"]
@@ -367,6 +387,34 @@ func _show_daily_desc() -> void:
 ", " • "), run, Daily.best_streak(),
 		Daily.streak_bonus(run + (0 if Daily.best(Daily.day_key()) > 0 else 1))]
 	desc_label.label_settings.font_color = Design.STEEL.lightened(0.3)
+
+
+## Фальшивое меню «Контакта»: вместо карточек и кнопок — одна кнопка с текстом text (нажимает её
+## не игрок, а курсор — contact/fake_menu.gd).
+func glitch_single(text: String) -> void:
+	if glitch_button == null:
+		glitch_button = Design.button(text, func() -> void: pass, "Primary", Vector2(440, 84))
+		glitch_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		glitch_button.add_theme_font_size_override("font_size", 26)
+		glitch_button.pivot_offset = Vector2(220, 42)
+		content.add_child(glitch_button)
+		content.move_child(glitch_button, bay.get_index())
+	glitch_text = text
+	glitch_button.text = text
+	set_glitch(true)
+	desc_label.text = "ОБРАЗЕЦ №48  •  ПРОТОКОЛ ПЕРЕЗАПУЩЕН"
+	desc_label.label_settings.font_color = Design.MUTED
+	first_focus = glitch_button
+
+
+func set_glitch(on: bool) -> void:
+	glitch = on
+	if glitch_button:
+		glitch_button.visible = on
+	for n: Control in [bay, choose_label, extra_row, action_row]:
+		n.visible = not on
+	if not on and panel:
+		panel.modulate = Color.WHITE
 
 
 func handle_back() -> bool:
@@ -436,6 +484,10 @@ func _process(delta: float) -> void:
 	for b in diff_buttons:
 		b.get_child(0).queue_redraw()
 	_fit_journal()
+	if glitch and panel and not Settings.flag("reduced_motion"):  # фальшивое меню подрагивает помехами
+		var hit := fmod(t * 7.3, 1.0) < 0.08
+		panel.modulate = Color(0.85, 1.0, 0.9, 0.9) if hit else Color.WHITE
+		glitch_button.text = glitch_text.replace("О", "0") if hit else glitch_text
 	tip_t -= delta
 	if tip_t <= 0.0:
 		_next_tip()

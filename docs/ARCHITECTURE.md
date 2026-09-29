@@ -22,14 +22,20 @@
 | `MenuDemo` | `game/menu_demo.gd` | живой фон главного меню |
 | `Replay` | `game/replay.gd` | запись последних 3 секунд для повтора гибели |
 | `Hud` | `ui/hud.gd` | весь интерфейс, стек экранов, масштаб и безопасная зона |
-| `Ending` | `ending/ending.gd` | финал: лаборатория, выбор, пожар, титры |
+| `Ending` | `ending/ending.gd` | финал: лаборатория, выбор, пожар, титры; пересадка — `ending/transfer.gd` |
+| `ContactMode` | `contact/contact_mode.gd` | технический режим «Контакт»: знаки, мирный отряд, финал и развязка (v10.0) |
 
 ## Состояния
 
 ```
 LOADING → MENU → LEVEL ⇄ PERK → … → BOSS_INTRO → BOSS → OUTRO → CUTSCENE → WIN
                    └────────────────────────────────────────────→ GAME_OVER
+CUTSCENE (пересадка) → FAKE_MENU → CONTACT → WIN        (v10.0, пока «Контакт» не пройден)
+MENU (кнопка «КОНТАКТ») → CONTACT → WIN
 ```
+
+Переход в «Контакт» — в той же сцене, без перезагрузки: `_commit_run()` записывает итоги обычного забега,
+`ending.cleanup()` убирает лабораторию, огонь и яйцо, `_clear_world()` — змею, врагов и снаряды.
 
 `State` в `game.gd`. Пауза — отдельный флаг дерева (`get_tree().paused`); HUD и панель разработчика
 работают в `PROCESS_MODE_ALWAYS`, поэтому отвечают и на паузе.

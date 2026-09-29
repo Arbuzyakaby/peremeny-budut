@@ -21,6 +21,8 @@ const EXHAUST_RECOVER := 0.35   # после полного истощения �
 const TURN_SPEED := 4.2
 const INVULN_TIME := 1.5
 const SELF_HIT_SKIP := 14     # первые сегменты за головой не проверяем на самоукус
+const REAR_HEIGHT := 26.0     # на сколько поднята голова, когда змея встала на дыбы
+const REAR_SEGS := 6.0        # сколько передних сегментов поднимается вместе с ней
 
 var bounds := Rect2(0, 0, 1280, 720)
 var head_pos := Vector2(640, 450)
@@ -66,6 +68,9 @@ var touch_steer := Vector2.ZERO
 var touch_sprint := false
 ## Победа: до финала змею ничто не ранит (бортик в том числе).
 var safe := false
+## Технический режим «Контакт» (v10.0): 0..1 — встала на дыбы (стоит на месте), и сколько ещё шипеть.
+var rear := 0.0
+var hiss_t := 0.0
 ## Панель разработчика.
 var god := false
 var endless_stamina := false
@@ -125,8 +130,11 @@ func update(delta: float) -> void:
 	modulate.a = 0.35 if invuln > 0.0 and dash_t <= 0.0 and int(invuln * 12.0) % 2 == 0 else 1.0
 	if shadow_dash and dash_t > 0.0:
 		modulate.a = 0.55
+	hiss_t = maxf(hiss_t - delta, 0.0)
 	queue_redraw()
 	if not alive:
+		return
+	if rear > 0.5:  # на дыбах — стоит на месте
 		return
 	if autopilot:
 		_autopilot(delta)
@@ -194,6 +202,16 @@ func _autopilot(delta: float) -> void:
 	knockback = knockback.move_toward(Vector2.ZERO, 1800.0 * delta)
 	head_pos = head_pos.clamp(bounds.grow(-HEAD_RADIUS).position, bounds.grow(-HEAD_RADIUS).end)
 	_extend_trail()
+
+
+## «Контакт»: голова переносится в точку p (змея прорисовывает знак телом), тело тянется следом.
+func glide_to(p: Vector2, delta: float) -> void:
+	anim_t += delta
+	if p.distance_to(head_pos) > 0.5:
+		heading = (p - head_pos).angle()
+	head_pos = p
+	_extend_trail()
+	queue_redraw()
 
 
 func _extend_trail() -> void:
@@ -361,13 +379,18 @@ func _draw() -> void:
 		var r := _seg_radius(i, n) * small
 		Tex.blob(self, segs[i] + Vector2(5, 8) * small, Vector2(r, r) * 1.5, Color(0, 0, 0, 0.16))
 	Tex.blob(self, head_pos + Vector2(5, 8) * small, Vector2.ONE * HEAD_RADIUS * 1.6 * small, Color(0, 0, 0, 0.2))
+	var body := segs
+	if rear > 0.0:  # на дыбах передние сегменты подняты над полом
+		body = segs.duplicate()
+		for i in mini(n, int(REAR_SEGS) + 1):
+			body[i] += _lift(i)
 	# Контур
 	for i in range(n - 1, 0, -1):
-		draw_circle(segs[i], _seg_radius(i, n) * small + 2.5, outline)
+		draw_circle(body[i], _seg_radius(i, n) * small + 2.5, outline)
 	# Заливка: объём, узор ромбами, чешуя
 	for i in range(n - 1, 0, -1):
 		var r := _seg_radius(i, n) * small
-		var dir := (segs[i - 1] - segs[i]).normalized()
+		var dir := (body[i - 1] - body[i]).normalized()
 		var side := dir.orthogonal()
 		var c := Color(0.33, 0.76, 0.28) if (i / 3) % 2 == 0 else Color(0.27, 0.67, 0.23)
 		if golden:
@@ -375,53 +398,63 @@ func _draw() -> void:
 		if slowed:
 			c = c.lerp(Color.WHITE, 0.45)
 		c = c.lerp(ash, burnt * 0.9)
-		draw_circle(segs[i], r, c.darkened(0.18))
-		draw_circle(segs[i] + Vector2(-1.2, -1.6) * small, r * 0.82, c)
+		draw_circle(body[i], r, c.darkened(0.18))
+		draw_circle(body[i] + Vector2(-1.2, -1.6) * small, r * 0.82, c)
 		if i % 3 == 0 and burnt < 0.5:  # тёмный ромб узора на спине
 			var d := r * 0.55
-			draw_colored_polygon(PackedVector2Array([segs[i] + dir * d, segs[i] + side * d * 0.7,
-				segs[i] - dir * d, segs[i] - side * d * 0.7]), c.darkened(0.35))
-			draw_circle(segs[i], d * 0.25, Color(0.85, 0.9, 0.4, 0.8))
+			draw_colored_polygon(PackedVector2Array([body[i] + dir * d, body[i] + side * d * 0.7,
+				body[i] - dir * d, body[i] - side * d * 0.7]), c.darkened(0.35))
+			draw_circle(body[i], d * 0.25, Color(0.85, 0.9, 0.4, 0.8))
 		if burnt < 0.5:  # чешуйки
 			for s in [-1.0, 1.0]:
-				var sp: Vector2 = segs[i] + side * s * r * 0.5
+				var sp: Vector2 = body[i] + side * s * r * 0.5
 				draw_arc(sp, r * 0.32, dir.angle() + PI * 0.55, dir.angle() + PI * 1.45, 5, c.darkened(0.3), 1.2)
-		Tex.blob(self, segs[i] + Vector2(-2.5, -3.5) * small, Vector2.ONE * r * 0.55, Color(1, 1, 1, 0.22 * (1.0 - burnt)))
+		Tex.blob(self, body[i] + Vector2(-2.5, -3.5) * small, Vector2.ONE * r * 0.55, Color(1, 1, 1, 0.22 * (1.0 - burnt)))
 
 	# Голова
 	var dir := Vector2.from_angle(heading)
+	var hp := head_pos + _lift(0)
+	if rear > 0.0:  # на дыбах: капюшон раскрыт, тень головы — на полу
+		Tex.blob(self, head_pos + Vector2(8, 12) * small, Vector2(HEAD_RADIUS * 2.2, HEAD_RADIUS * 1.2) * small,
+			Color(0, 0, 0, 0.22 * rear))
+		var hood_side := dir.orthogonal()
+		for s in [-1.0, 1.0]:
+			var hood: Vector2 = hp - dir * 7.0 * small + hood_side * s * 12.0 * small * rear
+			draw_circle(hood, 13.0 * small * rear + 2.5, outline)
+			draw_circle(hood, 13.0 * small * rear, Color(0.25, 0.6, 0.22).lerp(ash, burnt * 0.9))
+			draw_circle(hood + hood_side * s * 3.0 * small, 5.0 * small * rear, Color(0.85, 0.9, 0.4, 0.7))
 	if dash_t > 0.0:  # след рывка
 		for k in 5:
 			var col := Color(0.25, 0.22, 0.3, 0.4 - k * 0.07) if shadow_dash else Color(1, 0.3, 0.2, 0.35 - k * 0.06)
-			Tex.blob(self, head_pos - dir * (18.0 + k * 16.0), Vector2.ONE * HEAD_RADIUS * (1.3 - k * 0.18), col)
+			Tex.blob(self, hp - dir * (18.0 + k * 16.0), Vector2.ONE * HEAD_RADIUS * (1.3 - k * 0.18), col)
 	if spin_t > 0.0:  # вертушка
 		var k := spin_t / 0.35
-		draw_arc(head_pos, 120.0 * (1.2 - k * 0.4), anim_t * 20.0, anim_t * 20.0 + PI * 1.4, 24, Color(1, 1, 1, 0.8 * k), 10.0)
-		draw_arc(head_pos, 120.0 * (1.2 - k * 0.4), anim_t * 20.0 + PI, anim_t * 20.0 + PI * 2.4, 24, Color(1, 0.9, 0.3, 0.6 * k), 6.0)
+		draw_arc(hp, 120.0 * (1.2 - k * 0.4), anim_t * 20.0, anim_t * 20.0 + PI * 1.4, 24, Color(1, 1, 1, 0.8 * k), 10.0)
+		draw_arc(hp, 120.0 * (1.2 - k * 0.4), anim_t * 20.0 + PI, anim_t * 20.0 + PI * 2.4, 24, Color(1, 0.9, 0.3, 0.6 * k), 6.0)
 	var side := dir.orthogonal()
 	var head_r := HEAD_RADIUS * (1.0 + bite_t * 0.8) * small
 
-	# Язык
-	if fmod(anim_t, 1.4) < 0.3 and alive:
-		var base := head_pos + dir * head_r * 1.2
-		var tip := base + dir * 14.0 * small
+	# Язык (шипит — мелькает непрерывно и длиннее)
+	if (fmod(anim_t, 1.4) < 0.3 or (hiss_t > 0.0 and fmod(anim_t, 0.16) < 0.1)) and alive:
+		var base := hp + dir * head_r * 1.2
+		var tip := base + dir * (26.0 if hiss_t > 0.0 else 14.0) * small
 		draw_line(base, tip, Color(0.85, 0.1, 0.2), 2.5 * small)
 		draw_line(tip, tip + dir.rotated(0.5) * 6.0 * small, Color(0.85, 0.1, 0.2), 2.0 * small)
 		draw_line(tip, tip + dir.rotated(-0.5) * 6.0 * small, Color(0.85, 0.1, 0.2), 2.0 * small)
 
 	var hc := (Color(1.0, 0.82, 0.3) if golden else Color(0.4, 0.86, 0.34)).lerp(ash, burnt * 0.9)
-	var snout := head_pos + dir * head_r * 0.45
-	draw_circle(head_pos, head_r + 2.5, outline)
+	var snout := hp + dir * head_r * 0.45
+	draw_circle(hp, head_r + 2.5, outline)
 	draw_circle(snout, head_r * 0.78 + 2.5, outline)
-	draw_circle(head_pos, head_r, hc.darkened(0.15))
+	draw_circle(hp, head_r, hc.darkened(0.15))
 	draw_circle(snout, head_r * 0.78, hc.darkened(0.15))
-	draw_circle(head_pos + Vector2(-1.5, -2) * small, head_r * 0.85, hc)
+	draw_circle(hp + Vector2(-1.5, -2) * small, head_r * 0.85, hc)
 	draw_circle(snout + Vector2(-1, -1.5) * small, head_r * 0.62, hc)
-	Tex.blob(self, head_pos + Vector2(-4, -5) * small, Vector2.ONE * head_r * 0.6, Color(1, 1, 1, 0.3 * (1.0 - burnt)))
+	Tex.blob(self, hp + Vector2(-4, -5) * small, Vector2.ONE * head_r * 0.6, Color(1, 1, 1, 0.3 * (1.0 - burnt)))
 	for s in [-1.0, 1.0]:  # ноздри
 		draw_circle(snout + dir * head_r * 0.55 + side * s * 3.5 * small, 1.4 * small, outline)
 	for s in [-1.0, 1.0]:
-		var eye: Vector2 = head_pos + dir * 4.0 * small + side * s * 7.5 * small
+		var eye: Vector2 = hp + dir * 4.0 * small + side * s * 7.5 * small
 		draw_circle(eye, 5.8 * small, outline)
 		draw_circle(eye, 5.0 * small, Color(0.98, 0.96, 0.8))
 		if alive:
@@ -434,7 +467,7 @@ func _draw() -> void:
 		var out_a: float = (side * s).angle()
 		draw_arc(eye, 6.4 * small, out_a - 1.1, out_a + 1.1, 6, outline, 1.8 * small)  # надбровная чешуя
 	if hat and burnt < 0.5:  # новогодняя шапка с помпоном, съехавшая набок
-		var back := head_pos - dir * head_r * 0.35
+		var back := hp - dir * head_r * 0.35
 		var tip := back - dir * head_r * 1.5 + side * head_r * 0.9
 		draw_colored_polygon(PackedVector2Array([back + side * head_r * 0.85, back - side * head_r * 0.85, tip]),
 			Color(0.85, 0.1, 0.12))
@@ -443,23 +476,23 @@ func _draw() -> void:
 	if exhausted and alive:  # капли пота
 		for k in 2:
 			var ph := fmod(anim_t * 1.5 + k * 0.5, 1.0)
-			var sp: Vector2 = head_pos - side * (14.0 - k * 28.0) + Vector2(0, -18.0 + ph * 22.0)
+			var sp: Vector2 = hp - side * (14.0 - k * 28.0) + Vector2(0, -18.0 + ph * 22.0)
 			draw_circle(sp, 3.5, Color(0.5, 0.8, 1.0, 1.0 - ph))
 	if stun_t > 0.0 and alive:  # оглушение: звёзды и спираль
 		for i in 4:
 			var a := anim_t * 6.0 + TAU * i / 4.0
-			_draw_star(head_pos + Vector2(0, -26) + Vector2(cos(a) * 20.0, sin(a) * 7.0), 5.0, Color(0.6, 0.85, 1.0))
+			_draw_star(hp + Vector2(0, -26) + Vector2(cos(a) * 20.0, sin(a) * 7.0), 5.0, Color(0.6, 0.85, 1.0))
 		var pts := PackedVector2Array()
 		for k in 18:
-			pts.append(head_pos + Vector2.from_angle(anim_t * 8.0 + k * 0.6) * (2.0 + k * 0.7))
+			pts.append(hp + Vector2.from_angle(anim_t * 8.0 + k * 0.6) * (2.0 + k * 0.7))
 		draw_polyline(pts, Color(0.3, 0.5, 1.0, 0.8), 2.0)
 	if (shield > 0 or shield_flash > 0.0) and alive:  # щит-пузырь
 		var pulse := 1.0 + 0.05 * sin(anim_t * 6.0)
 		var a := 0.35 if shield > 0 else 0.0
 		a = maxf(a, shield_flash * 0.8)
-		Tex.blob(self, head_pos, Vector2.ONE * 34.0 * pulse, Color(0.5, 0.8, 1.0, a * 0.5))
-		draw_arc(head_pos, 30.0 * pulse, 0, TAU, 32, Color(0.7, 0.9, 1.0, a + 0.2), 2.5)
-		draw_arc(head_pos, 24.0 * pulse, -2.4, -1.6, 8, Color(1, 1, 1, a + 0.3), 2.5)
+		Tex.blob(self, hp, Vector2.ONE * 34.0 * pulse, Color(0.5, 0.8, 1.0, a * 0.5))
+		draw_arc(hp, 30.0 * pulse, 0, TAU, 32, Color(0.7, 0.9, 1.0, a + 0.2), 2.5)
+		draw_arc(hp, 24.0 * pulse, -2.4, -1.6, 8, Color(1, 1, 1, a + 0.3), 2.5)
 
 
 func _draw_star(c: Vector2, r: float, col: Color) -> void:
@@ -468,6 +501,13 @@ func _draw_star(c: Vector2, r: float, col: Color) -> void:
 		var rr := r if i % 2 == 0 else r * 0.45
 		pts.append(c + Vector2.from_angle(-PI / 2 + TAU * i / 10.0) * rr)
 	draw_colored_polygon(pts, col)
+
+
+## Подъём передних сегментов, когда змея встала на дыбы (вверх по экрану, к голове — сильнее).
+func _lift(i: int) -> Vector2:
+	if rear <= 0.0:
+		return Vector2.ZERO
+	return Vector2(0, -REAR_HEIGHT * rear * small) * maxf(1.0 - float(i) / REAR_SEGS, 0.0)
 
 
 func _seg_radius(i: int, n: int) -> float:

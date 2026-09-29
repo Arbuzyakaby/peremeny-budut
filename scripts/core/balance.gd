@@ -14,6 +14,9 @@ const SPIN_RADIUS := 130.0
 const STAGE_COUNT := 5
 const BOSS_STAGE := 4
 const DOLL_STAGE := 3
+## Технический режим «Контакт» (v10.0): сколько врагов убедить на этапах медведей, вилок, таблеток и
+## матрёшек (ровно столько их и выходит на поле); на пятом — одна яичница.
+const CONTACT_GOALS := [5, 4, 4, 3]
 const DOLL_SETS_ON_FIELD := 2  # сколько больших матрёшек раскрывается одновременно
 
 const DIFFICULTIES := [

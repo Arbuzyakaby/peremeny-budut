@@ -40,6 +40,11 @@ const CABINET := Rect2(-1180, -1150, 1210, 1100)
 const FIRE_BOX := Rect2(3400, -330, 300, 460)
 const PIPE_X := 3200.0
 const MONITOR := Rect2(3130, 430, 470, 380)
+## v10.0: новый ящик для образца №48 (на месте стопки бланков) и напольная тумба под столом —
+## у неё в цоколе щель, куда прячутся змея и медведь-швея.
+const NEW_BOX := Rect2(-1150, 580, 640, 260)
+const FLOOR_CABINET := Rect2(1450, 1260, 820, 390)
+const CABINET_GAP := Rect2(1520, 1660, 230, 90)
 
 var t := 0.0
 var sx := OUTSIDE_X
@@ -69,6 +74,8 @@ var took_extinguisher := false  # шкаф пуст: огнетушитель в
 var tally: Array[int] = [0, 0, 0, 0]
 ## Протокол забега — строки мелом справа на доске (ending.gd → board_notes).
 var notes := PackedStringArray()
+var show_new_box := false
+var show_cabinet := false
 
 
 func _draw_wall() -> void:
@@ -452,10 +459,15 @@ func _draw_table() -> void:
 	Tex.blob(self, Vector2(1600, TABLE_Y + 520), Vector2(3600, 140), Color(0, 0, 0, 0.35))  # тень под столом
 	for x in [-1150.0, 4250.0]:
 		draw_rect(Rect2(x - 55, TABLE_Y + 420, 110, 1400), Color(0.3, 0.32, 0.32))
-	# стопки бланков и печать
-	for k in 6:
-		draw_rect(Rect2(-1000 + k * 5, TABLE_Y - 14 - k * 14, 520, 14),
-			Color(0.95, 0.93, 0.88) if k % 2 == 0 else Color(0.88, 0.86, 0.8))
+	# стопки бланков (или новый ящик на их месте) и печать
+	if show_new_box:
+		_draw_new_box()
+	else:
+		for k in 6:
+			draw_rect(Rect2(-1000 + k * 5, TABLE_Y - 14 - k * 14, 520, 14),
+				Color(0.95, 0.93, 0.88) if k % 2 == 0 else Color(0.88, 0.86, 0.8))
+	if show_cabinet:
+		_draw_floor_cabinet()
 	_draw_flasks(Vector2(-400, TABLE_Y))
 	_draw_microscope(Vector2(1480, TABLE_Y))
 	_draw_monitor(MONITOR)
@@ -545,6 +557,49 @@ func _draw_box_front() -> void:
 		draw_circle(s, 7.0, Color(0.55, 0.5, 0.35))
 	draw_string(font, Vector2(plate.position.x, plate.position.y + 54), "ОБРАЗЕЦ №47  •  ИНВ. 0047-Б",
 		HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, 26, Color(0.2, 0.2, 0.25))
+
+
+## Чистый ящик для образца №48: светлая фанера, табличка, внутри — свежая подстилка.
+func _draw_new_box() -> void:
+	var r := NEW_BOX
+	draw_rect(Rect2(r.position + Vector2(18, 16), r.size), Color(0, 0, 0, 0.22))
+	draw_rect(Rect2(r.position.x + 20, r.position.y - 30, r.size.x - 40, 40), Color(0.86, 0.8, 0.62))  # подстилка
+	for k in 9:
+		draw_line(Vector2(r.position.x + 40 + k * 64, r.position.y - 20), Vector2(r.position.x + 70 + k * 64, r.position.y - 8),
+			Color(0.72, 0.64, 0.45), 6.0)
+	draw_rect(r, Color(0.78, 0.62, 0.4))
+	for y in [r.position.y + 70.0, r.position.y + 150.0]:
+		draw_line(Vector2(r.position.x, y), Vector2(r.end.x, y), Color(0.66, 0.5, 0.3), 5.0)
+	draw_rect(r, Color(0.5, 0.36, 0.2), false, 8.0)
+	var plate := Rect2(r.get_center() - Vector2(210, 40), Vector2(420, 80))
+	draw_rect(plate, Color(0.93, 0.93, 0.9))
+	draw_rect(plate, Color(0.5, 0.5, 0.5), false, 6.0)
+	draw_string(font, Vector2(plate.position.x, plate.position.y + 52), "ОБРАЗЕЦ №48", HORIZONTAL_ALIGNMENT_CENTER,
+		plate.size.x, 34, Color(0.2, 0.2, 0.25))
+
+
+## Напольная тумба под столом: две дверцы, ручки, на цоколе — отломанная доска, тёмная щель.
+func _draw_floor_cabinet() -> void:
+	var r := FLOOR_CABINET
+	Tex.blob(self, Vector2(r.get_center().x, r.end.y + 60), Vector2(r.size.x * 0.7, 40), Color(0, 0, 0, 0.35))
+	draw_rect(r.grow(10), Color(0.36, 0.38, 0.37))
+	draw_rect(r, Color(0.62, 0.64, 0.6))
+	for k in 2:
+		var door := Rect2(r.position.x + 20 + k * r.size.x / 2.0, r.position.y + 20, r.size.x / 2.0 - 40, r.size.y - 40)
+		draw_rect(door, Color(0.68, 0.7, 0.66))
+		draw_rect(door, Color(0.45, 0.47, 0.45), false, 6.0)
+		draw_rect(Rect2(Vector2(door.end.x - 50 if k == 0 else door.position.x + 26, door.get_center().y - 40), Vector2(24, 80)),
+			Color(0.35, 0.35, 0.37))
+	draw_rect(Rect2(r.position.x + 30, r.position.y + 50, 200, 50), Color(0.93, 0.93, 0.9))  # инвентарный номер
+	draw_string(font, Vector2(r.position.x + 30, r.position.y + 88), "ИНВ. 0048", HORIZONTAL_ALIGNMENT_CENTER, 200, 30,
+		Color(0.25, 0.25, 0.3))
+	var plinth := Rect2(r.position.x, r.end.y, r.size.x, 1750.0 - r.end.y)  # цоколь до пола
+	draw_rect(plinth, Color(0.3, 0.31, 0.3))
+	draw_rect(CABINET_GAP, Color(0.03, 0.03, 0.04))
+	draw_colored_polygon(PackedVector2Array([CABINET_GAP.position, CABINET_GAP.position + Vector2(40, 0),
+		CABINET_GAP.position + Vector2(18, 22)]), Color(0.3, 0.31, 0.3))  # щербатый край доски
+	draw_line(CABINET_GAP.position + Vector2(CABINET_GAP.size.x, 0), CABINET_GAP.position + Vector2(CABINET_GAP.size.x + 60, -2),
+		Color(0.2, 0.2, 0.2), 4.0)
 
 
 func _grow_poly(poly: PackedVector2Array, by: float) -> PackedVector2Array:

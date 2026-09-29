@@ -10,6 +10,8 @@ extends Node
 ## 5. учёный тушит огнетушителем, ставит штамп «УТИЛИЗИРОВАНО», гасит лампу и уходит;
 ## 6. в темноте в пепле блестит яйцо — из него вылупляется маленькая змейка. «ПЕРЕМЕНЫ БУДУТ».
 ## 7. титры со статистикой забега. Esc — пропустить.
+## v10.0: пока «Контакт» не пройден (и не в испытании дня), вместо 6–7 — пересадка змейки в новый
+## ящик глазами змейки (transfer.gd), и финал уходит в фальшивое меню и технический режим «Контакт».
 
 signal finished
 
@@ -24,6 +26,8 @@ const Hatch = preload("res://scripts/ending/hatch.gd")
 const Credits = preload("res://scripts/ending/credits.gd")
 const Design = preload("res://scripts/ui/design.gd")
 const Settings = preload("res://scripts/core/settings.gd")
+const Secrets = preload("res://scripts/core/secrets.gd")
+const Transfer = preload("res://scripts/ending/transfer.gd")
 
 ## Первое возгорание — событие: HUSH тишины (sfx.hush), затем белая вспышка, «ignite» в полную силу
 ## и тряска; музыка молчит ещё MUSIC_GAP после вспышки.
@@ -94,10 +98,14 @@ var in_dark := false
 var tw_flare: Tween
 var crackle_t := 0.0
 var crackles := 0  # сколько раз трещало (тесты)
+## Финал продолжается «Контактом»: после вылупления — пересадка, фальшивое меню, технический режим.
+var to_contact := false
+var transfer: Transfer
 
 
 func start(g) -> void:
 	game = g
+	to_contact = not g.daily_mode and not Secrets.is_found("contact")
 	camera = g.camera
 	snake = g.snake
 	hud = g.hud
@@ -337,7 +345,7 @@ func _process(delta: float) -> void:
 	if done:
 		return
 	t += delta
-	if baby:
+	if baby and not (transfer and transfer.carrying):
 		baby.update(delta)
 	if foam and lab:
 		foam.position = lab.nozzle()
@@ -459,6 +467,9 @@ func _burn_snake() -> void:
 	tw_end.tween_property(hatch_node, "egg_crack", 1.0, 0.25)
 	tw_end.tween_callback(_hatch)
 	tw_end.tween_interval(2.4)
+	if to_contact:
+		tw_end.tween_callback(_transfer)
+		return
 	tw_end.tween_callback(func() -> void:
 		sfx.play("win", 0.5, -4.0)
 		hud.show_title_card("ПЕРЕМЕНЫ БУДУТ", Color(0.55, 1, 0.5)))
@@ -524,6 +535,14 @@ func _hatch() -> void:
 	game.world.add_child(baby)
 
 
+## Пересадка в новый ящик (v10.0) — дальше «Контакт».
+func _transfer() -> void:
+	transfer = Transfer.new()
+	add_child(transfer)
+	transfer.done.connect(_finish)
+	transfer.start(self)
+
+
 func _set_blur(k: float) -> void:
 	blur_mat.set_shader_parameter("blur", k * 4.5)
 	blur_mat.set_shader_parameter("dark", k * 0.8)
@@ -582,9 +601,11 @@ func skip() -> void:
 	snake.alive = false
 	snake.burnt = 1.0
 	snake_burnt = true
-	blur_rect.visible = true
-	_set_blur(1.0)
+	blur_rect.visible = not to_contact
+	_set_blur(0.0 if to_contact else 1.0)
 	hud.hide_caption()
+	if transfer:
+		transfer.queue_free()
 	_finish()
 
 
@@ -594,6 +615,17 @@ func _finish() -> void:
 	done = true
 	Design.panic = 0.0
 	finished.emit()
+
+
+## Убрать всё, что финал добавил в игру (перед «Контактом»: сцена та же, начинаем с чистого ящика).
+func cleanup() -> void:
+	for n in [lab, fire, darkness, hatch_node, foam, baby]:
+		if is_instance_valid(n):
+			n.queue_free()
+	Design.panic = 0.0
+	if is_instance_valid(sfx):
+		sfx.stop_ambient(0.3)
+	queue_free()
 
 
 func _exit_tree() -> void:

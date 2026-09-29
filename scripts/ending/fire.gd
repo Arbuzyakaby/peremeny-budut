@@ -158,6 +158,8 @@ var strength := 1.0   # 1 — горит в полную силу, 0 — пот�
 var t := 0.0
 var seed_value := 0   # сид раскладки и вариаций (ending.gd задаёт случайный до add_child)
 var layout: Array = []  # обломки этого рана (как DEBRIS, но сдвинутые, плюс затравки)
+## Чистый ящик без обломков битвы — игровой пожар «Контакта» (v10.0): горит масло и бортики.
+var plain := false
 var sim: FireSim
 var rect: ColorRect
 var data_img: Image
@@ -180,7 +182,11 @@ func _ready() -> void:
 		return
 	var low := Platform.is_mobile()
 	sim = FireSim.new(64 if low else 96, 36 if low else 54, AREA)
-	layout = build_layout(sim, seed_value)
+	if plain:
+		_fill_layout(sim, [])
+		sim.vary(seed_value)
+	else:
+		layout = build_layout(sim, seed_value)
 	debris = Node2D.new()  # обломки лежат под змеёй, огонь — над ней
 	debris.z_index = -5
 	debris.draw.connect(_draw_debris)

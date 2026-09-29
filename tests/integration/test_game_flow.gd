@@ -70,6 +70,7 @@ func test_ultra_skips_perks() -> void:
 
 
 func test_boss_defeat_leads_to_ending_and_results() -> void:
+	Secrets.unlock("contact", false)  # «Контакт» уже пройден — финал классический, до итогов
 	await boot_stage(Balance.BOSS_STAGE)
 	await wait_until(func() -> bool: return game.state == Game.State.BOSS)
 	assert_eq(game.state, Game.State.BOSS, "яичница приземлилась")
@@ -114,6 +115,7 @@ func test_ability_from_eaten_bear() -> void:
 
 
 func test_full_ending_plays_to_results() -> void:
+	Secrets.unlock("contact", false)
 	await boot()
 	game.args["ending"] = true
 	game.debug_run = true
@@ -130,6 +132,7 @@ func test_full_ending_plays_to_results() -> void:
 
 
 func test_throwing_match_is_players_choice() -> void:
+	Secrets.unlock("contact", false)
 	await boot()
 	game.args["ending"] = true
 	game.debug_run = true
