@@ -89,6 +89,7 @@ func test_real_run_saves_record_and_scales() -> void:
 	await boot()
 	game.start_game(0)
 	game.score = 777
+	game.guard.note_score(game.score)  # законная установка счёта для теста
 	game.run_scales = 10.0
 	game._end(false)
 	assert_eq(SaveData.best(0), 777, "рекорд сохранён")
@@ -243,9 +244,11 @@ func test_run_ends_only_once() -> void:
 	await boot()
 	game.start_game(0)
 	game.score = 500
+	game.guard.note_score(game.score)  # законная установка счёта для теста
 	game._end(true)
 	assert_eq(game.state, Game.State.WIN)
 	game.score = 900
+	game.guard.note_score(game.score)  # законная установка счёта для теста
 	game._end(false)
 	assert_eq(game.state, Game.State.WIN, "поражение не перекрывает победу")
 	assert_eq(SaveData.best(0), 500, "рекорд записан один раз")

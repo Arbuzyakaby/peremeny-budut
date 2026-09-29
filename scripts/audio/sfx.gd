@@ -29,6 +29,9 @@ const PRIORITY := ["win", "lose", "ignite", "extinguisher", "boss_down", "stage_
 	"hatch", "phase", "yolk", "perk", "match", "burn", "secret"]
 ## Звуки огня идут через шину Ambient — их вместе с петлёй пожара приглушает duck().
 const FIRE_SOUNDS := ["crackle", "burn"]
+## Игровые звуки идут через шину World (Audio Rebound: отражения от ящика и лаборатории, v11.0),
+## звуки интерфейса (ui_*) — сухими прямо в SFX.
+const WORLD_BUS := "World"
 ## Музыка 2.0: громкость основы и слоя напряжения (при intensity = 1 слой звучит как основа).
 const MUSIC_DB := -11.0
 const HI_SILENT_DB := -60.0
@@ -220,11 +223,20 @@ func play(sound_name: String, pitch := 1.0, volume_db := 0.0) -> void:
 	started[idx] = now
 	voice_names[idx] = sound_name
 	p.stream = sounds[sound_name]
-	p.bus = "Ambient" if sound_name in FIRE_SOUNDS else "SFX"
+	p.bus = bus_for(sound_name)
 	p.pitch_scale = pitch * jitter_of(sound_name)
 	var vol_jitter := 0.0 if sound_name in NO_JITTER else randf_range(-JITTER_DB, JITTER_DB)
 	p.volume_db = -4.0 + volume_db + vol_jitter
 	p.play()
+
+
+## Шина звука: огонь — Ambient, интерфейс — SFX, остальное — World (если Audio Rebound её создал).
+static func bus_for(sound_name: String) -> String:
+	if sound_name in FIRE_SOUNDS:
+		return "Ambient"
+	if sound_name.begins_with("ui_") or AudioServer.get_bus_index(WORLD_BUS) < 0:
+		return "SFX"
+	return WORLD_BUS
 
 
 ## Случайный множитель высоты: мелодичные — ровно, щелчки прибора — ±5%, остальные — ±3%.

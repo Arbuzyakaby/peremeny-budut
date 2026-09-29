@@ -315,7 +315,7 @@ func _draw_fire_box(r: Rect2) -> void:
 	draw_rect(r, Color(0.8, 0.9, 1.0, 0.12))  # стекло
 	draw_line(r.position + Vector2(30, 40), r.position + Vector2(120, 200), Color(1, 1, 1, 0.2), 16.0)
 	draw_rect(Rect2(r.position + Vector2(20, -70), Vector2(r.size.x - 40, 50)), Color(0.85, 0.1, 0.08))
-	draw_string(font, r.position + Vector2(20, -32), "ОУ-2 · 01", HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 40, 36, Color.WHITE)
+	draw_string(font, r.position + Vector2(20, -32), "ОУ-5 · 01", HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 40, 36, Color.WHITE)
 
 
 ## Шкаф с образцами: стеклянные дверцы, банки в формалине с пузырьками, папки с отчётами сверху.

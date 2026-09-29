@@ -48,8 +48,24 @@ func test_extinguish_keeps_ash() -> void:
 	var ash := f.ash_amount()
 	var burnt := f.burnt_cells()
 	f.extinguish(1.0)
-	_run(f, 4.0)
+	var t := 0.0
+	while f.spraying and t < 9.0:  # углекислотный ОУ-5: учёный держит рычаг, пока пламя не погаснет
+		_run(f, 0.5)
+		t += 0.5
+	assert_false(f.spraying, "учёный отпустил рычаг: пламя погасло или баллон пуст (%.1f с)" % t)
+	assert_true(f.gas.co2_released > 2.0, "из баллона вышел углекислый газ: %.2f кг" % f.gas.co2_released)
+	if f.sim.burning_cells > 0:  # ОУ-5 не рассчитан на тлеющий деревянный ящик — остатки душат кошмой
+		f.cover(true)
+		t = 0.0
+		while f.sim.burning_cells > 0 and t < 8.0:
+			_run(f, 0.5)
+			t += 0.5
+		assert_true(t < 8.0, "под кошмой пламя задохнулось: %.1f с" % t)
+		_run(f, 4.0)
+		f.cover(false)
 	assert_eq(f.sim.burning_cells, 0, "потушен")
+	_run(f, 3.0)
+	assert_eq(f.sim.burning_cells, 0, "воздух вернулся, а пламя не вспыхнуло снова: без пилота нужна температура самовоспламенения")
 	assert_true(f.ash_amount() >= ash - 0.0001, "зола осталась")
 	assert_true(f.burnt_cells() >= burnt, "сожжённое не восстанавливается")
 	assert_near(f.coverage(), 0.0, 0.0001)

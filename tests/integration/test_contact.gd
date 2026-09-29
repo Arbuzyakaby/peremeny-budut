@@ -117,6 +117,7 @@ func test_ending_goes_through_fake_menu_into_contact() -> void:
 	game.args["ending"] = true
 	game.start_game(1)
 	game.score = 300
+	game.guard.note_score(game.score)  # законная установка счёта для теста
 	Engine.time_scale = 8.0
 	assert_true(await wait_until(func() -> bool: return game.state == Game.State.FAKE_MENU, 40.0), "финал → фальшивое меню")
 	assert_true(game.ending == null, "финал убран")

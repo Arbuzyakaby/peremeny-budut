@@ -201,7 +201,8 @@ func _assign(node: Object, role: String, target: Object = null) -> bool:
 		return false
 	if not r.is_empty():
 		_clear_role_fields(r)
-	roles[id] = {"node": node, "role": role, "target": target, "ticks": COMMIT_TICKS, "stall": 0, "last_d": INF}
+	roles[id] = {"node": node, "role": role, "target": target, "has_target": target != null,
+		"ticks": COMMIT_TICKS, "stall": 0, "last_d": INF}
 	return true
 
 
@@ -259,7 +260,8 @@ func _aborted(r: Dictionary) -> bool:
 			return true  # раскрыта, оглушена или ушла в хоровод
 	elif not d.pills.has(n):
 		return true
-	if target != null and (not is_instance_valid(target) or not _on_field(target)):
+	# Удалённый объект в Godot 4 равен null, поэтому «была ли цель» помним с момента назначения.
+	if r.get("has_target", false) and (not is_instance_valid(target) or not _on_field(target)):
 		return true  # цель пропала
 	match role:
 		"rescue":
@@ -316,7 +318,7 @@ func _goal_of(r: Dictionary) -> Vector2:
 		return Vector2.INF
 	match r["role"]:
 		"rescue":
-			return (r["target"] as Node2D).position
+			return (r["target"] as Node2D).position if is_instance_valid(r["target"]) else Vector2.INF
 		"guard", "boss_guard", "dodge":
 			return n.order_pos
 	return Vector2.INF  # точки обманщика и круга стрелков едут вместе со змеёй — застреванием не считается
@@ -339,7 +341,8 @@ func _bears_with(role: String) -> Array[TeddyBear]:
 
 func _role_target(node: Object) -> Object:
 	var r: Dictionary = roles.get(node.get_instance_id(), {})
-	return r.get("target", null)
+	var t = r.get("target", null)
+	return t if is_instance_valid(t) else null
 
 
 # ---------------------------------------------------------------- клещи
@@ -487,6 +490,8 @@ func _plan_support(snake: Snake) -> void:
 	var served := {}
 	for b in _bears_with("rescue") + _bears_with("guard"):
 		var f: Fork = _role_target(b)
+		if f == null:
+			continue  # вилка пропала в этом кадре — роль снимет проверка срыва
 		if not is_committed(b) and _support_role(f, snake) != role_of(b):
 			continue  # окно кончилось, помощь больше не нужна — роль снимется в конце такта
 		served[f] = true
@@ -546,7 +551,7 @@ func _plan_crossfire(snake: Snake) -> void:
 		if not b.type in [TeddyBear.Type.THROWER, TeddyBear.Type.SEAMSTRESS, TeddyBear.Type.NINJA, TeddyBear.Type.BOMBER]:
 			continue
 		var r: Dictionary = roles.get(b.get_instance_id(), {})
-		var mine: Fork = r.get("target") if r.get("role", "") == "crossfire" else null
+		var mine: Fork = _role_target(b) if r.get("role", "") == "crossfire" else null
 		if mine == null and aiming == null:
 			continue
 		if mine == null:
@@ -885,7 +890,7 @@ func scatter(kids: Array, snake: Snake, bounds: Rect2) -> void:
 func _plan_doll_cover(snake: Snake) -> void:
 	var served := {}
 	for r: Dictionary in roles.values():
-		if r["role"] == "cover" and is_instance_valid(r["node"]):
+		if r["role"] == "cover" and is_instance_valid(r["node"]) and is_instance_valid(r["target"]):
 			served[r["target"]] = true
 			if not is_committed(r["node"]):
 				_assign(r["node"], "cover", r["target"])

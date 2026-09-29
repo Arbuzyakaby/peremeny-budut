@@ -388,6 +388,7 @@ func _build_world(p: VBoxContainer) -> void:
 	var g := _grid(p, 2)
 	g.add_child(_btn("ОЧИСТИТЬ ПОЛЕ", func() -> void:
 		if _in_run():
+			_cheat()  # убрать всех врагов с поля — тоже чит (до v11.0 забег оставался честным)
 			game.enemies.clear()
 			game.shots.clear()))
 	g.add_child(_btn("ФИНАЛ", func() -> void:

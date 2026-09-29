@@ -257,7 +257,7 @@ func _draw_front() -> void:
 		_draw_match(match_pos - dir * 190.0, match_pos, true)
 
 
-## Сопло огнетушителя (куда бьёт пена).
+## Раструб углекислотного огнетушителя (откуда бьёт струя CO₂).
 func nozzle() -> Vector2:
 	return _hand_drawn() + Vector2(-210, -40)
 
@@ -268,7 +268,7 @@ func _draw_extinguisher(hd: Vector2) -> void:
 	front.draw_rect(body, Color(0.8, 0.1, 0.1))
 	front.draw_rect(Rect2(body.position + Vector2(18, 0), Vector2(26, body.size.y)), Color(1, 0.4, 0.35, 0.6))
 	front.draw_rect(Rect2(body.position + Vector2(0, 150), Vector2(140, 90)), Color(0.95, 0.95, 0.92))
-	front.draw_string(font, body.position + Vector2(14, 212), "ОУ-2", HORIZONTAL_ALIGNMENT_LEFT, -1, 44, LINE)
+	front.draw_string(font, body.position + Vector2(14, 212), "ОУ-5", HORIZONTAL_ALIGNMENT_LEFT, -1, 44, LINE)
 	front.draw_rect(Rect2(hd + Vector2(-40, -110), Vector2(80, 80)), Color(0.2, 0.2, 0.22))  # вентиль
 	var n := nozzle()
 	front.draw_line(hd + Vector2(0, -90), hd + Vector2(-110, -60), LINE, 34.0)

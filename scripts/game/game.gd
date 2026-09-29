@@ -23,6 +23,7 @@ const Design = preload("res://scripts/ui/design.gd")
 const Hud = preload("res://scripts/ui/hud.gd")
 const DevPanel = preload("res://scripts/ui/dev_panel.gd")
 const Sfx = preload("res://scripts/audio/sfx.gd")
+const Rebound = preload("res://scripts/audio/rebound/rebound.gd")
 const Tex = preload("res://scripts/gfx/tex.gd")
 const Ending = preload("res://scripts/ending/ending.gd")
 const Arena = preload("res://scripts/game/arena.gd")
@@ -38,6 +39,7 @@ const Daily = preload("res://scripts/core/daily.gd")
 const Replay = preload("res://scripts/game/replay.gd")
 const Darkness = preload("res://scripts/game/darkness.gd")
 const Secrets = preload("res://scripts/core/secrets.gd")
+const RunGuard = preload("res://scripts/core/run_guard.gd")
 const ContactMode = preload("res://scripts/contact/contact_mode.gd")
 const FakeMenu = preload("res://scripts/contact/fake_menu.gd")
 
@@ -46,6 +48,10 @@ enum State { LOADING, MENU, LEVEL, PERK, BOSS_INTRO, BOSS, OUTRO, CUTSCENE, WIN,
 ## Самый длинный шаг симуляции за кадр. Перетаскивание окна, сворачивание или фризы дают кадр
 ## в секунды — без ограничения змея за один шаг улетает в бортик или проскакивает сквозь снаряды.
 const MAX_STEP := 1.0 / 20.0
+## Аргументы отладки. В выпущенной сборке (не из редактора) их нет: из ярлыка с `--stage=4` или `--perks`
+## получался забег с середины или мутация в меню (v11.0). --touch и --diff безвредны и остаются.
+const DEBUG_ARGS := ["--stage=", "--autopilot", "--open=", "--shots=", "--settings-tab=", "--ending", "--skills",
+	"--perks", "--dev", "--settings", "--contact", "--contact-finale", "--fake-menu", "--dump-sfx"]
 ## Сколько секунд ждать второго нажатия «пропустить финал».
 const SKIP_CONFIRM_TIME := 2.0
 
@@ -77,12 +83,15 @@ var shake := 0.0
 ## Отладочный забег (аргументы, автопилот, читы): рекорды и чешуйки не сохраняются.
 var debug_run := false
 var autopilot := false
+## Страж забега (v11.0): правка счёта в памяти, спидхак, чужой масштаб времени — см. run_guard.gd.
+var guard := RunGuard.new()
 
 var world: Node2D
 var arena: Arena
 var camera: Camera2D
 var hud: Hud
 var sfx: Sfx
+var rebound: Rebound
 var dev_panel: DevPanel
 var snake: Snake
 var boss: FriedEggBoss
@@ -128,6 +137,9 @@ func _ready() -> void:
 	boss_fight = BossFight.new(self)
 	sfx = Sfx.new()
 	add_child(sfx)
+	rebound = Rebound.new()  # Audio Rebound: шина World с отражениями (после шины SFX — туда она отправляет звук)
+	rebound.game = self
+	add_child(rebound)
 	hud = Hud.new()
 	hud.sfx = sfx
 	add_child(hud)
@@ -156,7 +168,7 @@ func _ready() -> void:
 	dev_panel.game = self
 	add_child(dev_panel)
 
-	if "--dump-sfx" in OS.get_cmdline_user_args():
+	if "--dump-sfx" in OS.get_cmdline_user_args() and debug_args_allowed():
 		var dir := ProjectSettings.globalize_path("user://sfx_dump")
 		sfx.dump(dir)
 		print("SFX dumped to ", dir)
@@ -231,8 +243,22 @@ static func _on_quit() -> void:
 	Fx.clear_cache()
 
 
-func _parse_args(user_args := OS.get_cmdline_user_args()) -> void:
+## В выпущенной сборке аргументы отладки не работают.
+static func debug_args_allowed() -> bool:
+	return OS.is_debug_build()
+
+
+static func is_debug_arg(a: String) -> bool:
+	for p: String in DEBUG_ARGS:
+		if a == p or (p.ends_with("=") and a.begins_with(p)):
+			return true
+	return false
+
+
+func _parse_args(user_args := OS.get_cmdline_user_args(), allow_debug := debug_args_allowed()) -> void:
 	for a: String in user_args:
+		if not allow_debug and is_debug_arg(a):
+			continue
 		if a.begins_with("--stage="):
 			args["stage"] = clampi(int(a.get_slice("=", 1)), 0, Balance.BOSS_STAGE)
 		elif a.begins_with("--diff="):
@@ -255,7 +281,7 @@ func _parse_args(user_args := OS.get_cmdline_user_args()) -> void:
 			args[a.trim_prefix("--")] = true
 	# --open=end/win/restart завершают забег с выдуманным счётом — это тоже отладка, не рекорд
 	debug_run = autopilot or args["stage"] >= 0 or args["ending"] or args.get("open", "") in ["end", "win", "restart"] \
-		or args["contact"] or args["contact-finale"] or args["fake-menu"]
+		or args["contact"] or args["contact-finale"] or args["fake-menu"] or args["perks"]
 
 
 # ---------------------------------------------------------------- меню и старт
@@ -285,6 +311,9 @@ func start_game(diff: int) -> void:
 		cfg = Daily.apply(cfg, daily)
 		seed(Daily.seed_for(Daily.day_key()))
 	replay.clear()
+	guard = RunGuard.new()
+	if not is_equal_approx(Engine.time_scale, 1.0):  # время замедлили до забега — забег не в счёт
+		guard.flag("скорость времени изменена (%.2f×)" % Engine.time_scale)
 	if menu_demo:
 		menu_demo.clear()
 		menu_demo = null
@@ -431,6 +460,9 @@ func _stage_cleared() -> void:
 
 
 func _on_perk(id: String) -> void:
+	if snake == null or state == State.MENU:  # карточки, открытые из меню (отладка), ничего не дают
+		get_tree().paused = false
+		return
 	perks[id] = perks.get(id, 0) + 1
 	get_tree().paused = false
 	match id:
@@ -573,6 +605,7 @@ func _commit_run(win: bool) -> Dictionary:
 		sfx.play_music("")
 		sfx.play("lose")
 		vibrate(300)
+	_check_guard()
 	var best := SaveData.best(difficulty)
 	var record := false
 	if daily_mode:  # у испытания дня свой рекорд
@@ -714,6 +747,10 @@ func _process(delta: float) -> void:
 			snake.max_lives, enemies.squad.is_trapping(), yolk, float(goal_done) / maxf(goal_total, 1.0)))
 	if autopilot and snake and fighting:
 		Autopilot.drive(self)
+	if fighting and not debug_run:
+		guard.tick(Engine.time_scale)
+		if guard.flagged():
+			_check_guard()
 
 	match state:
 		State.MENU:
@@ -783,7 +820,9 @@ func add_score(base_points: int, pos: Vector2, prefix := "") -> void:
 
 
 func add_score_raw(points: int, pos: Vector2, prefix := "") -> void:
+	guard.verify(score)  # счёт до прибавки должен совпадать с тенью
 	score += points
+	guard.note_score(score)
 	hud.set_score(score)
 	fx.popup(pos, "%s+%d" % [prefix, points], Color(1, 0.95, 0.4) if prefix == "" else Color(1, 0.5, 0.9), true)
 
@@ -842,6 +881,16 @@ func found_secret(id: String) -> void:
 	sfx.play("secret")
 	if state == State.MENU:  # журнал в меню считает пасхалки
 		hud.menu.update_scales(Skills.scales)
+
+
+## Страж забега что-то заметил — забег не в счёт (рекорд и чешуйки не пишутся), причина — в итогах.
+func _check_guard() -> void:
+	if debug_run:
+		return
+	guard.verify(score)
+	if guard.flagged():
+		mark_debug_run()
+		push_warning("забег не засчитан: " + guard.reason)
 
 
 ## Пометить забег отладочным (любое читерство из панели разработчика).

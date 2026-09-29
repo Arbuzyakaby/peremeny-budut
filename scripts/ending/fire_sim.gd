@@ -23,19 +23,25 @@ enum Mat { NONE, WOOD, PAPER, PLASTIC, METAL, OIL, FABRIC, SHELL }
 
 const AMBIENT := 20.0
 const MAX_T := 1400.0
-## Свойства материалов: ignite — точка воспламенения °C, fuel — запас топлива, rate — доля запаса,
-## сгорающая за секунду при полном кислороде, heat — нагрев клетки на единицу сгоревшего топлива,
-## cond — теплопроводность, ash — выход золы, melt — точка плавления (0 — не плавится).
+## Свойства материалов: ignite — температура пилотного воспламенения °C (рядом уже есть пламя, которое
+## поджигает летучие), auto — самовоспламенения (пламени рядом нет: летучие должны вспыхнуть сами),
+## pyro — начало пиролиза (материал темнеет и дымит белым ещё до пламени), fuel — запас топлива,
+## rate — доля запаса, сгорающая за секунду при полном кислороде, heat — нагрев клетки на единицу
+## сгоревшего топлива, cond — теплопроводность, ash — выход золы, melt — точка плавления (0 — не плавится).
+## Справочно: древесина — пилотное 300–365 °C, самовоспламенение 400–500 °C, пиролиз с 200 °C;
+## бумага — 233 °C (те самые 451 °F); полипропилен — 350/390 °C; растительное масло — самовоспламенение ~400 °C.
 const PROPS := {
-	Mat.NONE: {"ignite": 9999.0, "fuel": 0.0, "rate": 0.0, "heat": 0.0, "cond": 1.2, "ash": 0.0, "melt": 0.0},
-	Mat.WOOD: {"ignite": 290.0, "fuel": 0.85, "rate": 0.075, "heat": 5200.0, "cond": 0.9, "ash": 0.85, "melt": 0.0},
-	Mat.PAPER: {"ignite": 233.0, "fuel": 0.45, "rate": 0.55, "heat": 3600.0, "cond": 0.8, "ash": 0.7, "melt": 0.0},
-	Mat.PLASTIC: {"ignite": 340.0, "fuel": 0.8, "rate": 0.13, "heat": 5600.0, "cond": 0.5, "ash": 0.2, "melt": 150.0},
-	Mat.METAL: {"ignite": 9999.0, "fuel": 0.0, "rate": 0.0, "heat": 0.0, "cond": 3.2, "ash": 0.0, "melt": 0.0},
-	Mat.OIL: {"ignite": 255.0, "fuel": 0.35, "rate": 0.3, "heat": 6200.0, "cond": 2.4, "ash": 0.3, "melt": 0.0},
-	Mat.FABRIC: {"ignite": 255.0, "fuel": 0.6, "rate": 0.3, "heat": 4300.0, "cond": 0.7, "ash": 0.55, "melt": 0.0},
-	Mat.SHELL: {"ignite": 9999.0, "fuel": 0.0, "rate": 0.0, "heat": 0.0, "cond": 0.6, "ash": 0.0, "melt": 0.0},
+	Mat.NONE: {"ignite": 9999.0, "auto": 9999.0, "pyro": 9999.0, "fuel": 0.0, "rate": 0.0, "heat": 0.0, "cond": 1.2, "ash": 0.0, "melt": 0.0},
+	Mat.WOOD: {"ignite": 290.0, "auto": 420.0, "pyro": 200.0, "fuel": 0.85, "rate": 0.075, "heat": 5200.0, "cond": 0.9, "ash": 0.85, "melt": 0.0},
+	Mat.PAPER: {"ignite": 233.0, "auto": 260.0, "pyro": 150.0, "fuel": 0.45, "rate": 0.55, "heat": 3600.0, "cond": 0.8, "ash": 0.7, "melt": 0.0},
+	Mat.PLASTIC: {"ignite": 340.0, "auto": 390.0, "pyro": 300.0, "fuel": 0.8, "rate": 0.13, "heat": 5600.0, "cond": 0.5, "ash": 0.2, "melt": 150.0},
+	Mat.METAL: {"ignite": 9999.0, "auto": 9999.0, "pyro": 9999.0, "fuel": 0.0, "rate": 0.0, "heat": 0.0, "cond": 3.2, "ash": 0.0, "melt": 0.0},
+	Mat.OIL: {"ignite": 255.0, "auto": 380.0, "pyro": 190.0, "fuel": 0.35, "rate": 0.3, "heat": 6200.0, "cond": 2.4, "ash": 0.3, "melt": 0.0},
+	Mat.FABRIC: {"ignite": 255.0, "auto": 400.0, "pyro": 190.0, "fuel": 0.6, "rate": 0.3, "heat": 4300.0, "cond": 0.7, "ash": 0.55, "melt": 0.0},
+	Mat.SHELL: {"ignite": 9999.0, "auto": 9999.0, "pyro": 9999.0, "fuel": 0.0, "rate": 0.0, "heat": 0.0, "cond": 0.6, "ash": 0.0, "melt": 0.0},
 }
+const PILOT_R := 2            # пламя в стольких клетках вокруг — пилот для летучих соседа
+const PYRO_RATE := 0.006      # пиролиз до пламени: доля запаса за секунду на пике (у самого воспламенения)
 const RISE := 1.6          # конвекция: доля перегрева соседа снизу, уходящая вверх за секунду
 const NEWTON := 0.35       # теплоотдача воздуху, 1/с
 const RADIATE := 2.6e-10   # излучение: коэффициент при (T⁴ − T₀⁴), в кельвинах
@@ -67,6 +73,13 @@ var foam := PackedFloat32Array()
 var scorch := PackedFloat32Array()  # копоть/окалина 0..1 — только растёт
 var mat := PackedByteArray()
 var burning_cells := 0
+## Связь с газами (gas_sim.gd, v11.0): кислород у дна приходит оттуда, туда уходит сгоревшее и пиролиз.
+var gas_coupled := false
+var gas_oxy := PackedFloat32Array()   # 0..1 — кислород над клеткой (доля от воздуха) с учётом критерия пламени
+var burn_acc := PackedFloat32Array()  # сгоревшее топливо с прошлого шага газов
+var pyro_acc := PackedFloat32Array()  # разложившееся без пламени (белый дым)
+var flaming := PackedByteArray()      # клетка горит пламенем (пилот для соседей на следующем подшаге)
+var gas_ref: WeakRef  # gas_sim.gd — слабая ссылка: газы держат этот объект, обратная сильная дала бы цикл и утечку
 var time := 0.0
 ## Время первого воспламенения каждого материала (индекс — Mat, −1 — ещё не горел) и их порядок.
 var ignited_at := PackedFloat32Array()
@@ -78,6 +91,8 @@ var _next := PackedFloat32Array()
 var _flux := PackedFloat32Array()
 # свойства материалов в плоских массивах (индекс — Mat): словари в горячем цикле слишком медленные
 var _ign := PackedFloat32Array()
+var _auto := PackedFloat32Array()
+var _pyro := PackedFloat32Array()
 var _rate := PackedFloat32Array()
 var _heat := PackedFloat32Array()
 var _cond := PackedFloat32Array()
@@ -103,12 +118,19 @@ func _init(cols := 96, rows := 54, rect := Rect2(0, 0, 1280, 720)) -> void:
 	_next.resize(n)
 	_flux.resize(n)
 	mat.resize(n)
+	gas_oxy.resize(n)
+	gas_oxy.fill(1.0)
+	burn_acc.resize(n)
+	pyro_acc.resize(n)
+	flaming.resize(n)
 	temp.fill(AMBIENT)
 	oxy.fill(1.0)
 	amb.fill(AMBIENT)
 	for m in Mat.size():
 		var pr: Dictionary = PROPS[m]
 		_ign.append(pr["ignite"])
+		_auto.append(pr["auto"])
+		_pyro.append(pr["pyro"])
 		_rate.append(pr["rate"])
 		_heat.append(pr["heat"])
 		_cond.append(pr["cond"])
@@ -230,7 +252,7 @@ func temp_at(p: Vector2) -> float:
 
 
 func is_burning(i: int) -> bool:
-	return fuel[i] > 0.001 and temp[i] >= float(PROPS[mat[i]]["ignite"]) and oxy[i] > 0.05
+	return flaming[i] == 1
 
 
 ## Доля клеток с топливом, которые сейчас горят.
@@ -284,6 +306,7 @@ func _substep(dt: float) -> void:
 	time += dt
 	var burning := 0
 	var n := w * h
+	var was := flaming.duplicate()  # пилоты — пламя прошлого подшага
 	_radiate()
 	for i in n:
 		var x := i % w
@@ -302,27 +325,42 @@ func _substep(dt: float) -> void:
 		if td > t:
 			nt += (td - t) * RISE * dt
 		nt += _flux[i] * dt * (1.0 - foam[i])
-		# горение
+		# горение: выше самовоспламенения — всегда, выше пилотного — если рядом уже есть пламя
 		var f := fuel[i]
-		if f > 0.0 and t >= ign and oxy[i] > 0.05:
+		var ox := gas_oxy[i] if gas_coupled else oxy[i]
+		if gas_coupled:
+			oxy[i] = ox
+		var lit := false
+		if f > 0.0 and ox > 0.05 and t >= ign:
+			lit = t >= _auto[m] or _piloted(was, x, y)
+		flaming[i] = 1 if lit else 0
+		if not lit and f > 0.0 and t > _pyro[m] and t < ign + 1.0:  # пиролиз: темнеет и дымит ещё до пламени
+			var k_p := clampf((t - _pyro[m]) / maxf(ign - _pyro[m], 1.0), 0.0, 1.0)
+			var loss := minf(f * 0.5, PYRO_RATE * fuel0[i] * k_p * k_p * dt)
+			f -= loss
+			pyro_acc[i] += loss
+		if lit:
 			var over := clampf((t - ign) / 250.0, 0.25, 1.6)
-			var burn := minf(f, _rate[m] * fuel0[i] * oxy[i] * over * dt)
+			var burn := minf(f, _rate[m] * fuel0[i] * ox * over * dt)
 			f -= burn
 			nt += burn * _heat[m]
-			oxy[i] = maxf(oxy[i] - burn * O2_USE, 0.0)
+			burn_acc[i] += burn
+			if not gas_coupled:
+				oxy[i] = maxf(oxy[i] - burn * O2_USE, 0.0)
 			burning += 1
 			if ignited_at[m] < 0.0:
 				ignited_at[m] = time
 				ignition_order.append(m)
 		fuel[i] = f
-		oxy[i] = minf(oxy[i] + (1.0 - oxy[i]) * O2_REFILL * dt * (1.0 - foam[i]), 1.0 - foam[i] * 0.95)
+		if not gas_coupled:  # без газов — кислород подтекает сам (упрощённая модель)
+			oxy[i] = minf(oxy[i] + (1.0 - oxy[i]) * O2_REFILL * dt * (1.0 - foam[i]), 1.0 - foam[i] * 0.95)
 		# остывание: излучение ~T⁴ и теплоотдача воздуху
 		var tk := nt + 273.15
 		nt -= (RADIATE * (tk * tk * tk * tk - 293.15 * 293.15 * 293.15 * 293.15) + NEWTON * (nt - amb[i])) * dt
 		# пена: холодный слой отбирает тепло
 		if foam[i] > 0.0:
 			nt -= foam[i] * 900.0 * dt
-			foam[i] = maxf(foam[i] - 0.22 * dt, 0.0)  # пена оседает, под ней — уголь и зола
+			foam[i] = maxf(foam[i] - (0.22 + maxf(t - AMBIENT, 0.0) / 800.0) * dt, 0.0)  # снег сублимирует (на горячем — быстрее), пена оседает
 		_next[i] = clampf(nt, AMBIENT, MAX_T)
 		# копоть и окалина — только растут: скорлупа коптится, металл темнеет и раскаляется
 		if t > 180.0:
@@ -358,13 +396,25 @@ func _substep(dt: float) -> void:
 	burning_cells = burning
 
 
+## Пламя в радиусе PILOT_R клеток на прошлом подшаге (или в самой клетке) — пилот для летучих.
+func _piloted(was: PackedByteArray, x: int, y: int) -> bool:
+	for dy in range(-PILOT_R, PILOT_R + 1):
+		var yy := y + dy
+		if yy < 0 or yy >= h:
+			continue
+		for dx in range(-PILOT_R, PILOT_R + 1):
+			var xx := x + dx
+			if xx >= 0 and xx < w and was[yy * w + xx] == 1:
+				return true
+	return false
+
+
 ## Лучистый подогрев: каждая горящая клетка отдаёт поток более холодным соседям в радиусе
 ## √FLAME_REACH клеток (чистый поток пропорционален разности температур — как обмен излучением).
 func _radiate() -> void:
 	_flux.fill(0.0)
 	for i in w * h:
-		var m: int = mat[i]
-		if fuel[i] <= 0.001 or temp[i] < _ign[m]:
+		if flaming[i] == 0:
 			continue
 		var x := i % w
 		var y := i / w
@@ -383,6 +433,12 @@ func _radiate() -> void:
 			_flux[j] += power * up * (ti - tj) / float(o.z)
 
 
+## Средняя по ящику доля углекислого газа (0, если газы не подключены) — для скорости звука в Audio Rebound.
+func gas_co2_mean() -> float:
+	var g = gas_ref.get_ref() if gas_ref else null
+	return g.co2_mean() if g != null else 0.0
+
+
 ## Мгновенно довести пожар до конца: всё выгорело, осталась зола (пропуск финала).
 func burn_out() -> void:
 	for i in w * h:
@@ -393,22 +449,24 @@ func burn_out() -> void:
 		scorch[i] = maxf(scorch[i], 0.8)
 		temp[i] = AMBIENT + 60.0
 	burning_cells = 0
+	flaming.fill(0)
 
 
 ## Упаковать поля в байты для текстур шейдера:
-## data — RGBA: температура, обугливание, зола, расплав; info — RGB: материал, пена, копоть.
+## data — RGBA: температура, обугливание, зола, расплав; info — RGBA: материал, пена, копоть, пламя.
 func pack(data: PackedByteArray, info: PackedByteArray) -> void:
 	var n := w * h
 	if data.size() != n * 4:
 		data.resize(n * 4)
-	if info.size() != n * 3:
-		info.resize(n * 3)
+	if info.size() != n * 4:
+		info.resize(n * 4)
 	for i in n:
 		var o := i * 4
 		data[o] = int(clampf(temp[i] / MAX_T, 0.0, 1.0) * 255.0)
 		data[o + 1] = int(charred[i] * 255.0)
 		data[o + 2] = int(ash[i] * 255.0)
 		data[o + 3] = int(melt[i] * 255.0)
-		info[i * 3] = mat[i] * 32
-		info[i * 3 + 1] = int(foam[i] * 255.0)
-		info[i * 3 + 2] = int(scorch[i] * 255.0)
+		info[i * 4] = mat[i] * 32
+		info[i * 4 + 1] = int(foam[i] * 255.0)
+		info[i * 4 + 2] = int(scorch[i] * 255.0)
+		info[i * 4 + 3] = 255 if flaming[i] == 1 else 0

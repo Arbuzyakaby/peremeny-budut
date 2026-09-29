@@ -98,6 +98,14 @@ var in_dark := false
 var tw_flare: Tween
 var crackle_t := 0.0
 var crackles := 0  # сколько раз трещало (тесты)
+## Тушение: учёный держит рычаг не меньше SPRAY_MIN и дальше — пока не погаснет пламя (fire.spraying),
+## но не дольше SPRAY_MAX (баллон ОУ-5 пустеет примерно за 8 с).
+const SPRAY_MIN := 3.0
+const SPRAY_MAX := 8.5
+var spray_t := -1.0
+## Кошма: сколько ждать под ней, пока пламя не задохнётся.
+const BLANKET_MAX := 8.0
+var blanket_t := -1.0
 ## Финал продолжается «Контактом»: после вылупления — пересадка, фальшивое меню, технический режим.
 var to_contact := false
 var transfer: Transfer
@@ -349,6 +357,27 @@ func _process(delta: float) -> void:
 		baby.update(delta)
 	if foam and lab:
 		foam.position = lab.nozzle()
+	if spray_t >= 0.0:
+		spray_t += delta
+		foam.emitting = fire.spraying
+		lab.spraying = fire.spraying
+		foam.direction = (fire.aim - foam.position).normalized()  # раструб следит за очагом
+		if (spray_t >= SPRAY_MIN and not fire.spraying) or spray_t >= SPRAY_MAX:
+			spray_t = -1.0
+			if fire.sim.burning_cells > 0:  # баллон пуст, а ящик ещё горит: накрыть кошмой
+				fire.stop_extinguisher()
+				foam.emitting = false
+				lab.spraying = false
+				fire.cover(true)
+				_say("Кошму. Без кислорода не погорит.", 2.0)
+				blanket_t = 0.0
+			else:
+				_after_spray()
+	if blanket_t >= 0.0:
+		blanket_t += delta
+		if (blanket_t >= 1.0 and fire.sim.burning_cells == 0) or blanket_t >= BLANKET_MAX:
+			blanket_t = -1.0
+			_after_spray()
 	if lab and lab.walking:
 		step_t -= delta
 		if step_t <= 0.0:
@@ -420,10 +449,15 @@ func _burn_snake() -> void:
 		lab.holding = Lab.Hold.EXTINGUISHER
 		_say("Технику безопасности никто не отменял.", 2.0))
 	tw_end.tween_property(lab, "hand", HAND_OVER + Vector2(120, -60), 1.2).set_trans(Tween.TRANS_SINE)
-	tw_end.tween_callback(_spray)
-	tw_end.tween_interval(3.0)
+	tw_end.tween_callback(_spray)  # дальше — _after_spray(), когда пламя погаснет
+
+
+## Огонь потушен, учёный отпустил рычаг: штамп, лампа, яйцо в пепле, титры (или пересадка).
+func _after_spray() -> void:
+	tw_end = create_tween()
 	tw_end.tween_callback(func() -> void:
 		lab.spraying = false
+		fire.stop_extinguisher()
 		foam.emitting = false
 		hud.hide_caption())
 	tw_end.tween_property(lab, "hand", Vector2(Lab.STAND_X - 560, 700), 1.2).set_trans(Tween.TRANS_SINE)
@@ -447,7 +481,10 @@ func _burn_snake() -> void:
 		tick_t = 0.6)
 	tw_end.tween_property(darkness, "color", Color(0.26, 0.28, 0.42), 0.25)
 	tw_end.tween_interval(1.2)
-	tw_end.tween_callback(func() -> void: lab.walking = true)
+	tw_end.tween_callback(func() -> void:
+		lab.walking = true
+		if fire.blanket > 0.0:  # уходя, учёный забирает кошму — ящик уже остыл
+			fire.cover(false, 1.0))
 	tw_end.tween_property(lab, "sx", Lab.OUTSIDE_X + 200.0, 4.0)
 	tw_end.parallel().tween_property(lab, "hand", Vector2(Lab.OUTSIDE_X - 360, 700), 4.0)
 	tw_end.tween_callback(func() -> void: lab.walking = false)
@@ -488,6 +525,7 @@ func _burn_snake() -> void:
 
 func _spray() -> void:
 	lab.spraying = true
+	spray_t = 0.0
 	sfx.play("extinguisher")
 	sfx.duck(-4.0, 0.5)  # струя не тонет в треске: шина Ambient (петля огня, треск, горение) — тише
 	foam = CPUParticles2D.new()
@@ -512,7 +550,7 @@ func _spray() -> void:
 	foam.color_ramp = ramp
 	game.add_child(foam)
 	foam.emitting = true
-	fire.extinguish(2.4)
+	fire.extinguish(2.4)  # проход струёй за 2,4 с, дальше — добивание очагов (fire.gd)
 	sfx.stop_ambient(2.6)
 	create_tween().tween_property(lab, "glow", 0.0, 2.4)
 
@@ -598,6 +636,8 @@ func skip() -> void:
 	lab.hand = Vector2(Lab.STAND_X - 560, 700)
 	lab.glow = 1.0
 	fire.fill_instantly()
+	if fire.blanket > 0.0:  # пропуск под кошмой — пепелище видно
+		fire.cover(false, 0.01)
 	snake.alive = false
 	snake.burnt = 1.0
 	snake_burnt = true
@@ -606,6 +646,8 @@ func skip() -> void:
 	hud.hide_caption()
 	if transfer:
 		transfer.queue_free()
+	spray_t = -1.0
+	blanket_t = -1.0
 	_finish()
 
 

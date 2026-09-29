@@ -121,11 +121,19 @@ static func best_streak() -> int:
 static func register_play(key: String) -> int:
 	var st := SaveData.read_section(STREAK_SECTION)
 	var last := String(st.get("last", ""))
-	if last == key:
+	if last == key or not clock_ok(key):
 		return 0
 	var n := int(st.get("streak", 0)) + 1 if last == prev_key(key) else 1
 	SaveData.write_section(STREAK_SECTION, {"last": key, "streak": n, "best": maxi(n, int(st.get("best", 0)))})
 	return streak_bonus(n)
+
+
+## Античит (v11.0): день не раньше последнего сыгранного. Перевели часы назад, чтобы переиграть
+## прошлые дни или «накрутить» серию туда-обратно, — ни рекорда дня, ни бонуса. Ключи дней
+## вида ГГГГ-ММ-ДД сравниваются как строки.
+static func clock_ok(key: String) -> bool:
+	var last := String(SaveData.read_section(STREAK_SECTION).get("last", ""))
+	return last == "" or key >= last
 
 
 static func streak_bonus(n: int) -> int:
@@ -159,7 +167,7 @@ static func best(key: String) -> int:
 
 ## Записать результат дня. true — новый рекорд дня.
 static func submit(key: String, score: int) -> bool:
-	if score <= best(key):
+	if score <= best(key) or not clock_ok(key):
 		return false
 	_cache[key] = score
 	SaveData.write_section(SECTION, {key: score})

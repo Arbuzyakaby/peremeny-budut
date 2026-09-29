@@ -163,9 +163,9 @@ func test_pack_layout() -> void:
 	var info := PackedByteArray()
 	s.pack(data, info)
 	assert_eq(data.size(), s.w * s.h * 4)
-	assert_eq(info.size(), s.w * s.h * 3)
+	assert_eq(info.size(), s.w * s.h * 4)
 	var i := s.index_at(Vector2(200, 120))
-	assert_eq(int(info[i * 3]), FireSim.Mat.OIL * 32, "материал")
+	assert_eq(int(info[i * 4]), FireSim.Mat.OIL * 32, "материал")
 	assert_near(data[i * 4] / 255.0 * FireSim.MAX_T, 700.0, 10.0, "температура")
 
 

@@ -42,7 +42,7 @@ func run(paths: Array[String], parent: Node, only := "") -> Dictionary:
 
 func _run_suite(path: String, parent: Node, only: String) -> void:
 	var script: GDScript = load(path)
-	if script == null:
+	if script == null or not script.can_instantiate():  # ошибка разбора — это провал, а не «0 тестов»
 		failed += 1
 		lines.append("✗ %s — не загрузился" % path)
 		return

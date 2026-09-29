@@ -28,7 +28,9 @@ static func rows(g, win: bool, record: bool, best: int) -> Array:
 	if g.streak_bonus > 0:
 		rows.append(["Серия испытаний", "%d дн. подряд: +%d ч." % [Daily.streak(), g.streak_bonus], true])
 	rows.append(["Чешуйки", "+%d  (всего %d)" % [g.scales_gained, Skills.scales], g.scales_gained > 0])
-	if g.debug_run:
+	if g.debug_run and g.guard.flagged():
+		rows.append(["Забег не засчитан", g.guard.reason])
+	elif g.debug_run:
 		rows.append(["Отладочный забег", "результат не сохранён"])
 	return rows
 
