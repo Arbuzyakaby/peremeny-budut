@@ -536,6 +536,8 @@ func _take_bite(snake: Snake, away: Vector2) -> void:
 func _lose_hp(amount := 1) -> void:
 	hp = maxi(hp - amount, 0)
 	flash = 1.0
+	height = 0.0  # ранена на взлёте или в конце падения — на пол, иначе зависнет над ним
+	vel = Vector2.ZERO
 	bitten.emit(hp)
 	if hp <= 0:
 		act = Act.DEAD

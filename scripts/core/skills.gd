@@ -188,7 +188,7 @@ static func perk(id: String) -> Dictionary:
 ## Чешуйки за забег: накопленные очки прогресса × множитель сложности.
 ## mult — навык «Жадность» и мутация «Чешуйчатая».
 static func scales_for_run(progress: float, diff: int, mult := 1.0) -> int:
-	return int(progress * SCALE_MULT[clampi(diff, 0, SCALE_MULT.size() - 1)] * mult)
+	return int(progress * SCALE_MULT[clampi(diff, 0, SCALE_MULT.size() - 1)] * mult + 0.0001)  # поправка на float: 24.9999 → 25
 
 
 ## Случайные карточки мутаций: без повторов в раздаче, уникальные уже взятые не выпадают.

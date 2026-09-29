@@ -294,10 +294,8 @@ func start_game(diff: int) -> void:
 	snake.z_index = 2
 	snake.max_lives = cfg["lives"] + mods["lives"]
 	snake.lives = snake.max_lives
-	snake.apply_mods(mods)
+	_apply_snake_mods()
 	snake.shield += int(mods["start_shield"])  # навык «Запасной хвост»
-	for k: String in daily.get("snake", {}):
-		snake.set(k, float(snake.get(k)) * float(daily["snake"][k]))
 	if daily.get("dark", false):
 		darkness = Darkness.new()
 		world.add_child(darkness)
@@ -446,10 +444,18 @@ func _on_perk(id: String) -> void:
 			snake.shield += 1
 			sfx.play("shield")
 	mods = Skills.mods(perks, cfg["no_skills"])
-	snake.apply_mods(mods)
+	_apply_snake_mods()
 	update_berserk()
 	fx.popup(snake.head_pos + Vector2(0, -40), Skills.perk(id)["name"], Color(0.6, 1, 0.6))
 	enter_stage(stage + 1)
+
+
+## Навыки и мутации на змею, а поверх них — модификатор дня (иначе «Гололёд» и «Одышка» пропадут
+## после первой же мутации: apply_mods перезаписывает поворот и стамину).
+func _apply_snake_mods() -> void:
+	snake.apply_mods(mods)
+	for k: String in daily.get("snake", {}):
+		snake.set(k, float(snake.get(k)) * float(daily["snake"][k]))
 
 
 func _clear_field() -> void:
@@ -577,7 +583,8 @@ func _commit_run(win: bool) -> Dictionary:
 	if record:
 		best = score
 	if win:
-		run_scales += float(mods.get("bounty", 0)) / Skills.SCALE_MULT[clampi(difficulty, 0, 3)]  # навык «Премия» — ровно +25
+		# навык «Премия» — ровно +25: сложность и «Жадность»/«Чешуйчатая» её не раздувают
+		run_scales += float(mods.get("bounty", 0)) / (Skills.SCALE_MULT[clampi(difficulty, 0, 3)] * float(mods.get("scales_mult", 1.0)))
 	scales_gained = Skills.scales_for_run(run_scales, difficulty, float(mods.get("scales_mult", 1.0)))
 	print("run end: win=%s stage=%d score=%d scales=+%d" % [win, stage, score, scales_gained])
 	streak_bonus = 0

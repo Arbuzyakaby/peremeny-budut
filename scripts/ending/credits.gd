@@ -37,7 +37,7 @@ static func text(game, choice_line: String, burnt := -1) -> String:
 static func contact_text(game, c) -> String:
 	var secs := int(game.play_time)
 	var lines := [
-		"ЗМЕЯ ПРОТИВ ГИГАНТСКОЙ ЯИЧНИЦЫ", "версия %s" % ProjectSettings.get_setting("application/config/version", "10.0"), "",
+		"ЗМЕЯ ПРОТИВ ГИГАНТСКОЙ ЯИЧНИЦЫ", "версия %s" % ProjectSettings.get_setting("application/config/version", "10.1"), "",
 		"ТЕХНИЧЕСКИЙ РЕЖИМ «КОНТАКТ»",
 		"ПРОТОКОЛ ЭКСПЕРИМЕНТА №48",
 		"Медведей убеждено: %d" % c.counts["bear"],

@@ -45,6 +45,8 @@ func begin() -> FriedEggBoss:
 
 
 func _on_landed() -> void:
+	if g.state != g.State.BOSS_INTRO:  # змея погибла (бортик) или забег закрыт, пока яичница падала
+		return
 	g.add_shake(22.0)
 	g.vibrate(120)
 	g.sfx.play("slam")
