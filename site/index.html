@@ -5846,7 +5846,8 @@ void main() {
 						if (!b.spr) { b.spr = document.createElement("canvas"); b.spr.width = 110; b.spr.height = 110; }
 						const c = b.spr.getContext("2d"); c.clearRect(0, 0, 110, 110); c.save(); c.translate(55, 50); bearShape(c, b, b.blink, b.flash > 0); c.restore(); draws++;
 					}
-					g.save(); g.translate(b.x, b.y); g.rotate(Math.trunc(rot * 12) / 12); g.drawImage(b.spr, -55, -50); g.restore();
+					/* поворот узла — плавный, как canvas transform в Godot; шагами обновляется только сама картинка */
+					g.save(); g.translate(b.x, b.y); g.rotate(rot); g.drawImage(b.spr, -55, -50); g.restore();
 				}
 			}
 			cost += performance.now() - t0; frames++; acc += dt;
