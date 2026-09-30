@@ -168,6 +168,7 @@ func use() -> void:
 		g.fx.popup(snake.head_pos + Vector2(0, -30), "Нет сил!", Color(0.6, 0.8, 1))
 		return
 	cooldown = Balance.ABILITY_COOLDOWN
+	g.stats.on_ability()
 	var dir := Vector2.from_angle(snake.heading)
 	var muzzle := snake.head_pos + dir * 24.0
 	match type:

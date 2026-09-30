@@ -45,6 +45,8 @@ const PINCER_RADIUS := 250.0
 const PINCER_TIMEOUT := 2.6
 const PINCER_LOOK := 0.3         # вилки смотрят друг на друга перед ударом
 const PINCER_GAP := 2.6          # просвет по курсу змеи в тройных клещах (≈150°); в парных — пол-круга
+const RECRUIT_MIN_TIME := 0.9    # подхват: замену зовут, только если до удара осталось не меньше стольких секунд
+const DAZE_GRACE := 0.6          # клещи не начинают, пока змея неуязвима дольше этого или оглушена
 const BREAKOUT_STAMINA := 0.3    # цена прорыва сквозь вилку в клещах
 const DECOY_CD := 6.0
 const DECOY_LURE := 140.0        # обманщик садится на линию атаки на таком расстоянии от головы
@@ -80,6 +82,7 @@ var pincer_t := 0.0
 var pincer_cd := 2.0
 var pincer_look_t := 0.0 # >0 — вилки уже на местах и переглядываются
 var pincer_id := 0
+var pincer_need := 0     # сколько вилок задумано в этих клещах (потерю можно восполнить)
 var decoy_cd := 0.0
 ## Роли по instance_id: {"node", "role", "target", "ticks", "stall", "last_d"}.
 var roles := {}
@@ -96,7 +99,7 @@ var kh_cd := 3.0
 var duet_cd := 2.0
 var stats := {"pincer": 0, "rescue": 0, "guard": 0, "crossfire": 0, "herd": 0, "chain": 0, "boss_guard": 0,
 	"breakout": 0, "decoy": 0, "abort": 0, "spread": 0, "dodge": 0, "boss_fire": 0, "mercy": 0,
-	"khorovod": 0, "khorovod_break": 0, "scatter": 0, "cover": 0, "duet": 0}
+	"khorovod": 0, "khorovod_break": 0, "scatter": 0, "cover": 0, "duet": 0, "recruit": 0, "patience": 0}
 
 
 func reset() -> void:
@@ -353,15 +356,14 @@ func _plan_pincer(snake: Snake) -> void:
 	if mercy and randf() < 0.35:  # на последней жизни клещи собираются реже
 		pincer_cd = 1.0
 		return
+	if snake.invuln > DAZE_GRACE or snake.stun_t > 0.0:  # неуязвимую или оглушённую змею не гонят: телеграф пропал бы зря
+		stats["patience"] += 1
+		return
 	var need := 3 if level >= 2 and d.forks.size() >= 3 else 2
-	var ready: Array[Fork] = []
-	for f: Fork in d.forks:
-		if f.st == Fork.St.ROAM and f.attack_cd < 0.8 and f.spawn_k > 0.9 and f.pincer_id == 0:
-			ready.append(f)
+	var ready := _ready_forks(snake)
 	if ready.size() < need:
 		return
-	ready.sort_custom(func(a: Fork, b: Fork) -> bool:
-		return a.position.distance_to(snake.head_pos) < b.position.distance_to(snake.head_pos))
+	pincer_need = need
 	pincer = ready.slice(0, need)
 	pincer_t = PINCER_TIMEOUT * (0.75 if level >= 2 else 1.0)
 	pincer_look_t = 0.0
@@ -371,6 +373,32 @@ func _plan_pincer(snake: Snake) -> void:
 		pincer[i].pincer_lead = i == 0
 	stats["pincer"] += 1
 	_announce("pincer", Tips.PINCER_HINT)
+
+
+## Вилки, готовые войти в клещи, — ближайшие к змее первыми.
+func _ready_forks(snake: Snake) -> Array[Fork]:
+	var ready: Array[Fork] = []
+	for f: Fork in d.forks:
+		if f.st == Fork.St.ROAM and f.attack_cd < 0.8 and f.spawn_k > 0.9 and f.pincer_id == 0:
+			ready.append(f)
+	ready.sort_custom(func(a: Fork, b: Fork) -> bool:
+		return a.position.distance_to(snake.head_pos) < b.position.distance_to(snake.head_pos))
+	return ready
+
+
+## Подхват: вилку из клещей сломали, пока остальные ещё сходятся, — на её место встаёт свободная.
+## Без замены клещи остались бы неполными, а змее — проще простого. Когда до удара мало времени, не зовём.
+func _recruit(snake: Snake) -> void:
+	if pincer_look_t > 0.0 or pincer_t < RECRUIT_MIN_TIME or pincer.size() >= pincer_need:
+		return
+	var ready := _ready_forks(snake)
+	if ready.is_empty():
+		return
+	var f: Fork = ready[0]
+	f.pincer_id = pincer_id
+	f.pincer_lead = false
+	pincer.append(f)
+	stats["recruit"] += 1
 
 
 ## Ширина просвета по курсу змеи, радианы.
@@ -395,6 +423,10 @@ func _update_pincer(delta: float, snake: Snake) -> void:
 	if pincer.is_empty():
 		return
 	pincer = pincer.filter(func(f) -> bool: return is_instance_valid(f) and d.forks.has(f))
+	if not pincer.is_empty() and pincer.size() < pincer_need:
+		_recruit(snake)
+	if not pincer.is_empty():
+		pincer[0].pincer_lead = true  # ведущей могла быть выбывшая: шевроны просвета рисует первая
 	if pincer.size() < 2:
 		_release_pincer()
 		return

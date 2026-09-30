@@ -26,6 +26,17 @@ godot --headless --path . --export-release "Windows Desktop" build/PeremenyBudut
 godot --headless --path . --export-release "Android" build/PeremenyBudut.apk
 ```
 
+## Проверка на Android
+
+- Сборка содержит только `arm64-v8a` и `armeabi-v7a`: на эмуляторе x86_64 (образ `android-34 google_apis x86_64`)
+  она не запустится. Нужен телефон по `adb install -r build/PeremenyBudut.apk` или ARM-образ эмулятора.
+- Без устройства проверяется то, что можно: `aapt dump badging` (пакет, `versionCode`, `minSdk 24`, право `VIBRATE`,
+  нативные библиотеки), `apksigner verify` (подпись v2/v3; нужен `JAVA_HOME`) и автотест `test_phone_defaults_and_screens_fit`
+  (телефонные настройки по умолчанию: интерфейс 115%, частицы средние, 60 кадров; все вкладки настроек и длинные итоги
+  помещаются на экран).
+- Ручной прогон на телефоне: сенсорный стик, спринт и атака одновременно тремя пальцами; свернуть игру пальцем на стике —
+  после возвращения змея не едет сама; двойной тап; вкладка «Управление» в настройках показывает кнопки за панелью.
+
 ## Выпуск версии
 
 1. Номер версии — в трёх местах:

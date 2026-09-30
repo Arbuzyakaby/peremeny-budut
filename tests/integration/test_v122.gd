@@ -178,7 +178,7 @@ func test_dev_panel_report_log_and_time_step() -> void:
 	assert_has(dp.info_label.text, "Журнал", "в инфо есть строка журнала")
 	assert_has(dp.info_label.text, "Демо меню", "и состояние демо")
 	var text: String = dp.copy_report()
-	assert_has(text, "v12.2")
+	assert_has(text, "v" + str(ProjectSettings.get_setting("application/config/version")))
 	dp.time_paused = true
 	Engine.time_scale = 0.0
 	await dp.step_frame()

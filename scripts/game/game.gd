@@ -13,6 +13,7 @@ const Balance = preload("res://scripts/core/balance.gd")
 const Combat = preload("res://scripts/core/combat.gd")
 const Controls = preload("res://scripts/core/controls.gd")
 const RunReport = preload("res://scripts/game/run_report.gd")
+const RunStats = preload("res://scripts/game/run_stats.gd")
 const Settings = preload("res://scripts/core/settings.gd")
 const Skills = preload("res://scripts/core/skills.gd")
 const SaveData = preload("res://scripts/core/save_data.gd")
@@ -105,6 +106,8 @@ var menu_demo: MenuDemo
 var hint_tween: Tween
 var daily: Dictionary = {}   # модификатор испытания дня (пусто — обычный забег)
 var replay := Replay.new()   # последние секунды — для повтора гибели
+var stats := RunStats.new()  # серия, удары, приёмы, время по этапам — для итогов (v12.3)
+var new_best_combo := false  # серия этого забега побила личный рекорд
 var darkness: Darkness
 var args := {"stage": -1, "ending": false, "skills": false, "perks": false, "dev": false, "contact": false,
 	"contact-finale": false, "fake-menu": false}
@@ -309,6 +312,8 @@ func start_game(diff: int) -> void:
 		cfg = Daily.apply(cfg, daily)
 		seed(Daily.seed_for(Daily.day_key()))
 	replay.clear()
+	stats.reset()
+	new_best_combo = false
 	guard = RunGuard.new()
 	if not is_equal_approx(Engine.time_scale, 1.0):  # время замедлили до забега — забег не в счёт
 		guard.flag("скорость времени изменена (%.2f×)" % Engine.time_scale)
@@ -366,6 +371,7 @@ func restart(retry: bool) -> void:
 
 func enter_stage(i: int) -> void:
 	stage = i
+	stats.stage_begin(play_time)
 	goal_done = 0
 	var st: Dictionary = Balance.STAGES[i]
 	arena.set_floor(st["floor"])
@@ -438,6 +444,7 @@ func goal_progress(kind_stage: int) -> void:
 
 
 func _stage_cleared() -> void:
+	stats.stage_end(play_time, stage)
 	print("stage cleared: ", Balance.STAGES[stage]["name"], " score=", score)
 	state = State.PERK
 	run_scales += Balance.SCALES_PER_STAGE
@@ -618,6 +625,10 @@ func _commit_run(win: bool) -> Dictionary:
 		sfx.play("lose")
 		vibrate(300)
 	_check_guard()
+	if win and stage == Balance.BOSS_STAGE:
+		stats.stage_end(play_time, stage)
+	stats.note_length(snake.length if snake else 0)
+	new_best_combo = not debug_run and RunStats.submit_best_combo(stats.best_combo)
 	var best := SaveData.best(difficulty)
 	var record := false
 	if daily_mode:  # у испытания дня свой рекорд
@@ -745,6 +756,7 @@ func _process(delta: float) -> void:
 		hud.track_snake(snake.stamina, snake.exhausted, snake.shield, head_screen, play_time)
 		hud.pause_allowed = state in [State.LEVEL, State.BOSS_INTRO, State.BOSS] \
 			or (state == State.CONTACT and contact != null and not contact.in_cutscene())
+		stats.note_length(snake.length)
 		snake.touch_steer = hud.touch.steer if hud.touch.active else Vector2.ZERO
 		snake.touch_sprint = hud.touch.active and hud.touch.sprint_held
 	if state in [State.LEVEL, State.BOSS_INTRO, State.BOSS, State.CONTACT]:
@@ -834,6 +846,7 @@ func add_score(base_points: int, pos: Vector2, prefix := "") -> void:
 
 func add_score_raw(points: int, pos: Vector2, prefix := "") -> void:
 	guard.verify(score)  # счёт до прибавки должен совпадать с тенью
+	stats.on_score(play_time)
 	score += points
 	guard.note_score(score)
 	hud.set_score(score)
@@ -862,6 +875,7 @@ func _on_snake_damaged(lives_left: int) -> void:
 	update_berserk()
 	if healed:
 		return
+	stats.on_hit()
 	shake = 14.0
 	sfx.play("hurt")
 	vibrate(90)

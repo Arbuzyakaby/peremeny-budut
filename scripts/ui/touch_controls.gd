@@ -20,6 +20,7 @@ const DOUBLE_TAP := 0.32
 const TAP_TIME := 0.22
 
 var active := false          # идёт забег (кнопки видны и принимают касания)
+var preview := false         # витрина в настройках (v12.3): рисуется вживую, касаний не принимает
 var steer := Vector2.ZERO
 var sprint_held := false
 var head_screen := Vector2(-1, -1)  # голова змеи на экране — для схемы «палец»
@@ -39,6 +40,7 @@ var _attack_flash := 0.0
 var _last_tap := -10.0
 var _touch_start: Dictionary = {}  # index -> [время, позиция]
 var _time := 0.0
+var _pulse_t := 0.0
 
 
 func _init() -> void:
@@ -58,8 +60,15 @@ func release_all() -> void:
 	_finger_index = -1
 	_sprint_index = -1
 	_touch_start.clear()
+	_attack_flash = 0.0
 	steer = Vector2.ZERO
 	sprint_held = false
+
+
+## Игра свёрнута или окно потеряло фокус: палец, который держал стик, никогда не пришлёт «отпустил».
+func _notification(what: int) -> void:
+	if what in [NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_WM_WINDOW_FOCUS_OUT]:
+		release_all()
 
 
 # ---------------------------------------------------------------- раскладка
@@ -105,7 +114,7 @@ func _sprint_r() -> float:
 # ---------------------------------------------------------------- ввод
 
 func _input(event: InputEvent) -> void:
-	if not active or not visible:
+	if preview or not active or not visible:
 		return
 	if event is InputEventScreenTouch:
 		_on_touch(event as InputEventScreenTouch)
@@ -116,6 +125,7 @@ func _input(event: InputEvent) -> void:
 func _on_touch(e: InputEventScreenTouch) -> void:
 	var p := e.position
 	if e.pressed:
+		_forget(e.index)  # повторное «нажал» без «отпустил» (потерянное событие): старый след палца не должен липнуть
 		if pause_rect.grow(10).has_point(p):
 			pause_pressed.emit()
 			_handled()
@@ -143,19 +153,25 @@ func _on_touch(e: InputEventScreenTouch) -> void:
 		if _touch_start.has(e.index):
 			var start: Array = _touch_start[e.index]
 			_touch_start.erase(e.index)
-			if _time - float(start[0]) < TAP_TIME and p.distance_to(start[1]) < 24.0:
+			if not e.canceled and _time - float(start[0]) < TAP_TIME and p.distance_to(start[1]) < 24.0:
 				if _time - _last_tap < DOUBLE_TAP and Settings.flag("double_tap_attack"):
 					_fire()
 					_last_tap = -10.0
 				else:
 					_last_tap = _time
-		if e.index == _stick_index:
-			_stick_index = -1
-		if e.index == _finger_index:
-			_finger_index = -1
-		if e.index == _sprint_index:
-			_sprint_index = -1
+		_forget(e.index)
 	_update_outputs()
+
+
+## Палец с этим номером больше ничего не держит.
+func _forget(index: int) -> void:
+	if index == _stick_index:
+		_stick_index = -1
+	if index == _finger_index:
+		_finger_index = -1
+	if index == _sprint_index:
+		_sprint_index = -1
+	_touch_start.erase(index)
 
 
 func _on_drag(e: InputEventScreenDrag) -> void:
@@ -199,6 +215,8 @@ func _update_outputs() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	if preview:
+		_animate_preview(delta)
 	_attack_flash = maxf(_attack_flash - delta * 4.0, 0.0)
 	if _finger_index >= 0:
 		_update_outputs()  # змея движется — направление к пальцу меняется
@@ -206,17 +224,43 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 
+# ---------------------------------------------------------------- витрина
+
+## Витрина для экрана настроек: стик ходит по кругу, стамина качается, атака мигает. Раскладка, размер,
+## прозрачность, рука и схема берутся из настроек на лету — кнопки стоят там же, где будут в забеге.
+func start_preview() -> void:
+	preview = true
+	set_anchors_preset(Control.PRESET_TOP_LEFT)
+	ability_type = 2
+	ability_charges = 3
+	_stick_index = 90
+	_finger_index = 91
+
+
+func _animate_preview(delta: float) -> void:
+	var a := _time * 1.5
+	_stick_center = _fixed_center()
+	_stick_pos = _stick_center + Vector2.from_angle(a) * STICK_R * 0.8
+	_finger_pos = Vector2(size.x * 0.5, size.y * 0.5) + Vector2.from_angle(a) * 110.0
+	stamina = 0.6 + 0.35 * sin(_time * 0.8)
+	_pulse_t -= delta
+	if _pulse_t <= 0.0:
+		_pulse_t = 2.4
+		_attack_flash = 1.0
+
+
 # ---------------------------------------------------------------- рисование
 
 func _draw() -> void:
-	if not active:
+	if not active and not preview:
 		return
 	var a := Settings.num("button_opacity")
 	var s := _scale()
 	# пауза
-	var pc := pause_rect.get_center()
-	_arcade(pc, pause_rect.size.x / 2.0 - 3.0, Color(0.22, 0.15, 0.1), false, a)
-	Icons.pause(self, pc, Color(Design.CREAM, a), 0.9)
+	if pause_rect.size.x > 0.0:
+		var pc := pause_rect.get_center()
+		_arcade(pc, pause_rect.size.x / 2.0 - 3.0, Color(0.22, 0.15, 0.1), false, a)
+		Icons.pause(self, pc, Color(Design.CREAM, a), 0.9)
 	# стик
 	if Settings.choice("touch_scheme") == 0:
 		var shown := _stick_index >= 0 or not Settings.flag("stick_floating")

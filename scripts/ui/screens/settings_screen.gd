@@ -13,6 +13,8 @@ const ToggleSwitch = preload("res://scripts/ui/widgets/toggle_switch.gd")
 const RotaryKnob = preload("res://scripts/ui/widgets/rotary_knob.gd")
 const Fader = preload("res://scripts/ui/widgets/fader.gd")
 const RotarySwitch = preload("res://scripts/ui/widgets/rotary_switch.gd")
+const TouchControls = preload("res://scripts/ui/touch_controls.gd")
+const Platform = preload("res://scripts/core/platform.gd")
 
 const DEV_TAPS := 7
 
@@ -27,6 +29,8 @@ var records_armed := false
 var settings_armed := false
 var dev_taps := 0
 var current_tab := 0
+var preview: TouchControls  # живая витрина сенсорных кнопок за панелью (вкладка УПРАВЛЕНИЕ)
+var _shake_tween: Tween
 
 
 const COLUMN_W := 380.0  # ширина одной колонки пульта
@@ -37,6 +41,12 @@ const FADER_W := 136.0
 ## строки — в утопленной приборной нише двумя колонками с гравированными разделителями.
 ## Самая длинная вкладка (9 строк) помещается без прокрутки на 100% масштаба.
 func build() -> void:
+	preview = TouchControls.new()
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(preview)  # раньше панели: панель рисуется поверх, кнопки выглядывают по краям экрана
+	preview.start_preview()
+	preview.visible = false
+	resized.connect(_fit_preview)
 	make_frame(Design.SPACE[3], Design.plank(Color(0, 0, 0, 0), Design.RADIUS_LG, Vector2(Design.SPACE[5], Design.SPACE[4])))
 	var head := Design.hbox(Design.SPACE[3], BoxContainer.ALIGNMENT_BEGIN)
 	content.add_child(head)
@@ -174,14 +184,55 @@ var _last_probe := 0
 
 func _apply(key: String, v: Variant) -> void:
 	Settings.set_value(key, v)
-	if key == "sfx" and Time.get_ticks_msec() - _last_probe > 150:  # проба громкости
-		_last_probe = Time.get_ticks_msec()
-		Design.play("eat")
+	_probe(key, v)
+	_update_preview()
 	setting_changed.emit(key)
+
+
+## Настройка отзывается сразу: громкость — звуком, вибрация — толчком, тряска — качнувшейся панелью.
+func _probe(key: String, v: Variant) -> void:
+	if key in ["master", "sfx", "ambient"] and Time.get_ticks_msec() - _last_probe > 150:
+		_last_probe = Time.get_ticks_msec()
+		Design.play("crackle" if key == "ambient" else "eat")
+	elif key == "vibration" and v:
+		Platform.vibrate(40, true)
+	elif key == "shake" and not Settings.flag("reduced_motion"):
+		_shake_panel(float(v))
+
+
+func _shake_panel(k: float) -> void:
+	if panel == null or k <= 0.0:
+		return
+	if _shake_tween:
+		_shake_tween.kill()
+	panel.pivot_offset = panel.size / 2.0
+	_shake_tween = create_tween()  # покачивание, а не сдвиг: контейнер возвращает сдвинутую панель на место
+	for i in 4:
+		_shake_tween.tween_property(panel, "rotation", (-1.0 if i % 2 == 0 else 1.0) * 0.012 * k * (1.0 - i * 0.22), 0.04)
+	_shake_tween.tween_property(panel, "rotation", 0.0, 0.05)
+
+
+## Витрина видна на вкладке УПРАВЛЕНИЕ, пока сенсорное управление не выключено совсем.
+func _update_preview() -> void:
+	if preview == null:
+		return
+	preview.visible = visible and Settings.TABS[current_tab]["id"] == "controls" and Settings.choice("touch_mode") != 2
+	_fit_preview()
+
+
+## Витрина живёт в координатах экрана, а не масштабируемого интерфейса: кнопки стоят там же, что и в забеге.
+func _fit_preview() -> void:
+	if preview == null or not is_inside_tree():
+		return
+	var k := maxf(get_global_transform().get_scale().x, 0.01)
+	preview.scale = Vector2.ONE / k
+	preview.position = Vector2.ZERO
+	preview.size = size * k
 
 
 func _show_tab(i: int) -> void:
 	current_tab = i
+	_update_preview()
 	var id: String = Settings.TABS[i]["id"]
 	for k: String in pages:
 		pages[k].visible = k == id
@@ -199,6 +250,7 @@ func open() -> void:
 	_update_version()
 	first_focus = tabs.buttons[current_tab]
 	super()
+	_update_preview()
 
 
 func _update_version() -> void:
@@ -234,6 +286,7 @@ func _on_reset_settings() -> void:
 	Settings.apply_audio()
 	Settings.apply_video()
 	refresh()
+	_update_preview()
 	reset_settings_button.text = "НАСТРОЙКИ СБРОШЕНЫ"
 	setting_changed.emit("*")
 
@@ -266,3 +319,4 @@ func _on_version_tap() -> void:
 func close() -> void:
 	Settings.save()
 	super()
+	_update_preview()
