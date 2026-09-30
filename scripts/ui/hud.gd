@@ -119,6 +119,7 @@ func _ready() -> void:
 		show_banner("Режим разработчика включён", Design.PLUM, 1.4))
 	skills_screen = _screen(SkillTreeScreen.new())
 	bestiary_screen = _screen(BestiaryScreen.new())
+	bestiary_screen.closed.connect(menu.refresh_bestiary)  # прочитали новые карточки — кнопка в меню знает
 	replay_screen = _screen(ReplayScreen.new())
 
 	dev_button = Design.button("", func() -> void: dev_toggled.emit(), "Ghost", Vector2(56, 44))

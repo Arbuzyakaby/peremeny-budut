@@ -4,21 +4,23 @@ extends Node2D
 ##   и низ скорлупки разлетаются, а изнутри выскакивают ДВЕ средние — кукла «делится»;
 ## - СРЕДНЯЯ: удирает зигзагом и держится подальше от углов (в углу её легко поймать). Укус —
 ##   из неё выскакивает малышка;
-## - МАЛЫШКА: самая маленькая и цельная, у неё нет шва — и она не убегает, а нападает. Подбирается
-##   к змее, приседает (на полу кольцо «здесь ударит» со стрелкой часов), прыгает и давит;
-##   приземлившись, переводит дух (зелёная кромка «окно, бей»). В прыжке неуязвима, на земле — съедобна.
+## - МАЛЫШКА: самая маленькая и цельная, у неё нет шва — и она не убегает, а нападает. v12.4 — юла:
+##   подбирается к змее, раскручивается на месте (на полу — полоса-дорожка «здесь пройдёт» со стрелкой),
+##   срывается волчком по прямой, отскакивая от бортика, и сбивает всех на пути; за ней вьётся стружка.
+##   Докрутившись, шатается (зелёная кромка «окно, бей»). Пока крутится — не укусить, пока шатается — можно.
+##   Раньше малышка прыгала с кольцом приземления — точь-в-точь таблетка; теперь у неё своя атака.
 ## Только что выскочившая кукла полсекунды неуязвима — она вылетает из скорлупки.
 ## Кооператив (squad.gd): хоровод с лентами вокруг змеи, разбег в разные стороны после раскола,
 ## заслон для переводящей дух малышки, дуэт малышек на Ультра.
 
 signal sound(sound_name: String)
-signal landed(pos: Vector2)  # малышка приземлилась — директор решает, кого задавило
+signal landed(pos: Vector2)  # юла докрутилась и встала — директор раскрывает соседок рядом
 
 const Tex = preload("res://scripts/gfx/tex.gd")
 const Design = preload("res://scripts/ui/design.gd")
 
 enum Size { TINY, MIDDLE, BIG }
-enum St { ROAM, POP, CROUCH, JUMP, DAZED }
+enum St { ROAM, POP, CROUCH, SPIN, DAZED }  # CROUCH — раскрутка на месте, SPIN — юла в пути
 
 ## Размеры: имя, ключ карточки картотеки, радиус тела, масштаб рисунка, скорость.
 const SIZES := [
@@ -37,10 +39,12 @@ const SCARVES := [Color(0.98, 0.8, 0.22), Color(0.96, 0.42, 0.18), Color(0.2, 0.
 const SKIN := Color(1.0, 0.88, 0.76)
 const INK := Color(0.16, 0.08, 0.05)
 const GOLD := Color(0.98, 0.78, 0.25)
-const CRUSH_RADIUS := 38.0
-const JUMP_HEIGHT := 95.0
-const HOP_REACH := 280.0
+const CRUSH_RADIUS := 38.0   # докрутилась — раскрывает соседок в этом круге
+const SPIN_REACH := 380.0    # длина пути юлы
+const SPIN_TIME := 0.7       # сколько юла в пути, с
+const SPIN_HIT := 16.0       # ширина полосы: касание головы в пределах radius + SPIN_HIT
 const ATTACK_RANGE := 300.0
+const TRAIL := 12            # точек в следе стружки
 const POP_TIME := 0.5
 
 var size := Size.BIG
@@ -57,10 +61,13 @@ var spawn_k := 0.0
 var set_id := 0          # номер набора: набор собран, когда съедена последняя малышка
 var paint := 0           # роспись набора (индекс в SARAFANS)
 var attack_cd := 1.5
-var height := 0.0
-var jump_from := Vector2.ZERO
-var jump_to := Vector2.ZERO
-var air_time := 0.55
+var height := 0.0              # у юлы всегда 0 (повтор и отладка читают поле)
+var spin_path := PackedVector2Array()  # путь юлы: старт, (отскок от бортика), финиш — выбран при раскрутке
+var spin_len := 0.0
+var spin_time := SPIN_TIME
+var spin_angle := 0.0          # угол вращения для рисунка
+var spin_hit_done := false     # за один проход юла бьёт змею один раз
+var trail: Array[Vector2] = [] # след стружки
 var crouch_total := 0.55
 var squash := 0.0
 var wander_t := 0.0
@@ -131,11 +138,16 @@ func is_last() -> bool:
 
 ## Можно укусить: на земле и уже выбралась из скорлупки.
 func can_bite() -> bool:
-	return st != St.JUMP and st != St.POP and spawn_k > 0.85
+	return st != St.SPIN and st != St.POP and spawn_k > 0.85
 
 
+func is_spinning() -> bool:
+	return st == St.SPIN
+
+
+## Прежнее имя «в воздухе» (в прыжке не укусить) — теперь юла в пути. Им пользуются отряд и тесты.
 func in_air() -> bool:
-	return st == St.JUMP
+	return is_spinning()
 
 
 func is_dazed() -> bool:
@@ -144,7 +156,7 @@ func is_dazed() -> bool:
 
 ## Оглушить (ударная волна, рывок сквозь хоровод): стоит и переводит дух.
 func daze(time: float) -> void:
-	if st == St.JUMP or st == St.POP:
+	if st == St.SPIN or st == St.POP:
 		return
 	st = St.DAZED
 	st_t = time
@@ -184,24 +196,29 @@ func update(delta: float, head: Vector2, head_vel: Vector2, snake_alive: bool) -
 						crouch(head, head_vel)
 				elif attack_cd <= 0.0 and position.distance_to(head) < ATTACK_RANGE and not dancing:
 					crouch(head, head_vel)
-		St.CROUCH:
+		St.CROUCH:  # раскрутка: вращение нарастает
 			vel = vel.move_toward(Vector2.ZERO, 900.0 * delta)
+			var k := clampf(1.0 - st_t / crouch_total, 0.0, 1.0)
+			spin_angle += delta * lerpf(3.0, 32.0, k * k)
 			if st_t <= 0.0:
-				st = St.JUMP
-				air_time = 0.55 * clampf(tempo, 0.7, 1.2)
-				st_t = air_time
-				jump_from = position
-				sound.emit("doll_hop")
-		St.JUMP:
-			var k := clampf(1.0 - st_t / air_time, 0.0, 1.0)
-			position = jump_from.lerp(jump_to, k)
-			height = sin(k * PI) * JUMP_HEIGHT
+				st = St.SPIN
+				spin_time = SPIN_TIME * clampf(tempo, 0.7, 1.2)
+				st_t = spin_time
+				spin_hit_done = false
+				trail.clear()
+				sound.emit("doll_spin")
+		St.SPIN:  # волчком по пути: быстро со старта, к концу замедляется
+			var k := clampf(1.0 - st_t / spin_time, 0.0, 1.0)
+			position = path_point((1.0 - (1.0 - k) * (1.0 - k)) * spin_len)
+			spin_angle += delta * lerpf(34.0, 16.0, k)
+			trail.push_front(position)
+			if trail.size() > TRAIL:
+				trail.pop_back()
 			if st_t <= 0.0:
-				height = 0.0
-				position = jump_to
-				st = St.DAZED  # перевести дух — окно, чтобы съесть
+				position = spin_path[spin_path.size() - 1]
+				st = St.DAZED  # шатается — окно, чтобы съесть
 				st_t = 1.1 * clampf(tempo, 0.6, 1.3)
-				squash = 1.0
+				squash = 0.7
 				landed.emit(position)
 				sound.emit("doll_land")
 		St.DAZED:
@@ -209,7 +226,9 @@ func update(delta: float, head: Vector2, head_vel: Vector2, snake_alive: bool) -
 			if st_t <= 0.0:
 				st = St.ROAM
 				attack_cd = randf_range(1.3, 2.2) * tempo / clampf(aggr, 0.6, 2.0)
-	if st != St.JUMP:
+	if st == St.DAZED and not trail.is_empty():
+		trail.pop_back()  # след стружки оседает
+	if st != St.SPIN:
 		position += vel * delta
 		var inner := bounds.grow(-radius() - 6.0)
 		if position.x < inner.position.x or position.x > inner.end.x:
@@ -254,27 +273,75 @@ func calm_update(delta: float, want: Vector2) -> void:
 	refresh_look()
 
 
-## Присесть перед прыжком. Точка приземления выбирается сейчас и больше не меняется — кольцо честное.
+## Раскрутиться перед рывком. Путь выбирается сейчас и больше не меняется — полоса честная.
+## Юла целится туда, где будет голова, и проносится дальше, на всю длину пути; у бортика отскакивает.
 func crouch(head: Vector2, head_vel: Vector2) -> void:
 	st = St.CROUCH
 	crouch_total = 0.55 * clampf(tempo, 0.6, 1.3)
 	st_t = crouch_total
-	var lead := head + head_vel * (crouch_total + 0.5) * clampf(0.3 * aggr, 0.15, 0.6) + jump_offset
-	var hop := lead - position
-	if hop.length() > HOP_REACH:
-		hop = hop.normalized() * HOP_REACH
-	var inner := bounds.grow(-radius() - 10.0)
-	jump_to = (position + hop).clamp(inner.position, inner.end)
+	var lead := head + head_vel * (crouch_total + 0.3) * clampf(0.3 * aggr, 0.15, 0.6) + jump_offset
+	var dir := (lead - position).normalized() if lead.distance_to(position) > 1.0 else Vector2.RIGHT
+	spin_path = plan_path(position, dir, SPIN_REACH, bounds.grow(-radius() - 10.0))
+	spin_len = 0.0
+	for i in spin_path.size() - 1:
+		spin_len += spin_path[i].distance_to(spin_path[i + 1])
 	jump_offset = Vector2.ZERO
 	sound.emit("doll_giggle")
 
 
-## До прыжка осталось (0..1) — для «стрелки часов» кольца.
+## Путь волчка от from в сторону dir длиной reach внутри inner: при встрече с бортиком — один отскок.
+static func plan_path(from: Vector2, dir: Vector2, reach: float, inner: Rect2) -> PackedVector2Array:
+	var pts := PackedVector2Array([from])
+	var p := from.clamp(inner.position, inner.end)
+	var d := dir.normalized()
+	var left := reach
+	for bounce in 2:
+		var tx := INF
+		var ty := INF
+		if d.x > 0.0001:
+			tx = (inner.end.x - p.x) / d.x
+		elif d.x < -0.0001:
+			tx = (inner.position.x - p.x) / d.x
+		if d.y > 0.0001:
+			ty = (inner.end.y - p.y) / d.y
+		elif d.y < -0.0001:
+			ty = (inner.position.y - p.y) / d.y
+		var hit := minf(tx, ty)
+		if hit >= left or bounce == 1:
+			pts.append(p + d * minf(left, maxf(hit, 0.0)))
+			break
+		p += d * hit
+		pts.append(p)
+		left -= hit
+		if tx < ty:
+			d.x = -d.x
+		else:
+			d.y = -d.y
+	return pts
+
+
+## Точка на пути юлы на расстоянии dist от старта.
+func path_point(dist: float) -> Vector2:
+	var left := dist
+	for i in spin_path.size() - 1:
+		var seg := spin_path[i].distance_to(spin_path[i + 1])
+		if left <= seg or i == spin_path.size() - 2:
+			return spin_path[i].lerp(spin_path[i + 1], clampf(left / maxf(seg, 0.001), 0.0, 1.0))
+		left -= seg
+	return spin_path[0] if not spin_path.is_empty() else position
+
+
+## Касается ли юла в пути точки p (голова змеи, медведь): p в полосе радиуса radius() + extra.
+func spin_touches(p: Vector2, extra := SPIN_HIT) -> bool:
+	return is_spinning() and position.distance_to(p) < radius() + extra
+
+
+## До рывка осталось (0..1) — для стрелки на полосе: раскрутка — первая половина, путь — вторая.
 func strike_progress() -> float:
 	if st == St.CROUCH:
 		return clampf(1.0 - st_t / crouch_total, 0.0, 1.0) * 0.5
-	if st == St.JUMP:
-		return 0.5 + 0.5 * clampf(1.0 - st_t / air_time, 0.0, 1.0)
+	if st == St.SPIN:
+		return 0.5 + 0.5 * clampf(1.0 - st_t / spin_time, 0.0, 1.0)
 	return 0.0
 
 
@@ -343,13 +410,18 @@ func _wall_push() -> Vector2:
 func _draw() -> void:
 	var s: float = spec()["scale"] * spawn_k
 	var r := radius()
-	if st in [St.CROUCH, St.JUMP]:  # «здесь ударит»: кольцо на месте приземления со стрелкой часов
-		Design.draw_tell_ring(self, jump_to - position, CRUSH_RADIUS, Design.Tell.AREA, strike_progress())
-	elif st == St.DAZED and size == Size.TINY:  # «окно, бей»: сплошная кромка
+	if st in [St.CROUCH, St.SPIN] and spin_path.size() > 1:  # «здесь пройдёт»: полоса-дорожка юлы
+		var local := PackedVector2Array()
+		for p in spin_path:
+			local.append(p - position)
+		Design.draw_tell_lane(self, local, (r + SPIN_HIT) * 2.0, Design.Tell.AIM, strike_progress())
+	if not trail.is_empty():
+		_draw_trail(r)
+	if st == St.DAZED and size == Size.TINY:  # «окно, бей»: сплошная кромка
 		Design.draw_open_arc(self, Vector2(0, 4), r + 8.0, clampf(st_t / (1.1 * clampf(tempo, 0.6, 1.3)), 0.0, 1.0))
 	if dancing and is_instance_valid(ribbon_to):
 		_draw_ribbon(ribbon_to.position - position)
-	var shadow_k := 1.0 - height / (JUMP_HEIGHT * 1.6)
+	var shadow_k := 1.0
 	Tex.blob(self, Vector2(3, r * 0.75), Vector2(r * 1.05, r * 0.55) * shadow_k * maxf(spawn_k, 0.3), Color(0, 0, 0, 0.28 * shadow_k))
 	var sc := Vector2.ONE * s
 	match st:
@@ -357,17 +429,23 @@ func _draw() -> void:
 			var k := 1.0 - st_t / crouch_total
 			sc *= Vector2(1.0 + 0.22 * k, 1.0 - 0.25 * k)
 			sc += Vector2(randf_range(-0.02, 0.02), 0)
-		St.JUMP:
-			sc *= Vector2(0.88, 1.14)
+		St.SPIN:  # волчок: кукла «сплющивается» по мере поворота — видно вращение
+			sc *= Vector2(0.7 + 0.3 * absf(cos(spin_angle)), 1.0)
+	if st == St.CROUCH:
+		sc.x *= 0.75 + 0.25 * absf(cos(spin_angle))
 	if squash > 0.0:
 		sc *= Vector2(1.0 + 0.3 * squash, 1.0 - 0.25 * squash)
 	var tilt := sin(rock) * (0.16 if size == Size.BIG else 0.1)
 	if st == St.DAZED:
-		tilt = sin(t * 9.0) * 0.2
+		tilt = sin(t * 9.0) * (0.34 if size == Size.TINY else 0.2)  # юла шатается сильнее
+	elif st == St.SPIN:
+		tilt = sin(spin_angle * 0.23) * 0.22  # волчок прецессирует
 	elif dancing:
 		tilt = sin(t * 7.0) * 0.12
 	draw_set_transform(Vector2(0, -height), tilt, sc)
 	draw_doll(self, sarafan(), scarf(), size != Size.TINY, _face_mode(), dancing, hit_flash)
+	if st == St.SPIN or (st == St.CROUCH and strike_progress() > 0.2):
+		_draw_swirl(maxf(strike_progress(), 0.3))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	if st == St.DAZED:  # звёздочки над головой
 		for i in 3:
@@ -383,9 +461,29 @@ func _face_mode() -> int:
 	match st:
 		St.DAZED:
 			return 2
-		St.CROUCH, St.JUMP:
+		St.CROUCH, St.SPIN:
 			return 1
 	return 0
+
+
+## Вихрь росписи вокруг вращающейся юлы: дуги сарафана и золота бегут по кругу.
+func _draw_swirl(k: float) -> void:
+	for i in 3:
+		var a := -spin_angle * 1.3 + TAU * i / 3.0
+		draw_arc(Vector2(0, 2), 25.0, a, a + 1.4, 10, Color(sarafan().lightened(0.2), 0.55 * k), 3.0)
+		draw_arc(Vector2(0, 2), 29.0, a + 0.5, a + 1.3, 8, Color(GOLD, 0.7 * k), 2.0)
+
+
+## След стружки: золотые завитки и щепочки там, где прошла юла, тают к хвосту.
+func _draw_trail(r: float) -> void:
+	for i in trail.size():
+		var p: Vector2 = trail[i] - position
+		var a := 1.0 - float(i) / TRAIL
+		var curl := 3.0 + (i % 3) * 1.5
+		draw_arc(p + Vector2(0, r * 0.6), curl, spin_angle * 0.5 + i, spin_angle * 0.5 + i + 4.2, 8,
+			Color(0.93, 0.75, 0.45, 0.8 * a), 1.6)
+		if i % 2 == 0:
+			draw_circle(p + Vector2(0, r * 0.7) + Vector2.from_angle(i * 2.1) * 6.0, 1.6, Color(GOLD, 0.7 * a))
 
 
 ## Лента хоровода к соседке: волнистая, красная с золотой каймой.

@@ -365,5 +365,9 @@ func test_phone_defaults_and_screens_fit() -> void:
 	await frames(3)
 	var er: Rect2 = game.hud.end_screen.panel.get_global_rect()
 	assert_true(er.end.y <= vp.y + 1.0 and er.position.y >= -1.0, "длинные итоги прокручиваются, а не вылезают за экран")
+	# v12.4: раньше проверялась только рамка — а кнопки уезжали в прокрутку. Теперь — глазами игрока.
+	for b: Control in game.hud.end_screen.buttons.get_children():
+		if b.visible:
+			assert_on_screen(b, "кнопка итогов на телефоне")
 	Platform.force_mobile = false
 	Platform.force_touch = false

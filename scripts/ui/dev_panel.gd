@@ -428,7 +428,7 @@ func _build_cheats(p: VBoxContainer) -> void:
 	sg.add_child(_btn("+1000 ОЧКОВ", func() -> void:
 		if _in_run():
 			_cheat()
-			game.add_score_raw(1000, game.snake.head_pos, "")))
+			game.add_score_raw(1000, game.snake.head_pos, "", false)))
 	sg.add_child(_btn("ВЫБОР УЛУЧШЕНИЙ", func() -> void:
 		if _in_run():
 			_cheat()
@@ -507,6 +507,10 @@ func _build_world(p: VBoxContainer) -> void:
 	sp3.add_child(_btn("Набор", _spawn.bind("set", 0), "Primary"))
 	for k in range(Matryoshka.SIZES.size() - 1, -1, -1):
 		sp3.add_child(_btn(String(Matryoshka.SIZES[k]["name"]), _spawn.bind("doll", k)))
+	_section(p, "12.4: ЮЛА И ШИПУЧКА")
+	var sp4 := _grid(p, 2)
+	sp4.add_child(_btn("Юла — сейчас", _doll_spin))
+	sp4.add_child(_btn("Лужа у змеи", _fizz_puddle))
 	_section(p, "ПРИЁМЫ ВИЛОК — БЛИЖАЙШАЯ К ЗМЕЕ")
 	var atk := _grid(p, 2)
 	for a in Fork.ATTACK_NAMES.size():
@@ -786,6 +790,32 @@ func _fork_attack(a: int) -> void:
 		if f.position.distance_to(head) < best.position.distance_to(head):
 			best = f
 	best.begin_attack(a, head)
+
+
+## Ближайшая малышка раскручивается юлой на змею (нет малышки — появится). Проверить полосу и отскок.
+func _doll_spin() -> void:
+	if not _in_run():
+		return
+	_cheat()
+	var head: Vector2 = game.snake.head_pos
+	var best: Matryoshka = null
+	for m: Matryoshka in game.enemies.dolls:
+		if m.is_last() and (best == null or m.position.distance_to(head) < best.position.distance_to(head)):
+			best = m
+	if best == null:
+		best = game.enemies.spawn_doll(Matryoshka.Size.TINY, head + Vector2(220, 0).rotated(randf() * TAU))
+	best.spawn_k = 1.0
+	best.st = Matryoshka.St.ROAM
+	best.crouch(head, Vector2.ZERO)
+
+
+## Шипящая лужа прямо под змеёй — проверить замедление.
+func _fizz_puddle() -> void:
+	if not _in_run():
+		return
+	_cheat()
+	var p: Pill = game.enemies.spawn_pill(game.snake.head_pos + Vector2(300, 0), Pill.Kind.FIZZ)
+	game.enemies.spawn_puddle(game.snake.head_pos, p)
 
 
 # ---------------------------------------------------------------- ОТЛАДКА

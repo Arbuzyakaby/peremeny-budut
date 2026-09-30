@@ -6,6 +6,7 @@ const Skills = preload("res://scripts/core/skills.gd")
 const Credits = preload("res://scripts/ending/credits.gd")
 const Daily = preload("res://scripts/core/daily.gd")
 const Design = preload("res://scripts/ui/design.gd")
+const Bestiary = preload("res://scripts/core/bestiary.gd")
 
 
 static func rows(g, win: bool, record: bool, best: int) -> Array:
@@ -49,6 +50,9 @@ static func stat_rows(st, new_best: bool) -> Array:
 	var flaw := "" if st.flawless == 0 else "  (этапов без ударов: %d)" % st.flawless
 	out.append(["Получено ударов", hits_text + flaw, st.hits == 0])
 	out.append(["Приёмов / длина змеи", "%d / %d" % [st.abilities, st.peak_length]])
+	var fav: Array = st.favorite(Bestiary.ENTRIES.map(func(e: Dictionary) -> String: return e["key"]))
+	if not fav.is_empty():
+		out.append(["Любимое блюдо", "%s ×%d" % [Bestiary.entry(fav[0])["title"], fav[1]]])
 	var fast: int = st.fastest_stage()
 	if fast >= 0 and st.stage_times.size() > 1:
 		var t := int(st.stage_times[fast])

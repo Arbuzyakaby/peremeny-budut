@@ -43,6 +43,7 @@ func test_save_is_encrypted_not_plain_text() -> void:
 
 
 func test_hand_edited_save_is_ignored() -> void:
+	expect_errors()  # движок ругается на файл без шифра — это и проверяем
 	var f := FileAccess.open(SaveData.path, FileAccess.WRITE)
 	f.store_string("[best]\n1=999999\n\n[skills]\nscales=99999\n")
 	f.close()

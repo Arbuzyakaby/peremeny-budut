@@ -55,7 +55,7 @@ static func snapshot(g) -> Dictionary:
 	for f in g.enemies.forks:
 		enemies.append(["fork", f.position, f.rotation, f.st])
 	for p in g.enemies.pills:
-		enemies.append(["pill", p.position, p.height, p.st])
+		enemies.append(["pill", p.position, p.height, p.st, p.kind])
 	for m in g.enemies.dolls:
 		enemies.append(["doll", m.position, m.height, m.radius()])
 	var drops: Array = []

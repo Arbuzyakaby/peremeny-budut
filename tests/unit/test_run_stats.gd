@@ -127,3 +127,41 @@ func test_short_combo_and_single_stage_rows_are_hidden() -> void:
 		labels.append(r[0])
 	assert_false(labels.has("Лучшая серия"), "серия из двух — не серия")
 	assert_false(labels.has("Быстрее всего"), "с одним этапом сравнивать не с чем")
+
+
+# ---------------------------------------------------------------- v12.4: любимое блюдо
+
+func test_favorite_needs_three_wins() -> void:
+	var st := RunStats.new()
+	var order := ["bear_0", "pill", "pill_2"]
+	st.on_beaten("pill")
+	st.on_beaten("pill")
+	assert_eq(st.favorite(order), [], "две победы — ещё не любимое")
+	st.on_beaten("pill")
+	assert_eq(st.favorite(order), ["pill", 3])
+
+
+func test_favorite_is_the_most_beaten_and_ties_follow_the_card_order() -> void:
+	var st := RunStats.new()
+	var order := ["bear_0", "pill", "pill_2"]
+	for i in 4:
+		st.on_beaten("pill_2")
+		st.on_beaten("bear_0")
+	assert_eq(st.favorite(order), ["bear_0", 4], "поровну — тот, кто в картотеке раньше")
+	st.on_beaten("pill_2")
+	assert_eq(st.favorite(order), ["pill_2", 5])
+	st.reset()
+	assert_eq(st.favorite(order), [], "новый забег — с чистого листа")
+
+
+func test_favorite_row_names_the_enemy() -> void:
+	var st := RunStats.new()
+	for i in 5:
+		st.on_beaten("pill_2")
+	var labels := {}
+	for r: Array in RunReport.stat_rows(st, false):
+		labels[r[0]] = r[1]
+	assert_eq(labels.get("Любимое блюдо", ""), "Шипучка ×5", "в итогах — имя из картотеки")
+	st.reset()
+	for r: Array in RunReport.stat_rows(st, false):
+		assert_ne(r[0], "Любимое блюдо", "без побед строки нет")

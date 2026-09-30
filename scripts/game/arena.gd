@@ -5,6 +5,9 @@ extends Node2D
 ## На этапе яичницы (v12.0) ящик — прямоугольная чугунная сковорода: литой борт с заклёпками,
 ## ручка уходит за край (видна на широких экранах), на дне — соль, перец и капли масла, а над дном
 ## дышит жар конфорки (set_heat растёт с фазой яичницы; рисуется поверх пола аддитивно).
+## Аптека таблеток (v12.4): бортик — белая эмаль аптечного шкафа с зелёными крестами и хромом,
+## по полу — блистеры, мерные ложечки, рецепты «Rp.» и пятно света лампы; лампа мигает (flicker),
+## когда на поле выходит новая таблетка.
 ## Пол статичен, а его шейдер тяжёлый (шум fbm на каждом пикселе), поэтому он рисуется один раз
 ## во внеэкранный SubViewport, а на экран идёт готовая текстура. Перерисовка — только при смене этапа
 ## и при заметном росте окна (чтобы пол оставался чётким на 1440p/4K).
@@ -25,6 +28,8 @@ var bake_scale := 0.0
 var frame: Node2D
 var heat_node: Node2D           # живой жар сковороды (этап яичницы)
 var heat := 0.0
+var lamp_node: Node2D           # мигание аптечной лампы (этап таблеток)
+var lamp := 0.0                 # 1 — только что мигнула, гаснет к 0
 var t := 0.0
 ## Чугунный борт и ручка сковороды. В финале камера показывает ящик на столе учёного — там он снова
 ## деревянный ящик, ручка из него не торчит (set_pan_rim(false)).
@@ -70,6 +75,9 @@ func _ready() -> void:
 	heat_node.material = add
 	heat_node.draw.connect(_draw_heat)
 	add_child(heat_node)
+	lamp_node = Node2D.new()
+	lamp_node.draw.connect(_draw_lamp)
+	add_child(lamp_node)
 	set_process(false)
 	set_floor(Tex.Floor.WOOD)
 	get_viewport().size_changed.connect(_rebake_if_sharper)
@@ -99,13 +107,41 @@ func set_pan_rim(on: bool) -> void:
 ## Жар конфорки под сковородой 0..1 (этап яичницы, растёт с фазой). 0 — не рисуется и не считается.
 func set_heat(k: float) -> void:
 	heat = clampf(k, 0.0, 1.0)
-	set_process(heat > 0.0)
+	set_process(heat > 0.0 or lamp > 0.0)
 	heat_node.queue_redraw()
+
+
+## Аптечная лампа мигает: на поле выходит новая таблетка. Только на плиточном полу.
+func flicker() -> void:
+	if floor_kind != Tex.Floor.TILES:
+		return
+	lamp = 1.0
+	set_process(true)
 
 
 func _process(delta: float) -> void:
 	t += delta
-	heat_node.queue_redraw()
+	if heat > 0.0:
+		heat_node.queue_redraw()
+	if lamp > 0.0:
+		lamp = maxf(lamp - delta * 1.6, 0.0)
+		lamp_node.queue_redraw()
+		if lamp == 0.0 and heat <= 0.0:
+			set_process(false)
+
+
+## Мигание лампы: два коротких провала света и бирюзовая вспышка трубки дневного света.
+## «Меньше анимации» — одна мягкая вспышка без провалов.
+func _draw_lamp() -> void:
+	if lamp <= 0.0:
+		return
+	var calm := Settings.flag("reduced_motion")
+	var k := 1.0 - lamp
+	var dip := 0.0 if calm else (0.22 if (k < 0.12 or (k > 0.22 and k < 0.3)) else 0.0)
+	if dip > 0.0:
+		lamp_node.draw_rect(Balance.ARENA, Color(0.02, 0.05, 0.06, dip))
+	else:
+		Tex.blob(lamp_node, Vector2(640, 330), Vector2(620, 380), Color(0.6, 1.0, 0.95, 0.12 * lamp))
 
 
 ## Жар: вишнёвое свечение из-под середины дна (дышит, как пламя конфорки) и шипящие пузырьки масла,
@@ -180,6 +216,43 @@ func _draw_frame() -> void:
 		_draw_terem_frame()
 	elif floor_kind == Tex.Floor.PAN and pan_rim:
 		_draw_pan_frame()
+	elif floor_kind == Tex.Floor.TILES:
+		_draw_pharmacy_frame()
+
+
+const ENAMEL := Color(0.93, 0.95, 0.94)
+const PHARMA_GREEN := Color(0.16, 0.62, 0.45)
+const CHROME := Color(0.78, 0.8, 0.82)
+
+
+## Бортик аптечного шкафа: белая эмаль с тонкой зелёной полосой, хромированная кромка, зелёные
+## кресты на табличках посередине сторон и хромовые винты в углах, сколы эмали у углов.
+func _draw_pharmacy_frame() -> void:
+	var arena := Balance.ARENA
+	var wall := Balance.WALL
+	var mid := arena.grow(-wall / 2)
+	frame.draw_rect(mid, ENAMEL, false, wall - 4.0)
+	frame.draw_rect(arena.grow(-wall * 0.5 - 1.0), Color(PHARMA_GREEN, 0.75), false, 2.5)  # зелёная полоса
+	frame.draw_rect(arena.grow(-2.0), CHROME, false, 3.0)  # хромовая кромка снаружи
+	frame.draw_rect(arena.grow(-4.5), Color(1, 1, 1, 0.6), false, 1.2)
+	frame.draw_rect(bounds.grow(1.5), Color(0.5, 0.58, 0.58), false, 2.5)  # кромка внутри
+	for k in 5:  # блик эмали на верхнем борту
+		var x0 := 180.0 + k * 200.0
+		frame.draw_line(arena.position + Vector2(x0, 7), arena.position + Vector2(x0 + 90, 7), Color(1, 1, 1, 0.55), 2.0)
+	for c: Vector2 in [Vector2(640, 12), Vector2(640, 708), Vector2(12, 360), Vector2(1268, 360)]:  # таблички с крестом
+		var horiz := c.y < 20.0 or c.y > 700.0
+		var half := Vector2(44, 17) if horiz else Vector2(12, 40)
+		var plate := Rect2(c - half, half * 2.0)
+		frame.draw_rect(plate.grow(1.5), Color(0.1, 0.3, 0.22))
+		frame.draw_rect(plate, Color(0.97, 0.98, 0.97))
+		frame.draw_rect(Rect2(c - Vector2(3.5, 10), Vector2(7, 20)), PHARMA_GREEN)
+		frame.draw_rect(Rect2(c - Vector2(10, 3.5), Vector2(20, 7)), PHARMA_GREEN)
+	for c: Vector2 in [Vector2(12, 12), Vector2(1268, 12), Vector2(12, 708), Vector2(1268, 708)]:  # винты и сколы
+		frame.draw_circle(c + (Vector2(640, 360) - c).normalized() * 22.0, 5.0, Color(0.2, 0.22, 0.24, 0.55))
+		frame.draw_circle(c + Vector2(1, 1.5), 5.0, Color(0, 0, 0, 0.3))
+		frame.draw_circle(c, 4.6, CHROME)
+		frame.draw_line(c + Vector2(-3, -3), c + Vector2(3, 3), Color(0.35, 0.37, 0.4), 1.6)
+		frame.draw_circle(c + Vector2(-1.5, -1.5), 1.2, Color.WHITE)
 
 
 ## Борт чугунной сковороды поверх деревянного: литой, со скруглёнными углами, светлая фаска по верху
@@ -264,6 +337,9 @@ func _draw_decor() -> void:
 		return
 	if floor_kind == Tex.Floor.PAN:
 		_draw_pan()
+		return
+	if floor_kind == Tex.Floor.TILES:
+		_draw_pharmacy()
 		return
 	if floor_kind != Tex.Floor.WOOD:
 		return
@@ -460,3 +536,63 @@ func _rosette(c: Vector2, r: float, a: float) -> void:
 		d.draw_circle(c + Vector2.from_angle(TAU * i / 8.0 + 0.2) * r * 0.26, r * 0.12, Color(0.98, 0.9, 0.75, a * 1.6))
 	d.draw_circle(c, r * 0.16, Color(0.98, 0.76, 0.26, a * 2.0))
 	d.draw_circle(c, r * 0.07, Color(0.8, 0.12, 0.08, a * 2.2))
+
+
+## Пол аптеки: пятно света лампы, блистеры (часть ячеек выдавлена — фольга порвана), мерные ложечки,
+## рецепты «Rp.» с росчерком, мензурка и лужица воды с бликом. Всё плоское и бледное — это пол:
+## таблетки-враги на нём должны читаться сразу. Середина свободна.
+func _draw_pharmacy() -> void:
+	var d := floor_decor
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2412
+	var font := ThemeDB.fallback_font
+	Tex.blob(d, Vector2(640, 330), Vector2(700, 440), Color(1.0, 1.0, 0.95, 0.12))  # свет лампы
+	Tex.blob(d, Vector2(640, 330), Vector2(330, 210), Color(0.85, 1.0, 0.97, 0.08))
+	for spec: Array in [[Vector2(190, 150), -0.25, 5], [Vector2(1090, 560), 0.3, 4], [Vector2(1060, 170), 0.12, 3]]:
+		_blister(d, spec[0], spec[1], spec[2], rng)
+	for spec: Array in [[Vector2(250, 560), -0.6], [Vector2(900, 110), 0.4]]:  # мерные ложечки
+		d.draw_set_transform(spec[0], spec[1], Vector2.ONE)
+		d.draw_line(Vector2(0, 0), Vector2(90, 0), Color(0.5, 0.62, 0.66, 0.32), 7.0)
+		Tex.blob(d, Vector2(-14, 0), Vector2(34, 22), Color(0.5, 0.62, 0.66, 0.3))
+		Tex.blob(d, Vector2(-16, -2), Vector2(18, 10), Color(1, 1, 1, 0.22))
+		for k in 3:
+			d.draw_line(Vector2(-22 + k * 7, -7), Vector2(-22 + k * 7, -3), Color(0.3, 0.4, 0.44, 0.35), 1.2)
+	d.draw_set_transform(Vector2.ZERO)
+	for spec: Array in [[Vector2(430, 620), 0.08], [Vector2(830, 640), -0.1], [Vector2(120, 380), 0.05]]:  # рецепты
+		d.draw_set_transform(spec[0], spec[1], Vector2.ONE)
+		d.draw_rect(Rect2(-60, -40, 120, 80), Color(0.98, 0.97, 0.9, 0.42))
+		d.draw_rect(Rect2(-60, -40, 120, 80), Color(0.5, 0.55, 0.55, 0.25), false, 1.2)
+		d.draw_string(font, Vector2(-52, -18), "Rp.", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.2, 0.3, 0.55, 0.5))
+		for k in 3:
+			var w := 70.0 - k * 14.0 + rng.randf_range(-8, 8)
+			d.draw_line(Vector2(-50, -2 + k * 12), Vector2(-50 + w, -2 + k * 12), Color(0.2, 0.3, 0.55, 0.32), 1.5)
+		d.draw_polyline(PackedVector2Array([Vector2(12, 28), Vector2(22, 20), Vector2(30, 30), Vector2(44, 18)]),
+			Color(0.2, 0.3, 0.55, 0.4), 1.5)
+	d.draw_set_transform(Vector2.ZERO)
+	var beaker := Vector2(1160, 330)  # мензурка (вид сверху) и лужица воды
+	d.draw_circle(beaker + Vector2(3, 5), 30.0, Color(0, 0, 0, 0.08))
+	d.draw_arc(beaker, 28.0, 0, TAU, 32, Color(0.55, 0.75, 0.8, 0.45), 3.0)
+	d.draw_circle(beaker, 25.0, Color(0.7, 0.9, 0.95, 0.18))
+	d.draw_arc(beaker, 20.0, PI * 1.1, PI * 1.6, 10, Color(1, 1, 1, 0.5), 2.0)
+	Tex.blob(d, Vector2(1100, 420), Vector2(110, 46), Color(0.6, 0.85, 0.95, 0.16))
+	d.draw_line(Vector2(1070, 410), Vector2(1110, 406), Color(1, 1, 1, 0.3), 2.0)
+
+
+## Блистер: фольга с рядами ячеек. Часть ячеек выдавлена — тёмная дырка и лоскуток фольги.
+func _blister(d: Node2D, at: Vector2, a: float, cols: int, rng: RandomNumberGenerator) -> void:
+	d.draw_set_transform(at, a, Vector2.ONE)
+	var w := cols * 26.0 + 10.0
+	var r := Rect2(-w / 2.0, -30, w, 60)
+	d.draw_rect(Rect2(r.position + Vector2(3, 4), r.size), Color(0, 0, 0, 0.08))
+	d.draw_rect(r, Color(0.84, 0.87, 0.9, 0.5))
+	d.draw_rect(r, Color(0.6, 0.64, 0.68, 0.4), false, 1.2)
+	for row in 2:
+		for col in cols:
+			var c := Vector2(-w / 2.0 + 18.0 + col * 26.0, -14.0 + row * 28.0)
+			if rng.randf() < 0.35:  # выдавлена
+				d.draw_circle(c, 9.0, Color(0.35, 0.4, 0.44, 0.35))
+				d.draw_line(c + Vector2(-6, 4), c + Vector2(4, 9), Color(0.95, 0.96, 0.98, 0.6), 2.0)
+			else:
+				d.draw_circle(c, 9.0, Color(0.95, 0.97, 1.0, 0.55))
+				d.draw_arc(c, 9.0, PI * 1.1, PI * 1.7, 8, Color(1, 1, 1, 0.8), 1.5)
+	d.draw_set_transform(Vector2.ZERO)

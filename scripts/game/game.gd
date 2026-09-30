@@ -238,6 +238,7 @@ func _open_for_debug(what: String) -> void:
 
 ## Выход из игры: освободить static-кэши звуков, текстур и шрифтов (иначе утечки при выходе).
 static func _on_quit() -> void:
+	Bestiary.flush()
 	Sfx.release_all()
 	Tex.clear_cache()
 	Design.clear_cache()
@@ -363,6 +364,7 @@ func restart(retry: bool) -> void:
 	if _restarting:  # двойное нажатие «Ещё раз» / «В меню» — сцена уже перезагружается
 		return
 	_restarting = true
+	Bestiary.flush()  # вышли посреди забега — встречи с врагами не теряются
 	auto_start = retry
 	get_tree().paused = false
 	Engine.time_scale = 1.0
@@ -405,9 +407,20 @@ func hint(text: String, time: float) -> void:
 func seen(key: String) -> void:
 	if debug_run or state == State.MENU:
 		return
-	if Bestiary.unlock(key):
+	if Bestiary.unlock(key, false, stage):
 		var e := Bestiary.entry(key)
 		fx.popup(Vector2(640, 96), "В КАРТОТЕКЕ: " + String(e["title"]).to_upper(), Design.STEEL)
+	else:
+		Bestiary.note_met(key)
+
+
+## Враг побеждён — в деле карточки (v12.4). Отладочные забеги не считаются.
+func beaten(key: String) -> void:
+	if state == State.MENU:
+		return
+	stats.on_beaten(key)  # итоги забега считают и отладочные забеги
+	if not debug_run:
+		Bestiary.note_beaten(key)
 
 
 ## Строка на табличке паузы: сложность, этап, счёт.
@@ -448,7 +461,7 @@ func _stage_cleared() -> void:
 	print("stage cleared: ", Balance.STAGES[stage]["name"], " score=", score)
 	state = State.PERK
 	run_scales += Balance.SCALES_PER_STAGE
-	add_score(Balance.STAGE_POINTS, snake.head_pos + Vector2(0, -50), "ЭТАП ПРОЙДЕН! ")
+	add_score(Balance.STAGE_POINTS, snake.head_pos + Vector2(0, -50), "ЭТАП ПРОЙДЕН! ", false)
 	sfx.play("stage_clear")
 	sfx.play("scale")
 	vibrate(60)
@@ -527,6 +540,7 @@ func on_boss_ready() -> void:
 
 
 func on_boss_defeated() -> void:
+	beaten("boss")
 	_clear_field()
 	run_scales += Balance.SCALES_PER_BOSS
 	state = State.OUTRO
@@ -538,6 +552,7 @@ func start_ending() -> void:
 	hud.set_boss(false)
 	arena.set_pan_rim(false)  # в лаборатории это снова деревянный ящик на столе
 	arena.set_heat(0.0)
+	seen("scientist")  # досье на учёного в картотеке (v12.4)
 	ending = Ending.new()
 	add_child(ending)
 	ending.finished.connect(_on_ending_finished)
@@ -616,6 +631,7 @@ func _end(win: bool) -> void:
 
 ## Подвести итоги забега: рекорд, чешуйки, серия испытаний. Возвращает строки экрана итогов.
 func _commit_run(win: bool) -> Dictionary:
+	Bestiary.flush()  # счётчики встреч и побед — на диск одной записью
 	state = State.WIN if win else State.GAME_OVER
 	if boss:
 		boss.active = false
@@ -814,6 +830,7 @@ func _notification(what: int) -> void:
 			if Settings.flag("mute_unfocused") and sfx:
 				sfx.set_suspended(true)
 			Settings.save()
+			Bestiary.flush()  # телефон может выгрузить свёрнутую игру — встречи с врагами не должны пропасть
 		NOTIFICATION_APPLICATION_FOCUS_IN, NOTIFICATION_APPLICATION_RESUMED:
 			if sfx:
 				sfx.set_suspended(false)
@@ -840,13 +857,15 @@ static func music_intensity(boss_fight: bool, phase: int, lives: int, max_lives:
 # ---------------------------------------------------------------- очки, эффекты, сигналы
 
 ## Очки с множителем сложности.
-func add_score(base_points: int, pos: Vector2, prefix := "") -> void:
-	add_score_raw(roundi(Combat.points(base_points, cfg) * float(mods.get("score_mult", 1.0))), pos, prefix)
+## streak = false — очки не за действие змеи (бонус этапа): серию не продлевают.
+func add_score(base_points: int, pos: Vector2, prefix := "", streak := true) -> void:
+	add_score_raw(roundi(Combat.points(base_points, cfg) * float(mods.get("score_mult", 1.0))), pos, prefix, streak)
 
 
-func add_score_raw(points: int, pos: Vector2, prefix := "") -> void:
+func add_score_raw(points: int, pos: Vector2, prefix := "", streak := true) -> void:
 	guard.verify(score)  # счёт до прибавки должен совпадать с тенью
-	stats.on_score(play_time)
+	if streak:
+		stats.on_score(play_time)
 	score += points
 	guard.note_score(score)
 	hud.set_score(score)

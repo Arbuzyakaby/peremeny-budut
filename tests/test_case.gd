@@ -10,6 +10,7 @@ const Controls = preload("res://scripts/core/controls.gd")
 const Bestiary = preload("res://scripts/core/bestiary.gd")
 const Daily = preload("res://scripts/core/daily.gd")
 const Secrets = preload("res://scripts/core/secrets.gd")
+const DevLog = preload("res://scripts/ui/dev_log.gd")
 
 const TMP := "user://test"
 
@@ -18,6 +19,7 @@ var host: Node  # сюда тесты добавляют узлы; очищае�
 var failures: Array[String] = []
 var checks := 0
 var current := ""
+var errors_expected := false  # тест сам вызывает ошибки (битые файлы и т. п.) — см. expect_errors()
 
 
 func before_all() -> void:
@@ -105,6 +107,62 @@ func assert_gt(v: float, lo: float, msg := "") -> void:
 	checks += 1
 	if not v > lo:
 		fail("%s %s не больше %s" % [msg, str(v), str(lo)])
+
+
+func assert_lt(v: float, hi: float, msg := "") -> void:
+	checks += 1
+	if not v < hi:
+		fail("%s %s не меньше %s" % [msg, str(v), str(hi)])
+
+
+## Прямоугольник целиком внутри другого (с допуском в пиксель на округление раскладки).
+func assert_rect_inside(inner: Rect2, outer: Rect2, msg := "") -> void:
+	checks += 1
+	var o := outer.grow(1.0)
+	if not (o.encloses(inner)):
+		fail("%s %s не внутри %s" % [msg, str(inner), str(outer)])
+
+
+## Контрол виден игроку: сам и все предки видимы, он внутри экрана и не обрезан прокруткой.
+func assert_on_screen(c: Control, msg := "") -> void:
+	checks += 1
+	if not c.is_visible_in_tree():
+		fail("%s: %s скрыт" % [msg, c.name])
+		return
+	var r := c.get_global_rect()
+	var screen := c.get_viewport().get_visible_rect().grow(1.0)
+	if not screen.encloses(r):
+		fail("%s: %s %s за краем экрана %s" % [msg, c.name, str(r), str(screen.size)])
+		return
+	var p := c.get_parent()
+	while p != null:
+		if p is ScrollContainer and not (p as Control).get_global_rect().grow(1.0).encloses(r):
+			fail("%s: %s обрезан прокруткой" % [msg, c.name])
+			return
+		p = p.get_parent()
+
+
+## Узел отрисовался без ошибок движка и скриптов: рисуем его вне очереди и сверяем журнал ошибок.
+func assert_draws(ci: CanvasItem, msg := "") -> void:
+	checks += 1
+	var before := engine_errors()
+	ci.queue_redraw()
+	await tree.process_frame
+	await tree.process_frame
+	var after := engine_errors()
+	if after > before:
+		fail("%s: %s — %d ошибок при отрисовке" % [msg, ci.name, after - before])
+
+
+## Сколько ошибок движка и скриптов накопил журнал с начала прогона.
+func engine_errors() -> int:
+	var lg = DevLog.shared
+	return lg.errors if lg else 0
+
+
+## Тест проверяет обработку ошибок и сам их вызывает — раннер не считает их провалом.
+func expect_errors() -> void:
+	errors_expected = true
 
 
 func _is_num(v: Variant) -> bool:

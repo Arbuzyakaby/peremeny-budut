@@ -86,8 +86,8 @@ func _draw_hitboxes() -> void:
 		draw_arc(p.position, Pill.CRUSH_RADIUS, 0, TAU, 20, Color(1, 0.6, 0.2, 0.5), 1.0)
 	for m in game.enemies.dolls:
 		draw_arc(m.position, m.radius(), 0, TAU, 20, HIT if m.can_bite() else SOFT, 2.0)
-		if m.st in [Matryoshka.St.CROUCH, Matryoshka.St.JUMP]:
-			draw_arc(m.jump_to, Matryoshka.CRUSH_RADIUS, 0, TAU, 20, Color(1, 0.6, 0.2, 0.7), 1.5)
+		if m.st in [Matryoshka.St.CROUCH, Matryoshka.St.SPIN] and m.spin_path.size() > 1:
+			draw_polyline(m.spin_path, Color(1, 0.6, 0.2, 0.7), 1.5)  # путь юлы
 	for d in game.shots.drops:
 		draw_arc(d.position, OilDrop.RADIUS, 0, TAU, 12, Color(1, 1, 0.3, 0.9), 1.5)
 	var boss: FriedEggBoss = game.boss

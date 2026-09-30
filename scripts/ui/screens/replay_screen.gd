@@ -67,8 +67,10 @@ static func cause_title(cause: String) -> String:
 			return "ВЗРЫВ ХЛОПУШКИ"
 		"pill":
 			return "РАЗДАВИЛА ТАБЛЕТКА"
+		"fizz":
+			return "РАЗДАВИЛА ШИПУЧКА"
 		"doll":
-			return "ПРИДАВИЛА МАЛЫШКА"
+			return "СБИЛА ЮЛА-МАЛЫШКА"
 		"wave":
 			return "УДАРНАЯ ВОЛНА"
 		"boss", "oil":
@@ -122,6 +124,9 @@ func _draw_monitor() -> void:
 				var lift := Vector2(0, -float(e[2]))
 				monitor.draw_circle(e[1], 16.0, Color(0, 0, 0, 0.5))
 				monitor.draw_circle(e[1] + lift, 24.0, Color(PHOSPHOR, 0.6))
+				if e.size() > 4 and int(e[4]) == 2:  # шипучка — пузырьки над таблеткой
+					for i in 3:
+						monitor.draw_arc(e[1] + lift + Vector2(-10 + i * 10, -32 - i * 5), 4.0, 0, TAU, 8, Color(PHOSPHOR, 0.8), 2.0)
 			"doll":  # матрёшка: низ и голова
 				var up := Vector2(0, -float(e[2]))
 				var dr := float(e[3])

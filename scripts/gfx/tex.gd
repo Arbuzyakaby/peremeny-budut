@@ -98,8 +98,13 @@ void fragment() {
 		tile += (fbm(px * 0.05 + id) - 0.5) * 0.05;
 		tile += 0.08 * smoothstep(40.0, 0.0, t.x + t.y - 20.0);
 		tile -= 0.05 * smoothstep(60.0, 80.0, max(t.x, t.y));
-		c = mix(vec3(0.55, 0.62, 0.65), tile, smoothstep(1.5, 3.5, grout));
-		c = mix(c, vec3(0.62, 0.7, 0.72), smoothstep(0.62, 0.8, fbm(px * 0.004 + 2.0)) * 0.35);
+		// глазурь: косой отблеск окна по плитке и светлая фаска у каждого шва
+		float glaze = smoothstep(0.08, 0.0, abs(fract((px.x - px.y * 0.7) / 900.0) - 0.35));
+		tile += glaze * 0.07;
+		tile += 0.04 * smoothstep(6.0, 2.0, grout);
+		// затирка аптечной зелени, чистая
+		c = mix(vec3(0.46, 0.64, 0.6), tile, smoothstep(1.5, 3.5, grout));
+		c = mix(c, vec3(0.62, 0.7, 0.72), smoothstep(0.62, 0.8, fbm(px * 0.004 + 2.0)) * 0.25);
 	} else if (kind == 4) {
 		// ящик для столовых приборов: бархат в деревянных ячейках, вмятины от вилок, тёплая лампа
 		vec2 cs = vec2(320.0, 360.0);

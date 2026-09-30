@@ -261,7 +261,7 @@ func set_data(diffs: Array, best_scores: Array, selected: int, scales: int, touc
 	var run := Daily.streak()
 	daily_button.text = "ИСПЫТАНИЕ ДНЯ%s%s" % ["  •  %d" % best_today if best_today > 0 else "",
 		"  •  серия %d" % run if run > 1 else ""]
-	bestiary_button.text = "КАРТОТЕКА %d/%d" % [Bestiary.known_count(), Bestiary.total()]
+	refresh_bestiary()
 	contact_button.visible = Secrets.is_found("contact") and not glitch
 	quit_button.visible = not touch or not OS.has_feature("mobile")
 	var version := "v" + str(ProjectSettings.get_setting("application/config/version", ""))
@@ -271,6 +271,15 @@ func set_data(diffs: Array, best_scores: Array, selected: int, scales: int, touc
 		controls_label.text = "← → / A D / мышь — поворот  •  Shift — спринт  •  Пробел / ЛКМ — атака\nEsc — пауза  •  F1 / Ctrl+Shift+D — разработчик  •  %s" % version
 	_update_journal()
 	_show_desc(selected)
+
+
+## Кнопка картотеки: сколько открыто и (v12.4) сколько новых карточек ещё не прочитано.
+func refresh_bestiary() -> void:
+	var fresh := Bestiary.new_count()
+	bestiary_button.text = "КАРТОТЕКА %d/%d%s" % [Bestiary.known_count(), Bestiary.total(),
+		"  •  НОВЫХ %d" % fresh if fresh > 0 else ""]
+	if stats_label:
+		_update_journal()
 
 
 func update_scales(scales: int) -> void:

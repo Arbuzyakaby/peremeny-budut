@@ -143,7 +143,7 @@ func _spawn_stage(i: int) -> void:
 				_add(e.spawn_fork(Vector2.INF, kinds[k % kinds.size()]), "fork", 90.0, false, 30.0)
 		2:
 			for k in goal:
-				_add(e.spawn_pill(Vector2.INF, Pill.Kind.TABLET if k % 2 else Pill.Kind.CAPSULE), "pill", 110.0, false, Pill.RADIUS)
+				_add(e.spawn_pill(Vector2.INF, [Pill.Kind.CAPSULE, Pill.Kind.TABLET, Pill.Kind.FIZZ][k % 3]), "pill", 110.0, false, Pill.RADIUS)
 		Balance.DOLL_STAGE:
 			for k in goal:
 				var m: Matryoshka = e.spawn_doll(Matryoshka.Size.BIG)

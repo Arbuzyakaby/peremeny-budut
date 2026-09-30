@@ -1,5 +1,5 @@
 extends "res://tests/integration/game_case.gd"
-## Этап матрёшек (v9.0) в игре: раскол и наборы, прыжок малышки, атака «прыжок малышки»,
+## Этап матрёшек (v9.0) в игре: раскол и наборы, юла малышки (v12.4), атака «прыжок малышки»,
 ## кооператив матрёшек — хоровод с просветом и лентами, разбег, заслон, дуэт на Ультра.
 
 const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
@@ -62,18 +62,56 @@ func test_set_splits_then_completes_goal() -> void:
 	assert_eq(game.opened_dolls, 3, "раскрыто: большая и две средние")
 
 
-func test_tiny_landing_hurts_and_crushes_neighbours() -> void:
+func test_tiny_spin_hits_once_and_opens_dolls_on_its_way() -> void:
+	await boot_stage(Balance.DOLL_STAGE)
+	game.enemies.clear(false)
+	var tiny := _ready_doll(Matryoshka.Size.TINY, Vector2(400, 360))
+	var mid := _ready_doll(Matryoshka.Size.MIDDLE, Vector2(560, 360))
+	game.snake.head_pos = Vector2(700, 360)
+	game.snake.invuln = 0.0
+	game.snake.shield = 0
+	var lives: int = game.snake.lives
+	tiny.crouch(game.snake.head_pos, Vector2.ZERO)
+	tiny.st = Matryoshka.St.SPIN
+	tiny.spin_hit_done = false
+	tiny.position = Vector2(560, 360)
+	game.enemies._spin_hits(tiny, game.snake)
+	assert_false(game.enemies.dolls.has(mid), "юла снесла соседку на пути — та раскрылась")
+	tiny.position = Vector2(700, 360)
+	game.enemies._spin_hits(tiny, game.snake)
+	assert_eq(game.snake.lives, lives - 1, "сбила змею")
+	assert_eq(game.snake.last_cause, "doll")
+	game.snake.invuln = 0.0
+	game.enemies._spin_hits(tiny, game.snake)
+	assert_eq(game.snake.lives, lives - 1, "за один проход — один удар")
+
+
+func test_hopping_snake_jumps_over_the_top() -> void:
+	await boot_stage(Balance.DOLL_STAGE)
+	game.enemies.clear(false)
+	var tiny := _ready_doll(Matryoshka.Size.TINY, Vector2(640, 360))
+	game.abilities.gain(Balance.DOLL_ABILITY)
+	game.abilities.use()
+	assert_true(game.snake.is_hopping())
+	game.snake.invuln = 0.0
+	var lives: int = game.snake.lives
+	tiny.crouch(game.snake.head_pos, Vector2.ZERO)
+	tiny.st = Matryoshka.St.SPIN
+	tiny.position = game.snake.head_pos
+	game.enemies._spin_hits(tiny, game.snake)
+	assert_eq(game.snake.lives, lives, "юлу можно перепрыгнуть прыжком малышки")
+	assert_false(tiny.spin_hit_done)
+
+
+func test_top_stops_without_crushing_the_snake() -> void:
 	await boot_stage(Balance.DOLL_STAGE)
 	game.enemies.clear(false)
 	var tiny := _ready_doll(Matryoshka.Size.TINY, Vector2(500, 360))
-	var mid := _ready_doll(Matryoshka.Size.MIDDLE, Vector2(640, 360))
-	game.snake.head_pos = Vector2(640, 400)
+	game.snake.head_pos = Vector2(500, 380)
+	game.snake.invuln = 0.0
 	var lives: int = game.snake.lives
-	tiny.jump_to = game.snake.head_pos
-	game.enemies._on_doll_landed(game.snake.head_pos, tiny)
-	assert_eq(game.snake.lives, lives - 1, "придавила змею")
-	assert_eq(game.snake.last_cause, "doll")
-	assert_false(game.enemies.dolls.has(mid), "упала на соседку — та раскрылась (френдли фаер)")
+	game.enemies._on_doll_landed(Vector2(500, 360), tiny)
+	assert_eq(game.snake.lives, lives, "остановка юлы не давит — бьёт только путь")
 
 
 func test_hop_ability_is_airborne_and_crushes_on_landing() -> void:
@@ -88,6 +126,12 @@ func test_hop_ability_is_airborne_and_crushes_on_landing() -> void:
 	await step(int(Balance.HOP_TIME * 60.0) + 4)
 	assert_false(game.snake.is_hopping(), "приземлилась")
 	assert_false(is_instance_valid(m) and game.enemies.dolls.has(m), "приземление раскрыло матрёшку рядом")
+	var ring := false
+	for w in game.shots.waves:
+		if w.doll:
+			ring = true
+			assert_true(w.friendly, "хохломское кольцо змею не задевает")
+	assert_true(ring, "у прыжка малышки своё кольцо, а не мятная волна таблетки")
 
 
 func test_every_second_tiny_gives_hop() -> void:

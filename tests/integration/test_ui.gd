@@ -17,6 +17,13 @@ func test_all_screens_open_and_close() -> void:
 	assert_true(hud.perks.visible)
 	hud.close_all()
 	assert_false(hud.is_screen_open())
+	# v12.4: открылся — мало; каждый экран должен помещаться, а его главная кнопка — быть на экране
+	for s in [hud.settings_screen, hud.skills_screen, hud.bestiary_screen]:
+		hud.push(s)
+		await frames(2)
+		assert_rect_inside(s.panel.get_global_rect(), game.get_viewport().get_visible_rect(), "%s в экране" % s.name)
+		assert_eq(hud.stack.back(), s, "экран наверху стека")
+		hud.pop()
 
 
 func test_settings_rows_cover_schema() -> void:

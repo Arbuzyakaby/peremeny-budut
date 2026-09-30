@@ -129,7 +129,7 @@ func start(game, c) -> void:
 
 func _say(text: String, talk: float) -> void:
 	g.hud.show_caption(SCIENTIST, text)
-	lab.talk = talk
+	lab.speak(text, talk)
 
 
 func _bear_jump(k: float) -> void:

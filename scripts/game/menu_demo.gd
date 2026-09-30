@@ -15,6 +15,7 @@ const FriedEggBoss = preload("res://scripts/entities/fried_egg_boss.gd")
 const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
 const Fork = preload("res://scripts/entities/fork.gd")
 const Pill = preload("res://scripts/entities/pill.gd")
+const FizzPuddle = preload("res://scripts/entities/fizz_puddle.gd")
 const OilDrop = preload("res://scripts/entities/oil_drop.gd")
 const Shockwave = preload("res://scripts/entities/shockwave.gd")
 const Icons = preload("res://scripts/ui/icons.gd")
@@ -155,9 +156,10 @@ func _add_pill(at := Vector2.INF, kind := -1) -> Pill:
 	var p := Pill.new()
 	p.z_index = 3
 	p.setup(_spot(80.0) if at == Vector2.INF else at, g.bounds, 1.0, 1.0,
-		(Pill.Kind.TABLET if randf() < 0.3 else Pill.Kind.CAPSULE) if kind < 0 else kind)
+		_demo_pill_kind() if kind < 0 else kind)
 	p.sound.connect(func(n: String) -> void: g.sfx.play(n, 1.0, QUIET))
 	p.landed.connect(_on_pill_landed.bind(p))
+	p.fizzed.connect(_on_fizzed.bind(p))
 	g.world.add_child(p)
 	g.enemies.pills.append(p)
 	return p
@@ -317,6 +319,27 @@ func _update_pills(delta: float) -> void:
 		if p.is_queued_for_deletion():
 			continue
 		p.update(delta, snake.head_pos, head_vel, true)
+	g.enemies.update_puddles(delta, snake)
+
+
+static func _demo_pill_kind() -> int:
+	var r := randf()
+	if r < 0.2:
+		return Pill.Kind.FIZZ
+	return Pill.Kind.TABLET if r < 0.45 else Pill.Kind.CAPSULE
+
+
+## Шипучка в демо растекается лужей тихо, без подсказки.
+func _on_fizzed(pos: Vector2, p: Pill) -> void:
+	if not is_instance_valid(p):
+		return
+	var d := FizzPuddle.new()
+	d.setup(pos, p.cols[0], p.cols[2])
+	g.world.add_child(d)
+	g.world.move_child(d, 0)
+	g.enemies.puddles.append(d)
+	while g.enemies.puddles.size() > FizzPuddle.MAX_ON_FIELD:
+		g.enemies.puddles.pop_front().queue_free()
 
 
 ## Таблетка приземлилась: капсула давит медведей под собой, шайба бьёт волной, которая оглушает всех вокруг.

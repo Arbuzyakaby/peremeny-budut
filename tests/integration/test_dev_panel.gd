@@ -92,4 +92,25 @@ func test_spawn_every_pill_kind() -> void:
 	for p in game.enemies.pills:
 		kinds.append(p.kind)
 	kinds.sort()
-	assert_eq(kinds, [0, 1], "капсула и шайба")
+	assert_eq(kinds, [0, 1, 2], "капсула, шайба и шипучка")
+
+
+func test_dev_spin_and_puddle_buttons() -> void:
+	await boot_stage(Balance.DOLL_STAGE)
+	game.enemies.clear(false)
+	game.dev_panel._doll_spin()
+	var tiny = null
+	for m in game.enemies.dolls:
+		if m.is_last():
+			tiny = m
+	assert_true(tiny != null, "нет малышки — появилась")
+	assert_eq(tiny.st, tiny.St.CROUCH, "и сразу раскручивается")
+	assert_gt(tiny.spin_path.size(), 1, "с полосой на полу")
+	game.dev_panel._fizz_puddle()
+	assert_eq(game.enemies.puddles.size(), 1, "лужа шипучки")
+	assert_true(game.enemies.puddles[0].position.distance_to(game.snake.head_pos) < 1.0, "прямо под змеёй")
+	var texts := []
+	for b in game.dev_panel.pages[2].find_children("*", "Button", true, false):
+		texts.append((b as Button).tooltip_text)  # подпись кнопки панели — в подсказке
+	assert_has(texts, "Юла — сейчас")
+	assert_has(texts, "Лужа у змеи")

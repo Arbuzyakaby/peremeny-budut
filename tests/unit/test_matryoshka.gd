@@ -1,6 +1,6 @@
 extends "res://tests/test_case.gd"
-## Матрёшка (v9.0) без игры: размеры, бегство, прыжок малышки с честным кольцом, окно после
-## приземления, выход из скорлупки; места хоровода с просветом; пасхалки; маршрут этапов.
+## Матрёшка (v9.0) без игры: размеры, бегство, юла малышки (v12.4) с честной полосой и отскоком,
+## окно после вращения, выход из скорлупки; места хоровода с просветом; пасхалки; маршрут этапов.
 
 const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
 const Squad = preload("res://scripts/game/squad.gd")
@@ -42,36 +42,68 @@ func test_big_and_middle_run_away() -> void:
 		assert_gt(m.position.distance_to(head), d0 + 10.0, "размер %d убегает от змеи" % size)
 
 
-func test_tiny_jump_target_is_fixed_at_crouch() -> void:
+func test_tiny_spin_path_is_fixed_at_windup() -> void:
 	var m := _doll(Matryoshka.Size.TINY, Vector2(640, 360))
 	m.attack_cd = 0.0
 	m.update(1.0 / 60.0, Vector2(760, 360), Vector2.ZERO, true)
-	assert_eq(m.st, Matryoshka.St.CROUCH, "малышка приседает перед прыжком")
-	var target := m.jump_to
-	assert_near(target.distance_to(Vector2(760, 360)), 0.0, 1.0, "целится в голову")
-	for i in 20:  # змея ушла — кольцо на месте, прыжок туда же (честный телеграф)
+	assert_eq(m.st, Matryoshka.St.CROUCH, "малышка раскручивается перед рывком")
+	var path := m.spin_path
+	assert_gt(path.size(), 1.0, "путь выбран сразу")
+	var dir := (path[1] - path[0]).normalized()
+	assert_near(dir.angle_to(Vector2.RIGHT), 0.0, 0.05, "целится в голову")
+	assert_near(m.spin_len, Matryoshka.SPIN_REACH, 1.0, "и проносится дальше головы — на всю длину")
+	for i in 20:  # змея ушла — полоса на месте (честный телеграф)
 		m.update(1.0 / 60.0, Vector2(900, 200), Vector2.ZERO, true)
-	assert_eq(m.jump_to, target, "точка прыжка не догоняет змею")
+	assert_eq(m.spin_path, path, "путь юлы не догоняет змею")
+	assert_gt(m.spin_angle, 0.0, "раскручивается на месте")
 
 
-func test_tiny_is_safe_in_air_and_edible_after_landing() -> void:
+func test_tiny_spins_untouchable_then_totters_and_is_edible() -> void:
 	var m := _doll(Matryoshka.Size.TINY)
-	var landed := [false]
-	m.landed.connect(func(_p: Vector2) -> void: landed[0] = true)
+	var stopped := [false]
+	m.landed.connect(func(_p: Vector2) -> void: stopped[0] = true)
 	m.crouch(Vector2(700, 360), Vector2.ZERO)
-	var saw_air := false
+	var saw_spin := false
+	var start := m.position
 	for i in 120:
 		m.update(1.0 / 60.0, Vector2(900, 600), Vector2.ZERO, true)
-		if m.in_air():
-			saw_air = true
-			assert_false(m.can_bite(), "в прыжке неуязвима")
-		if landed[0]:
+		if m.is_spinning():
+			saw_spin = true
+			assert_false(m.can_bite(), "пока крутится — не укусить")
+			assert_eq(m.height, 0.0, "юла не прыгает — катится по полу")
+		if stopped[0]:
 			break
-	assert_true(saw_air, "прыгнула")
-	assert_true(landed[0], "приземлилась")
-	assert_true(m.is_dazed(), "переводит дух — окно")
-	assert_true(m.can_bite(), "после приземления съедобна")
-	assert_near(m.strike_progress(), 0.0, 0.001, "кольца больше нет")
+	assert_true(saw_spin, "крутилась")
+	assert_true(stopped[0], "докрутилась")
+	assert_near(m.position.distance_to(start), Matryoshka.SPIN_REACH, 2.0, "прошла весь путь")
+	assert_true(m.is_dazed(), "шатается — окно")
+	assert_true(m.can_bite(), "после — съедобна")
+	assert_near(m.strike_progress(), 0.0, 0.001, "полосы больше нет")
+	assert_gt(m.trail.size(), 0, "за ней осталась стружка")
+
+
+func test_spin_path_bounces_off_the_wall() -> void:
+	var inner := Rect2(0, 0, 1000, 600)
+	var pts := Matryoshka.plan_path(Vector2(900, 300), Vector2.RIGHT, 300.0, inner)
+	assert_len(pts, 3, "старт, бортик, конец после отскока")
+	assert_near(pts[1].x, 1000.0, 0.01, "дошла до бортика")
+	assert_near(pts[2].x, 1000.0 - 200.0, 0.01, "и откатилась назад на остаток пути")
+	var straight := Matryoshka.plan_path(Vector2(100, 300), Vector2.RIGHT, 300.0, inner)
+	assert_len(straight, 2, "до бортика далеко — прямая")
+	var corner := Matryoshka.plan_path(Vector2(950, 550), Vector2(1, 1), 400.0, inner)
+	assert_true(corner.size() <= 3, "в углу — не больше одного отскока")
+	for p in corner:
+		assert_true(inner.grow(0.5).has_point(p), "путь не выходит за поле")
+
+
+func test_spin_touch_is_a_lane_not_a_landing_ring() -> void:
+	var m := _doll(Matryoshka.Size.TINY, Vector2(300, 360))
+	m.crouch(Vector2(700, 360), Vector2.ZERO)
+	assert_false(m.spin_touches(Vector2(300, 360)), "на раскрутке не бьёт")
+	m.st = Matryoshka.St.SPIN
+	m.position = Vector2(400, 360)
+	assert_true(m.spin_touches(Vector2(400, 360 + m.radius() + 5.0)), "задевает в пределах полосы")
+	assert_false(m.spin_touches(Vector2(400, 360 + m.radius() + Matryoshka.SPIN_HIT + 5.0)), "вбок — мимо")
 
 
 func test_pop_out_is_briefly_untouchable() -> void:
@@ -100,12 +132,12 @@ func test_daze_leaves_dance() -> void:
 func test_doll_draws_every_state() -> void:
 	for size in 3:
 		var m := _doll(size)
-		for st in [Matryoshka.St.ROAM, Matryoshka.St.CROUCH, Matryoshka.St.JUMP, Matryoshka.St.DAZED, Matryoshka.St.POP]:
+		m.crouch(Vector2(800, 360), Vector2.ZERO)
+		m.trail = [Vector2(600, 360), Vector2(620, 360)]
+		for st in [Matryoshka.St.ROAM, Matryoshka.St.CROUCH, Matryoshka.St.SPIN, Matryoshka.St.DAZED, Matryoshka.St.POP]:
 			m.st = st
 			m.st_t = 0.3
-			m.queue_redraw()
-		await frames(1)
-	assert_true(true, "рисуется без ошибок")
+			await assert_draws(m, "кукла %d в состоянии %d" % [size, st])
 
 
 func test_khorovod_slots_keep_gap_ahead() -> void:
@@ -149,3 +181,37 @@ func test_doll_stage_and_ability_in_balance() -> void:
 	assert_eq(Balance.ABILITIES[Balance.DOLL_ABILITY]["source"], "doll")
 	assert_has(Design.SOURCE_COLORS, "doll", "у матрёшки свой цвет источника")
 	assert_eq(Design.STAGE_ACCENTS.size(), Balance.STAGE_COUNT, "акцент у каждого этапа")
+
+
+func test_khorovod_slots_are_evenly_spaced_around_the_gap() -> void:
+	var slots := Squad.khorovod_slots(Vector2(0, 0), 100.0, 0.0, 5)
+	for p in slots:
+		assert_near(p.length(), 100.0, 0.01, "все на круге")
+		assert_gt(absf(p.angle()), Squad.KHOROVOD_GAP / 2.0 - 0.01, "просвет по курсу свободен")
+	for i in range(1, slots.size() - 1):
+		var d1 := slots[i].distance_to(slots[i - 1])
+		var d2 := slots[i].distance_to(slots[i + 1])
+		assert_near(d1, d2, 0.5, "танцующие — на равных расстояниях")
+
+
+func test_spread_and_guard_geometry() -> void:
+	var slots := Squad.spread_slots(Vector2(640, 360), 0.3, 4, Rect2(0, 0, 1280, 720))
+	assert_len(slots, 4)
+	for i in 4:
+		for j in range(i + 1, 4):
+			assert_gt(slots[i].distance_to(slots[j]), 50.0, "разбегаются в разные стороны")
+	var edge := Squad.spread_slots(Vector2(10, 10), 0.0, 3, Rect2(0, 0, 1280, 720))
+	for p in edge:
+		assert_true(Rect2(0, 0, 1280, 720).grow(-49.0).has_point(p), "в углу — всё равно на поле")
+	var g := Squad.guard_point(Vector2(100, 100), Vector2(300, 100), 48.0)
+	assert_eq(g, Vector2(148, 100), "заслон — между подопечной и змеёй")
+
+
+func test_line_of_fire_cone() -> void:
+	var head := Vector2.ZERO
+	assert_true(Squad.in_line_of_fire(head, Vector2.RIGHT, Vector2(200, 5)), "прямо впереди — на линии")
+	assert_false(Squad.in_line_of_fire(head, Vector2.RIGHT, Vector2(-200, 0)), "сзади — нет")
+	assert_false(Squad.in_line_of_fire(head, Vector2.RIGHT, Vector2(200, 200)), "сбоку — нет")
+	assert_false(Squad.in_line_of_fire(head, Vector2.RIGHT, Vector2(0.5, 0)), "вплотную — не считается")
+	assert_eq(Squad.pincer_gap(2), PI, "две вилки — строго по бокам")
+	assert_lt(Squad.pincer_gap(3), PI)

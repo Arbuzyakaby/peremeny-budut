@@ -171,3 +171,94 @@ func test_phoenix_revives_once() -> void:
 	s.take_damage(2)
 	assert_false(s.alive, "второй раз не спасает")
 	s.free()
+
+
+# ---------------------------------------------------------------- v12.4: дерево и мутации подробнее
+
+func test_every_node_and_perk_is_well_formed() -> void:
+	var ids := {}
+	for n: Dictionary in Skills.TREE:
+		assert_false(ids.has(n["id"]), "узел %s уникален" % n["id"])
+		ids[n["id"]] = true
+		assert_between(int(n["branch"]), 0, Skills.BRANCHES.size() - 1)
+		assert_gt(int(n["max"]), 0, "%s: хотя бы один ранг" % n["id"])
+		assert_gt(int(n["cost"]), 0, "%s: не бесплатный" % n["id"])
+		assert_ne(String(n["desc"]), "", "%s: есть описание" % n["id"])
+	var perk_ids := {}  # у мутации и узла может быть общий смысл (гибкость) — это разные списки
+	for p: Dictionary in Skills.PERKS:
+		assert_false(perk_ids.has(p["id"]), "мутация %s уникальна" % p["id"])
+		perk_ids[p["id"]] = true
+		assert_between(int(p.get("rarity", 0)), 0, Skills.RARITY.size() - 1)
+		assert_eq(Skills.perk(p["id"]), p)
+	assert_true(Skills.perk("нет-такой").is_empty())
+	assert_true(Skills.node("нет-такого").is_empty() or not Skills.node("нет-такого").has("id"))
+
+
+func test_perk_weights_follow_rarity_and_nose() -> void:
+	var common: Dictionary = Skills.PERKS[0]
+	var legend := {}
+	for p: Dictionary in Skills.PERKS:
+		if int(p.get("rarity", 0)) == 2:
+			legend = p
+	assert_eq(Skills.perk_weight(common, 2), Skills.RARITY[0]["weight"], "нюх не трогает обычные")
+	assert_eq(Skills.perk_weight(legend, 0), Skills.RARITY[2]["weight"])
+	assert_eq(Skills.perk_weight(legend, 2), Skills.RARITY[2]["weight"] * 3.0, "два ранга нюха — втрое чаще")
+
+
+func test_roll_never_repeats_and_skips_taken_uniques() -> void:
+	var taken := {}
+	for p: Dictionary in Skills.PERKS:
+		if p.get("unique", false):
+			taken[p["id"]] = 1
+	for i in 50:
+		var hand := Skills.roll_perks(4, taken)
+		assert_len(hand, 4)
+		var seen := {}
+		for p: Dictionary in hand:
+			assert_false(seen.has(p["id"]), "в раздаче без повторов")
+			seen[p["id"]] = true
+			assert_false(taken.has(p["id"]), "взятые уникальные не выпадают")
+
+
+func test_roll_with_tiny_pool_gives_what_is_left() -> void:
+	var taken := {}
+	for p: Dictionary in Skills.PERKS:
+		taken[p["id"]] = 1
+	var hand := Skills.roll_perks(3, taken)
+	for p: Dictionary in hand:
+		assert_false(p.get("unique", false), "остались только повторяемые")
+	assert_true(hand.size() <= 3)
+
+
+func test_mods_from_every_perk() -> void:
+	var m := Skills.mods({"tank": 1, "regen": 1, "flex": 1, "sprint": 1, "resist": 1, "charges": 1, "knockout": 1,
+		"burst": 1, "leech": 1, "hoarder": 1, "forkmaster": 1, "berserk": 1, "phoenix": 1}, false)
+	assert_near(m["stamina_max"], 1.25, 0.001)
+	assert_near(m["regen"], 1.3, 0.001)
+	assert_near(m["turn"], 1.2, 0.001)
+	assert_near(m["sprint"], 1.15, 0.001)
+	assert_near(m["resist"], 0.6, 0.001)
+	assert_eq(m["charges"], 2)
+	assert_eq(m["knockout"], 3)
+	assert_true(m["burst"] and m["berserk"] and m["phoenix"])
+	assert_eq(m["leech"], 12)
+	assert_near(m["scales_mult"], 1.5, 0.001)
+	assert_eq(m["fork_every"], 1)
+	var off := Skills.mods({"tank": 1, "phoenix": 1}, true)
+	assert_eq(off["stamina_max"], 1.0, "на Ультра мутации не действуют")
+	assert_false(off["phoenix"])
+
+
+func test_scale_rewards_by_difficulty_and_clamp() -> void:
+	assert_eq(Skills.scales_for_run(10.0, 0), 10)
+	assert_eq(Skills.scales_for_run(10.0, 3), 30, "Ультра — втрое")
+	assert_eq(Skills.scales_for_run(10.0, 99), 30, "сложность вне таблицы — как последняя")
+	assert_eq(Skills.scales_for_run(8.333333, 1, 3.0), 37, "дробные множители без потерь на округлении")
+
+
+func test_fourth_card_skill() -> void:
+	Skills.reset_all()
+	assert_eq(Skills.perk_cards(), 3)
+	Skills.ranks["lucky"] = 1
+	assert_eq(Skills.perk_cards(), 4, "«Четвёртая карта» — четыре карточки")
+	Skills.reset_all()

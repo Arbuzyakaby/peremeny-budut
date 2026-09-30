@@ -35,6 +35,7 @@ var lives := 3
 var max_lives := 3
 var invuln := 0.0
 var slow_timer := 0.0
+var slow_k := 0.5    # во сколько раз медленнее, пока идёт slow_timer (лента, иголка — вдвое; пена шипучки — слабее)
 var stun_t := 0.0
 var shield := 0      # щит поглощает удар (заплатка, улучшение)
 var stamina := 1.0   # доля «бака» 0..1
@@ -175,7 +176,7 @@ func update(delta: float) -> void:
 	if exhausted:
 		speed *= 0.8
 	if slow_timer > 0.0:
-		speed *= 0.5
+		speed *= slow_k
 	if stun_t > 0.0:
 		speed *= 0.35
 	spin_t = maxf(spin_t - delta, 0.0)
@@ -303,7 +304,9 @@ func grow(amount: int) -> void:
 	bite_t = 0.25
 
 
-func slow(time: float) -> void:
+func slow(time: float, k := 0.5) -> void:
+	if time * resist >= slow_timer or slow_timer <= 0.0:
+		slow_k = k
 	slow_timer = maxf(slow_timer, time * resist)
 
 

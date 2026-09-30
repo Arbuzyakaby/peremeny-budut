@@ -134,6 +134,18 @@ func spawn_snake_wave(pos: Vector2, reach: float) -> void:
 	waves.append(w)
 
 
+## Волна прыжка малышки (v12.4): тоже только картинка, но своя — хохломское кольцо, не мятная волна.
+func spawn_doll_ring(pos: Vector2, reach: float) -> void:
+	var w := Shockwave.new()
+	w.z_index = 1
+	w.setup_stun(pos, reach)
+	w.friendly = true
+	w.doll = true
+	w.speed = 300.0
+	g.world.add_child(w)
+	waves.append(w)
+
+
 ## Выстрел змеи во что-то попал? true — снаряд израсходован.
 func _snake_shot_hits(d: OilDrop) -> bool:
 	for bear: TeddyBear in g.enemies.bears:

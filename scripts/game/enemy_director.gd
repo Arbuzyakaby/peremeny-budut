@@ -15,6 +15,7 @@ const Tips = preload("res://scripts/core/tips.gd")
 const Squad = preload("res://scripts/game/squad.gd")
 const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
 const DollShell = preload("res://scripts/entities/doll_shell.gd")
+const FizzPuddle = preload("res://scripts/entities/fizz_puddle.gd")
 
 ## Кощеева игла (пасхалка): так редко в малышке находится яйцо, а в яйце — игла.
 const KOSCHEI_CHANCE := 0.03
@@ -29,6 +30,8 @@ var bears: Array[TeddyBear] = []
 var forks: Array[Fork] = []
 var pills: Array[Pill] = []
 var dolls: Array[Matryoshka] = []
+var puddles: Array[FizzPuddle] = []  # лужи шипучек (v12.4)
+var fizz_hinted := false
 var doll_sets := {}           # номер набора → сколько кукол этого набора ещё на поле
 var doll_set_id := 0
 var doll_paint := 0
@@ -83,6 +86,9 @@ func clear(with_fx := true) -> void:
 		m.queue_free()
 	dolls.clear()
 	doll_sets.clear()
+	for d in puddles:
+		d.queue_free()
+	puddles.clear()
 	squad.reset()
 
 
@@ -207,6 +213,7 @@ func eat_bear(bear: TeddyBear) -> void:
 	if not bears.has(bear):  # второй раз того же медведя не съесть (и после очистки поля — тоже)
 		return
 	bears.erase(bear)
+	g.beaten("bear_%d" % bear.type)
 	for other in bears:  # обидчика съели — мстить некому
 		if other.grudge == bear:
 			other.grudge = null
@@ -403,6 +410,7 @@ func break_fork(f: Fork, prefix := "") -> void:
 	if f.pincer_id != 0:  # сломали вилку клещей — клещи разваливаются
 		squad.breakout(f, forks)
 	forks.erase(f)
+	g.beaten("fork_%d" % f.kind)
 	g.fx.burst(f.position, Color(0.62, 0.32, 0.14), 16)
 	g.fx.burst(f.position, Color(0.8, 0.8, 0.85), 8)
 	g.sfx.play("clang")
@@ -420,16 +428,29 @@ func break_fork(f: Fork, prefix := "") -> void:
 
 # ---------------------------------------------------------------- таблетки
 
-## kind < 0 — случайный вид: шайб тем больше, чем ближе конец этапа (от 25 до 50 %).
+## Вид следующей таблетки: шайб тем больше, чем ближе конец этапа (от 25 до 50 %); шипучки — со второй
+## половины этапа, до 25 % (на этапе яичницы — сразу).
+static func pick_pill_kind(progress: float, r: float) -> int:
+	var fizz := 0.0 if progress < 0.5 else 0.15 + 0.2 * (progress - 0.5)
+	if r < fizz:
+		return Pill.Kind.FIZZ
+	if r < fizz + 0.25 + 0.25 * progress:
+		return Pill.Kind.TABLET
+	return Pill.Kind.CAPSULE
+
+
 func spawn_pill(at := Vector2.INF, kind := -1) -> Pill:
 	var p := Pill.new()
 	p.z_index = 3
 	if kind < 0:
 		var progress := float(g.goal_done) / maxf(g.goal_total, 1.0)
-		kind = Pill.Kind.TABLET if randf() < 0.25 + 0.25 * progress else Pill.Kind.CAPSULE
+		kind = pick_pill_kind(1.0 if g.stage == Balance.BOSS_STAGE else progress, randf())
 	p.setup(spawn_pos(50.0) if at == Vector2.INF else at, g.bounds, g.cfg["tempo"], g.cfg["bear_aggr"], kind)
 	p.sound.connect(g.sfx.play)
 	p.landed.connect(_on_pill_landed.bind(p))
+	p.fizzed.connect(spawn_puddle.bind(p))
+	if g.stage == 2 and g.arena:  # аптечная лампа мигает: на поле новая таблетка
+		g.arena.flicker()
 	g.world.add_child(p)
 	pills.append(p)
 	g.seen(p.bestiary_key())
@@ -437,6 +458,7 @@ func spawn_pill(at := Vector2.INF, kind := -1) -> Pill:
 
 
 func update_pills(delta: float, snake: Snake) -> void:
+	update_puddles(delta, snake)
 	var head_vel := Vector2.from_angle(snake.heading) * Snake.BASE_SPEED
 	for p: Pill in pills.duplicate():
 		if p.is_queued_for_deletion():
@@ -450,6 +472,7 @@ func eat_pill(p: Pill, prefix := "") -> void:
 	if not pills.has(p):
 		return
 	pills.erase(p)
+	g.beaten(p.bestiary_key())
 	g.fx.burst(p.position, p.cols[0], 12)
 	g.fx.burst(p.position, p.cols[1], 8)
 	g.sfx.play("eat", 1.3)
@@ -473,14 +496,45 @@ func _on_pill_landed(pos: Vector2, p: Pill) -> void:
 	g.fx.burst(pos, Color(0.9, 0.9, 0.95), 14, 0.8)
 	g.vibrate(40)
 	if snake.alive and snake.head_pos.distance_to(pos) < Pill.CRUSH_RADIUS + Snake.HEAD_RADIUS * 0.5:
-		if snake.take_damage(1, "pill"):
+		if snake.take_damage(1, "fizz" if p.kind == Pill.Kind.FIZZ else "pill"):
 			g.fx.popup(snake.head_pos + Vector2(0, -30), "РАЗДАВИЛО!", Color(1, 0.5, 0.4))
 			g.sfx.play("hurt")
 		snake.push((snake.head_pos - pos).normalized() * 450.0)
 	for b: TeddyBear in bears:  # давит и медведей
 		if b.position.distance_to(pos) < Pill.CRUSH_RADIUS + TeddyBear.RADIUS:
 			friendly_hit(b, null, (b.position - pos).normalized() * 300.0)
+	if p.kind == Pill.Kind.FIZZ:  # шипучка бьёт не волной, а лужей в конце серии — брызги пены
+		g.fx.burst(pos, p.cols[2], 10, 0.7)
+		return
 	g.shots.spawn_stun_wave(pos, 200.0 + 40.0 * float(g.cfg["bear_aggr"]))
+
+
+## Лужа шипучки. Старые высыхают раньше времени, если луж больше предела.
+func spawn_puddle(pos: Vector2, p: Pill) -> FizzPuddle:
+	var d := FizzPuddle.new()
+	var cols: Array = p.cols if is_instance_valid(p) else Pill.FIZZ_COLORS[0]
+	d.setup(pos, cols[0], cols[2])
+	g.world.add_child(d)
+	g.world.move_child(d, 0)  # под врагами и змеёй
+	puddles.append(d)
+	while puddles.size() > FizzPuddle.MAX_ON_FIELD:
+		var old: FizzPuddle = puddles.pop_front()
+		old.queue_free()
+	g.sfx.play("fizz_hiss")
+	if not fizz_hinted:
+		fizz_hinted = true
+		g.hint(Tips.FIZZ_HINT, 3.5)
+	return d
+
+
+func update_puddles(delta: float, snake: Snake) -> void:
+	for d: FizzPuddle in puddles.duplicate():
+		d.update(delta)
+		if d.finished():
+			puddles.erase(d)
+			d.queue_free()
+		elif snake.alive and d.contains(snake.head_pos):
+			snake.slow(FizzPuddle.SLOW_TIME, FizzPuddle.SLOW_K)
 
 
 # ---------------------------------------------------------------- матрёшки (v9.0)
@@ -516,7 +570,9 @@ func update_dolls(delta: float, snake: Snake) -> void:
 		if m.is_queued_for_deletion():
 			continue
 		m.update(delta, snake.head_pos, head_vel, snake.alive)
-		if snake.alive and not snake.is_hopping() and m.can_bite() and m.position.distance_to(snake.head_pos) < m.radius() + Snake.HEAD_RADIUS:
+		if m.is_spinning():
+			_spin_hits(m, snake)
+		elif snake.alive and not snake.is_hopping() and m.can_bite() and m.position.distance_to(snake.head_pos) < m.radius() + Snake.HEAD_RADIUS:
 			bite_doll(m, "НОКАУТ! " if m.is_dazed() and not m.is_last() else "")
 	_separate_dolls()
 	if snake.alive and ribbon_cd <= 0.0 and not snake.is_dashing():
@@ -575,6 +631,7 @@ func open_doll(m: Matryoshka, prefix := "") -> void:
 	if not dolls.has(m) or m.is_last():
 		return
 	dolls.erase(m)
+	g.beaten(m.bestiary_key())
 	var dir := Vector2.from_angle(randf() * TAU)
 	if g.snake:
 		dir = (m.position - g.snake.head_pos).normalized()
@@ -616,6 +673,7 @@ func eat_doll(m: Matryoshka, prefix := "") -> void:
 	if not dolls.has(m):
 		return
 	dolls.erase(m)
+	g.beaten(m.bestiary_key())
 	g.fx.burst(m.position, m.sarafan(), 12)
 	g.fx.burst(m.position, Matryoshka.GOLD, 6)
 	g.sfx.play("eat", 1.4)
@@ -648,22 +706,33 @@ func koschei(pos: Vector2) -> void:
 	g.found_secret("koschei")
 
 
-## Малышка приземлилась: давит змею, медведей и раскрывает других матрёшек под собой.
+## Юла в пути (v12.4): сбивает змею (один раз за проход), медведей и раскрывает матрёшек на пути.
+## Змею в прыжке малышки юла не достаёт — перепрыгнуть можно.
+func _spin_hits(m: Matryoshka, snake: Snake) -> void:
+	if snake.alive and not m.spin_hit_done and not snake.is_hopping() and m.spin_touches(snake.head_pos, Snake.HEAD_RADIUS):
+		m.spin_hit_done = true
+		var away := (snake.head_pos - m.position).normalized()
+		if snake.take_damage(1, "doll"):
+			g.fx.popup(snake.head_pos + Vector2(0, -30), "СБИЛА ЮЛА!", Color(1, 0.5, 0.4))
+			g.sfx.play("hurt")
+		snake.push(away * 420.0)
+		g.fx.burst(snake.head_pos, Matryoshka.GOLD, 8, 0.7)
+	for b: TeddyBear in bears:
+		if m.spin_touches(b.position, TeddyBear.RADIUS):
+			friendly_hit(b, null, (b.position - m.position).normalized() * 300.0)
+	for other: Matryoshka in dolls.duplicate():
+		if other != m and not other.is_last() and other.can_bite() and m.spin_touches(other.position, other.radius()):
+			friendly_hits += 1
+			open_doll(other, "ФРЕНДЛИ ФАЕР! ")
+
+
+## Юла докрутилась и встала: стружка, лёгкий толчок, соседок рядом раскрывает.
 func _on_doll_landed(pos: Vector2, m: Matryoshka) -> void:
 	if not is_instance_valid(m) or not dolls.has(m):
 		return
-	var snake: Snake = g.snake
-	g.add_shake(6.0)
-	g.fx.burst(pos, Color(0.95, 0.8, 0.6), 10, 0.8)
-	g.vibrate(25)
-	if snake.alive and snake.head_pos.distance_to(pos) < Matryoshka.CRUSH_RADIUS + Snake.HEAD_RADIUS * 0.5:
-		if snake.take_damage(1, "doll"):
-			g.fx.popup(snake.head_pos + Vector2(0, -30), "ПРИДАВИЛА!", Color(1, 0.5, 0.4))
-			g.sfx.play("hurt")
-		snake.push((snake.head_pos - pos).normalized() * 380.0)
-	for b: TeddyBear in bears:
-		if b.position.distance_to(pos) < Matryoshka.CRUSH_RADIUS + TeddyBear.RADIUS:
-			friendly_hit(b, null, (b.position - pos).normalized() * 280.0)
+	g.add_shake(4.0)
+	g.fx.burst(pos, Color(0.93, 0.75, 0.45), 12, 0.7)
+	g.vibrate(20)
 	for other: Matryoshka in dolls.duplicate():
 		if other != m and not other.is_last() and other.can_bite() \
 				and other.position.distance_to(pos) < Matryoshka.CRUSH_RADIUS + other.radius():

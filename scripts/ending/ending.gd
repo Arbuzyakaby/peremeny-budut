@@ -246,7 +246,7 @@ func _stats_line() -> String:
 
 func _say(text: String, talk_time: float) -> void:
 	hud.show_caption(SCIENTIST, text)
-	lab.talk = talk_time
+	lab.speak(text, talk_time)
 
 
 # ---------------------------------------------------------------- выбор

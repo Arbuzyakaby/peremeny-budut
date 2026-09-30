@@ -119,3 +119,55 @@ func test_every_icon_draws() -> void:
 	await frames(2)
 	assert_eq(drawn[0], 1, "все иконки нарисованы за один кадр")
 	assert_len(Icons.FORK_COLORS, 3)
+
+
+# ---------------------------------------------------------------- v12.4: повтор подробнее
+
+func _snap(head: Vector2, enemies := [], drops := [], boss := Vector2.INF) -> Dictionary:
+	return {"head": head, "body": PackedVector2Array([head]), "enemies": enemies, "drops": drops, "waves": [],
+		"boss": boss, "hp": 3}
+
+
+func test_finish_points_at_the_nearest_culprit() -> void:
+	var r := Replay.new()
+	r.push(_snap(Vector2(100, 100), [["bear", Vector2(130, 100), 0.0, 0], ["fork", Vector2(400, 400), 0.0, 0]]))
+	r.finish("bear")
+	assert_eq(r.source, Vector2(130, 100), "подсвечен ближний медведь, а не дальняя вилка")
+	assert_eq(r.cause, "bear")
+
+
+func test_finish_ignores_own_shots_and_far_things() -> void:
+	var r := Replay.new()
+	r.push(_snap(Vector2(100, 100), [], [[Vector2(110, 100), 0, true], [Vector2(150, 100), 0, false]]))
+	r.finish("shot")
+	assert_eq(r.source, Vector2(150, 100), "свой снаряд змеи — не виноват")
+	var far := Replay.new()
+	far.push(_snap(Vector2(100, 100), [["bear", Vector2(900, 600), 0.0, 0]]))
+	far.finish("bear")
+	assert_eq(far.source, Vector2.INF, "дальше 260 px — никого не подсвечиваем")
+
+
+func test_finish_blames_the_boss_or_the_snake_itself() -> void:
+	var r := Replay.new()
+	r.push(_snap(Vector2(100, 100), [["pill", Vector2(160, 100), 0.0, 0, 0]], [], Vector2(180, 100)))
+	r.finish("boss")
+	assert_eq(r.source, Vector2(180, 100), "яичница рядом — виновата она")
+	for cause in ["wall", "self"]:
+		var w := Replay.new()
+		w.push(_snap(Vector2(40, 40), [["bear", Vector2(60, 40), 0.0, 0]]))
+		w.finish(cause)
+		assert_eq(w.source, Vector2(40, 40), "%s: подсвечена сама змея" % cause)
+
+
+func test_clear_and_empty_finish() -> void:
+	var r := Replay.new()
+	r.finish("bear")
+	assert_eq(r.source, Vector2.INF, "пустая запись не падает")
+	for i in 20:
+		r.push(_snap(Vector2(i, 0)))
+	assert_true(r.has_data())
+	assert_near(r.duration(), 20.0 / Replay.RATE, 0.0001)
+	r.clear()
+	assert_false(r.has_data())
+	assert_eq(r.cause, "")
+	assert_eq(r.frame_at(1.0), {})

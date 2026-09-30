@@ -392,6 +392,44 @@ static func draw_tell_ring(ci: CanvasItem, c: Vector2, r: float, kind: int, k: f
 		ci.draw_arc(c, r * clampf(k, 0.0, 1.0), 0, TAU, 40, Color(col.lightened(0.4), 0.55), telegraph_width(2.0))
 
 
+## Полоса «здесь пройдёт» (v12.4, юла-матрёшка): дорожка шириной width по ломаной pts (с отскоком),
+## кромки, шевроны по ходу движения и заливка-«стрелка» k (0..1) — сколько осталось до рывка.
+## В отличие от кольца таблетки, это путь, а не точка: от него уходят вбок.
+static func draw_tell_lane(ci: CanvasItem, pts: PackedVector2Array, width: float, kind: int, k: float) -> void:
+	if pts.size() < 2:
+		return
+	var col := tell_color(kind)
+	ci.draw_polyline(pts, Color(INK, 0.18), width, true)
+	ci.draw_polyline(pts, Color(col, 0.12 + 0.12 * k), width, true)
+	var total := 0.0
+	for i in pts.size() - 1:
+		total += pts[i].distance_to(pts[i + 1])
+	var half := width / 2.0
+	var walked := 0.0
+	var fill := clampf(k, 0.0, 1.0) * total
+	for i in pts.size() - 1:
+		var a := pts[i]
+		var b := pts[i + 1]
+		var seg := a.distance_to(b)
+		if seg < 0.5:
+			continue
+		var dir := (b - a) / seg
+		var n := dir.orthogonal() * half
+		for e in [n, -n]:  # кромки с тёмной подложкой: полоса читается и на красном полу терема
+			ci.draw_line(a + e, b + e, Color(INK, 0.55), telegraph_width(4.5))
+			ci.draw_line(a + e, b + e, Color(col.lightened(0.2), 0.9), telegraph_width(2.0))
+		if fill > walked:  # заливка догоняет конец пути
+			var upto := minf(fill - walked, seg)
+			ci.draw_line(a, a + dir * upto, Color(col.lightened(0.4), 0.45), width * 0.55)
+		var d := 22.0
+		while d < seg - 6.0:  # шевроны по ходу
+			var c := a + dir * d
+			ci.draw_polyline(PackedVector2Array([c - dir * 6.0 + n * 0.5, c + dir * 3.0, c - dir * 6.0 - n * 0.5]),
+				Color(col, 0.8), telegraph_width(2.0))
+			d += 34.0
+		walked += seg
+
+
 # ---------------------------------------------------------------- 2.2: источники атак змеи
 
 ## Откуда у змеи атака: у каждого источника — свой акцент этапа и гравировка на табличке.

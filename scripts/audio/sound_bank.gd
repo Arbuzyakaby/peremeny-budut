@@ -4,7 +4,7 @@ extends "res://scripts/audio/synth.gd"
 ## резкие верха срезаны фильтрами; поправка — третьим аргументом to_stream (дБ).
 
 ## Сколько звуков в build_sounds() — для полосы загрузки (тест сверяет с фактом).
-const SOUND_COUNT := 83
+const SOUND_COUNT := 88
 
 const Foley = preload("res://scripts/audio/foley.gd")
 
@@ -61,6 +61,13 @@ func build_sounds() -> Dictionary:
 	_bank["pill_hop"] = to_stream(boing)
 	_bank["pill_land"] = to_stream(mix(mix(tone(0.3, 120, 45, W.SINE, 0.8, 0.0, 2.0), noise(0.2, 0.4, 3.0, 800)),
 		am(noise(0.25, 0.12, 2.0, 3500, 1200), 40.0, 0.6)), false, -6.0)
+	# ----- v12.4: шипучка и юла — короткие и сухие, без хвостов
+	_bank["fizz_hop"] = to_stream(mix(tone(0.09, 520, 980, W.SINE, 0.22, 0.0, 1.4), _pop(0.02, 0.18, 2500, 7000)), false, -4.0)
+	_bank["fizz_land"] = to_stream(mix(_pop(0.03, 0.3, 1200, 5000), noise(0.12, 0.18, 3.0, 6000, 2200)), false, -6.0)
+	_bank["fizz_hiss"] = to_stream(am(noise(0.7, 0.3, 1.1, 7500, 2600), 34.0, 0.5), false, -8.0)
+	var whirr := am(mix(tone(0.55, 180, 260, W.TRI, 0.25, 0.02, 1.0), bandpass(noise(0.55, 0.2, 0.8), 900, 2600)), 26.0, 0.6)
+	_bank["doll_spin"] = to_stream(whirr, false, -5.0)
+	_bank["doll_ring"] = to_stream(mix(_metal([988, 1480, 2217], 0.45, 0.22), tone(0.3, 330, 220, W.TRI, 0.2)), false, -6.0)
 	var dizzy := PackedFloat32Array()
 	dizzy.resize(int(0.7 * SR))
 	ph = 0.0

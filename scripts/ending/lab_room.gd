@@ -58,6 +58,8 @@ var match_pos := Vector2.ZERO
 var match_rot := 0.0
 var look := Vector2(640, 360)
 var talk := 0.0
+var say_text := ""    # текущая реплика — рот двигается по её слогам (lab.gd: speak, mouth_open)
+var say_t := 0.0
 var glow := 0.0
 var flash := 0.0
 var font: SystemFont

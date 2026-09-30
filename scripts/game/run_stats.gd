@@ -17,6 +17,7 @@ var peak_length := 0
 var flawless := 0            # этапов без единого удара
 var stage_times: Array[float] = []   # секунды на каждом пройденном этапе
 var stage_ids: Array[int] = []       # и номера этих этапов (забег может начаться не с первого)
+var beaten := {}             # v12.4: ключ картотеки → сколько раз побеждён за забег («любимое блюдо»)
 
 var _last_score_t := -99.0
 var _stage_start := 0.0
@@ -32,6 +33,7 @@ func reset() -> void:
 	flawless = 0
 	stage_times.clear()
 	stage_ids.clear()
+	beaten.clear()
 	_last_score_t = -99.0
 	_stage_start = 0.0
 	_stage_hits = 0
@@ -48,6 +50,24 @@ func on_hit() -> void:
 	hits += 1
 	_stage_hits += 1
 	combo = 0  # удар рвёт серию
+
+
+## Враг побеждён (ключ картотеки: bear_3, pill_2, doll_0…).
+func on_beaten(key: String) -> void:
+	beaten[key] = int(beaten.get(key, 0)) + 1
+
+
+## Любимое блюдо забега: кого побеждали чаще всего. [ключ, сколько] или [] — если меньше трёх побед.
+## При равенстве — тот, кто в картотеке раньше (порядок ключей стабилен).
+func favorite(order: Array) -> Array:
+	var best := ""
+	var n := 0
+	for key: String in order:
+		var c := int(beaten.get(key, 0))
+		if c > n:
+			best = key
+			n = c
+	return [best, n] if n >= 3 else []
 
 
 func on_ability() -> void:

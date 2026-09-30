@@ -54,12 +54,43 @@ static func tablet(ci: CanvasItem, c: Vector2, s := 1.0, a := 1.0) -> void:
 	ci.draw_circle(c + Vector2(-3.5, -4) * s, 2.2 * s, Color(1, 1, 1, 0.8 * a))
 
 
-## Таблетка по виду: 0 — капсула, 1 — шайба.
+## Шипучка (v12.4): пористый апельсиновый диск и пузырьки над ним.
+static func fizz(ci: CanvasItem, c: Vector2, s := 1.0, a := 1.0) -> void:
+	ci.draw_circle(c + Vector2(0, 2.5) * s, 9.5 * s, Color(0.9, 0.6, 0.18, a))
+	ci.draw_circle(c, 9.5 * s, Color(1.0, 0.86, 0.45, a))
+	for i in 5:
+		ci.draw_circle(c + Vector2.from_angle(i * 2.4) * 5.0 * s * sqrt((i + 0.5) / 5.0), 1.1 * s, Color(0.9, 0.6, 0.18, 0.7 * a))
+	for i in 3:
+		ci.draw_arc(c + Vector2(-5 + i * 5, -12 - i * 2.5) * s, (1.6 + i * 0.5) * s, 0, TAU, 10,
+			Color(1.0, 0.97, 0.85, 0.9 * a), 1.2 * s)
+
+
+## Учёный (досье, v12.4): голова в очках, седые виски, воротник халата и галстук.
+static func scientist(ci: CanvasItem, c: Vector2, s := 1.0, a := 1.0) -> void:
+	var line := Color(0.14, 0.14, 0.17, a)
+	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-14, 16) * s, c + Vector2(14, 16) * s, c + Vector2(8, 6) * s,
+		c + Vector2(-8, 6) * s]), Color(0.96, 0.96, 0.94, a))  # халат
+	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-2, 6) * s, c + Vector2(2, 6) * s, c + Vector2(1.5, 15) * s,
+		c + Vector2(-1.5, 15) * s]), Color(0.55, 0.12, 0.14, a))  # галстук
+	ci.draw_circle(c + Vector2(0, -3) * s, 10.5 * s, line)
+	ci.draw_circle(c + Vector2(0, -3) * s, 9.5 * s, Color(0.93, 0.8, 0.7, a))
+	ci.draw_arc(c + Vector2(0, -5) * s, 9.5 * s, PI + 0.2, TAU - 0.2, 12, Color(0.35, 0.3, 0.28, a), 4.0 * s)  # волосы
+	for sd in [-1.0, 1.0]:
+		ci.draw_circle(c + Vector2(sd * 9.5, -3) * s, 2.2 * s, Color(0.8, 0.8, 0.8, a))  # седые виски
+		ci.draw_rect(Rect2(c + Vector2(sd * 4.2 - 3.2, -5) * s, Vector2(6.4, 4.4) * s), line, false, 1.2 * s)  # очки
+	ci.draw_line(c + Vector2(-1, -3) * s, c + Vector2(1, -3) * s, line, 1.2 * s)
+	ci.draw_line(c + Vector2(-3, 3) * s, c + Vector2(3, 3) * s, line, 1.3 * s)
+
+
+## Таблетка по виду: 0 — капсула, 1 — шайба, 2 — шипучка.
 static func pill_kind(ci: CanvasItem, c: Vector2, kind: int, s := 1.0, a := 1.0) -> void:
-	if kind == 1:
-		tablet(ci, c, s, a)
-	else:
-		pill(ci, c, s, a)
+	match kind:
+		1:
+			tablet(ci, c, s, a)
+		2:
+			fizz(ci, c, s, a)
+		_:
+			pill(ci, c, s, a)
 
 
 static func egg(ci: CanvasItem, c: Vector2, s := 1.0, a := 1.0) -> void:

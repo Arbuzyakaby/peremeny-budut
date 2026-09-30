@@ -7,7 +7,7 @@ const Fork = preload("res://scripts/entities/fork.gd")
 const ReplayScreen = preload("res://scripts/ui/screens/replay_screen.gd")
 
 const CAUSES := ["fork_tines", "fork_whirl", "fork_pogo", "tine", "bear", "shot", "blast", "pill", "wave", "boss",
-	"oil", "self", "wall", "doll"]
+	"oil", "self", "wall", "doll", "fizz"]
 
 
 func before_each() -> void:
@@ -64,6 +64,7 @@ func test_bestiary_entries() -> void:
 		assert_has(keys, "fork_atk_%d" % a)
 	assert_has(keys, "pill")
 	assert_has(keys, "pill_1")
+	assert_has(keys, "pill_2")
 	assert_has(keys, "boss")
 
 

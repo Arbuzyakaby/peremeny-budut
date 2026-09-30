@@ -19,6 +19,7 @@ const Pill = preload("res://scripts/entities/pill.gd")
 const FriedEggBoss = preload("res://scripts/entities/fried_egg_boss.gd")
 const OilDrop = preload("res://scripts/entities/oil_drop.gd")
 const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
+const DollShell = preload("res://scripts/entities/doll_shell.gd")
 
 enum { TINES = 10, LUNGE = 11, POGO = 12, WAVE = 13, HOP = 14 }
 
@@ -346,7 +347,14 @@ func _hop_land(at: Vector2) -> void:
 	g.add_shake(9.0)
 	g.fx.burst(at, Matryoshka.GOLD, 12, 1.0)
 	g.fx.burst(at, Color(0.95, 0.85, 0.7), 10, 0.8)
-	g.shots.spawn_snake_wave(at, r)
+	g.shots.spawn_doll_ring(at, r)  # v12.4: хохломское кольцо, а не мятная волна таблетки
+	g.sfx.play("doll_ring", 1.0)
+	for i in 6:  # половинки расписных скорлупок разлетаются кругом
+		var sh := DollShell.new()
+		var dir := Vector2.from_angle(TAU * i / 6.0 + randf() * 0.4)
+		var row: Array = Matryoshka.SARAFANS[i % Matryoshka.SARAFANS.size()]
+		sh.setup(at + dir * 18.0, i % 2 == 0, row[i % 3], Matryoshka.SCARVES[i % Matryoshka.SCARVES.size()], 0.7, dir)
+		g.world.add_child(sh)
 	for bear: TeddyBear in g.enemies.bears.duplicate():
 		if bear.position.distance_to(at) < r + TeddyBear.RADIUS:
 			g.enemies.snake_hits_bear(bear, (bear.position - at).normalized() * 320.0)
