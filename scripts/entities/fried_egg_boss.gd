@@ -76,6 +76,8 @@ var tell_atk := -1          # какая атака телеграфируетс
 var aim_to := Vector2.ZERO  # куда нацелен телеграф (веер, таран, лужи)
 var vel := Vector2.ZERO
 var height := 0.0
+const REDRAW_CALM := 1.0 / 30.0
+var _redraw_accum := 0.0
 var jump_from := Vector2.ZERO
 var jump_to := Vector2.ZERO
 var look_dir := Vector2.DOWN
@@ -204,7 +206,12 @@ static func _pick(weights: Dictionary) -> int:
 func update(delta: float, snake: Snake) -> void:
 	t += delta
 	flash = maxf(flash - delta * 2.5, 0.0)
-	queue_redraw()
+	_redraw_accum += delta
+	# Ходит, дышит и пузырится она плавно и на 30 кадрах в секунду (сдвиг узла холст делает сам). Броски, удары,
+	# лужи и вспышки — без пропусков: там важна каждая полоска кадра.
+	if _redraw_accum >= REDRAW_CALM or flash > 0.0 or not puddles.is_empty() 			or not (act == Act.IDLE or act == Act.DAZED or act == Act.YOLK_OPEN):
+		_redraw_accum = 0.0
+		queue_redraw()
 	_update_puddles(delta, snake)
 	if not active or act == Act.DEAD:
 		return

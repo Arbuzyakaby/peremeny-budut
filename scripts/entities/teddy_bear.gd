@@ -230,7 +230,7 @@ func update(delta: float, snake: Snake) -> void:
 	elif st == St.DASH and type == Type.KARATE:
 		rotation = dash_dir.angle() + PI / 2 - PI * 0.35  # летит боком, выставив ногу
 	modulate.a = fade
-	queue_redraw()
+	refresh_look()
 
 
 func _throw(snake: Snake, head: Vector2, target: Vector2, avenging: bool) -> void:
@@ -389,7 +389,7 @@ func calm_update(delta: float, want: Vector2) -> void:
 	wobble += delta * (6.0 + vel.length() * 0.05)
 	rotation = sin(wobble) * 0.18
 	modulate.a = fade
-	queue_redraw()
+	refresh_look()
 
 
 func _recover(time: float) -> void:

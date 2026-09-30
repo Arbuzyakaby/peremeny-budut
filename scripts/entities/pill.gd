@@ -140,7 +140,20 @@ func update(delta: float, head: Vector2, head_vel: Vector2, snake_alive: bool) -
 				squash = 1.0
 				landed.emit(position)
 				sound.emit("pill_land")
-	queue_redraw()
+	refresh_look()
+
+
+## Перерисовка только при изменении вида: в покое капсула чуть качается (шагами по ~0,003 рад), шайба катится;
+## всё остальное — прыжок, присед, шлепок, появление, ореол загонщика — рисуется каждый кадр.
+var _last_look: Array = []
+
+
+func refresh_look() -> void:
+	var busy := st != St.IDLE or squash > 0.0 or spawn_k < 1.0 or herd_k > 0.001
+	var look := [int(sin(t * 3.0) * 16.0) if kind == Kind.CAPSULE else 0, int(roll * 12.0), cols, kind]
+	if busy or look != _last_look:
+		_last_look = look
+		queue_redraw()
 
 
 ## Технический режим «Контакт»: не прыгает на змею — мирно подскакивает, передвигаясь со скоростью want.
@@ -156,7 +169,7 @@ func calm_update(delta: float, want: Vector2) -> void:
 	var inner := bounds.grow(-RADIUS - 10.0)
 	position = (position + want * delta).clamp(inner.position, inner.end)
 	roll += want.length() * delta / 14.0
-	queue_redraw()
+	refresh_look()
 
 
 ## Цвета половинок/лица с учётом роли загонщика.

@@ -218,7 +218,20 @@ func update(delta: float, head: Vector2, head_vel: Vector2, snake_alive: bool) -
 			vel.y = -vel.y
 		position = position.clamp(inner.position, inner.end)
 	rock += delta * (3.0 + vel.length() * 0.05)
-	queue_redraw()
+	refresh_look()
+
+
+## Перерисовка только при изменении вида: в покое кукла лишь покачивается (шагами по 0,02 рад — почти
+## незаметно), в любом другом состоянии — прыжок, присед, оглушение, хоровод, вспышка — рисуется каждый кадр.
+var _last_look: Array = []
+
+
+func refresh_look() -> void:
+	var busy := st != St.ROAM or dancing or coop_tag > 0.0 or squash > 0.0 or hit_flash > 0.0 or spawn_k < 1.0
+	var look := [int(sin(rock) * 50.0), set_id, size]
+	if busy or look != _last_look:
+		_last_look = look
+		queue_redraw()
 
 
 ## Технический режим «Контакт»: без прыжков и хоровода — переваливается со скоростью want.
@@ -238,7 +251,7 @@ func calm_update(delta: float, want: Vector2) -> void:
 	var inner := bounds.grow(-radius() - 6.0)
 	position = position.clamp(inner.position, inner.end)
 	rock += delta * (3.0 + vel.length() * 0.05)
-	queue_redraw()
+	refresh_look()
 
 
 ## Присесть перед прыжком. Точка приземления выбирается сейчас и больше не меняется — кольцо честное.

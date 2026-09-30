@@ -374,11 +374,34 @@ func _draw() -> void:
 	var slowed := slow_timer > 0.0
 	var ash := Color(0.13, 0.1, 0.08)
 	var outline := Color(0.06, 0.24, 0.08).lerp(Color.BLACK, burnt)
+	# Радиусы сегментов и оттенки считаем один раз за кадр, а не в каждом сегменте (змея — самый дорогой рисунок игры)
+	var radii := PackedFloat32Array()
+	radii.resize(n)
+	for i in n:
+		radii[i] = _seg_radius(i, n) * small
+	var col_a := Color(0.96, 0.76, 0.22) if golden else Color(0.33, 0.76, 0.28)
+	var col_b := Color(0.86, 0.62, 0.14) if golden else Color(0.27, 0.67, 0.23)
+	if slowed:
+		col_a = col_a.lerp(Color.WHITE, 0.45)
+		col_b = col_b.lerp(Color.WHITE, 0.45)
+	col_a = col_a.lerp(ash, burnt * 0.9)
+	col_b = col_b.lerp(ash, burnt * 0.9)
+	var edge_a := col_a.darkened(0.18)
+	var edge_b := col_b.darkened(0.18)
+	var mark_a := col_a.darkened(0.35)
+	var mark_b := col_b.darkened(0.35)
+	var scale_a := col_a.darkened(0.3)
+	var scale_b := col_b.darkened(0.3)
+	var shine := Color(1, 1, 1, 0.22 * (1.0 - burnt))
+	var shade_off := Vector2(5, 8) * small
+	var lit_off := Vector2(-1.2, -1.6) * small
+	var shine_off := Vector2(-2.5, -3.5) * small
+	var pearl := Color(0.85, 0.9, 0.4, 0.8)
+	var shadow_col := Color(0, 0, 0, 0.16)
 	# Тень
 	for i in range(n - 1, 0, -2):
-		var r := _seg_radius(i, n) * small
-		Tex.blob(self, segs[i] + Vector2(5, 8) * small, Vector2(r, r) * 1.5, Color(0, 0, 0, 0.16))
-	Tex.blob(self, head_pos + Vector2(5, 8) * small, Vector2.ONE * HEAD_RADIUS * 1.6 * small, Color(0, 0, 0, 0.2))
+		Tex.blob(self, segs[i] + shade_off, Vector2(radii[i], radii[i]) * 1.5, shadow_col)
+	Tex.blob(self, head_pos + shade_off, Vector2.ONE * HEAD_RADIUS * 1.6 * small, Color(0, 0, 0, 0.2))
 	var body := segs
 	if rear > 0.0:  # на дыбах передние сегменты подняты над полом
 		body = segs.duplicate()
@@ -386,30 +409,30 @@ func _draw() -> void:
 			body[i] += _lift(i)
 	# Контур
 	for i in range(n - 1, 0, -1):
-		draw_circle(body[i], _seg_radius(i, n) * small + 2.5, outline)
+		draw_circle(body[i], radii[i] + 2.5, outline)
 	# Заливка: объём, узор ромбами, чешуя
+	var scales := burnt < 0.5
 	for i in range(n - 1, 0, -1):
-		var r := _seg_radius(i, n) * small
-		var dir := (body[i - 1] - body[i]).normalized()
+		var r := radii[i]
+		var pos := body[i]
+		var odd := (i / 3) % 2 != 0
+		var to_next := body[i - 1] - pos
+		var dir := to_next.normalized()
 		var side := dir.orthogonal()
-		var c := Color(0.33, 0.76, 0.28) if (i / 3) % 2 == 0 else Color(0.27, 0.67, 0.23)
-		if golden:
-			c = Color(0.96, 0.76, 0.22) if (i / 3) % 2 == 0 else Color(0.86, 0.62, 0.14)
-		if slowed:
-			c = c.lerp(Color.WHITE, 0.45)
-		c = c.lerp(ash, burnt * 0.9)
-		draw_circle(body[i], r, c.darkened(0.18))
-		draw_circle(body[i] + Vector2(-1.2, -1.6) * small, r * 0.82, c)
-		if i % 3 == 0 and burnt < 0.5:  # тёмный ромб узора на спине
+		draw_circle(pos, r, edge_b if odd else edge_a)
+		draw_circle(pos + lit_off, r * 0.82, col_b if odd else col_a)
+		if i % 3 == 0 and scales:  # тёмный ромб узора на спине
 			var d := r * 0.55
-			draw_colored_polygon(PackedVector2Array([body[i] + dir * d, body[i] + side * d * 0.7,
-				body[i] - dir * d, body[i] - side * d * 0.7]), c.darkened(0.35))
-			draw_circle(body[i], d * 0.25, Color(0.85, 0.9, 0.4, 0.8))
-		if burnt < 0.5:  # чешуйки
-			for s in [-1.0, 1.0]:
-				var sp: Vector2 = body[i] + side * s * r * 0.5
-				draw_arc(sp, r * 0.32, dir.angle() + PI * 0.55, dir.angle() + PI * 1.45, 5, c.darkened(0.3), 1.2)
-		Tex.blob(self, body[i] + Vector2(-2.5, -3.5) * small, Vector2.ONE * r * 0.55, Color(1, 1, 1, 0.22 * (1.0 - burnt)))
+			draw_colored_polygon(PackedVector2Array([pos + dir * d, pos + side * d * 0.7,
+				pos - dir * d, pos - side * d * 0.7]), mark_b if odd else mark_a)
+			draw_circle(pos, d * 0.25, pearl)
+		if scales:  # чешуйки
+			var a0 := dir.angle() + PI * 0.55
+			var a1 := dir.angle() + PI * 1.45
+			var sc := scale_b if odd else scale_a
+			draw_arc(pos - side * r * 0.5, r * 0.32, a0, a1, 5, sc, 1.2)
+			draw_arc(pos + side * r * 0.5, r * 0.32, a0, a1, 5, sc, 1.2)
+		Tex.blob(self, pos + shine_off, Vector2.ONE * r * 0.55, shine)
 
 	# Голова
 	var dir := Vector2.from_angle(heading)

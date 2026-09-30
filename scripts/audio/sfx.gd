@@ -10,6 +10,7 @@ signal sounds_ready
 
 const SoundBank = preload("res://scripts/audio/sound_bank.gd")
 const SynthMusic = preload("res://scripts/audio/synth_music.gd")
+const AudioCache = preload("res://scripts/audio/audio_cache.gd")
 const Settings = preload("res://scripts/core/settings.gd")
 
 const VOICES := 20
@@ -96,6 +97,16 @@ func _ready() -> void:
 	room_player.bus = "Ambient"
 	add_child(room_player)
 	AudioServer.set_bus_mute(0, muted)
+	load_cached()
+
+
+## Готовый звук с диска (audio_cache.gd): со второго запуска синтез не нужен, экран загрузки не показывается.
+static func load_cached() -> void:
+	if sounds.is_empty():
+		sounds = AudioCache.load_group("sounds")
+	for track: String in SynthMusic.TRACKS:
+		if not music.has(track):
+			music.merge(AudioCache.load_group(track))
 
 
 static func is_ready() -> bool:
@@ -131,6 +142,7 @@ static func join_builder() -> void:
 static func _store(result: Variant) -> void:
 	if not (result is Dictionary):
 		return
+	AudioCache.save_group(_building, result)
 	if _building == "sounds":
 		sounds = result
 	else:

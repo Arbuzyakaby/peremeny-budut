@@ -134,7 +134,31 @@ func _process(delta: float) -> void:
 			if r.grow(30).has_point(snake_screen):
 				covered = true
 	modulate.a = move_toward(modulate.a, 0.35 if covered else 1.0, delta * 4.0)
-	queue_redraw()
+	_redraw_if_changed()
+
+
+## Табло перерисовываем, только когда изменилось то, что на нём видно (значения — с точностью до долей
+## пикселя), а анимацию (пульс, дрожь, отблеск) — шагами по 1/16 с. Прозрачность панелей — это
+## modulate: для неё перерисовка не нужна. Раньше табло целиком рисовалось каждый кадр: ~2,4 мс.
+const ANIM_STEPS := 16.0
+var _last_key: Array = []
+
+
+func _redraw_if_changed() -> void:
+	var animated := in_game or Design.panic > 0.01
+	var key := [in_game, touch, size, safe, diff_name, dev_run, stage, goal_done, goal_total, lives, max_lives,
+		shield, ability_type, ability_name, ability_charges, boss_visible, boss_phase, exhausted,
+		int(score_shown), snappedf(stamina, 0.004), int(heart_anim * 20.0), int(ability_flash * 20.0),
+		int(hurt_flash * 50.0), int(white_flash * 50.0), int(boss_flash * 20.0), int(cine * 100.0),
+		int(Design.panic * 100.0), snappedf(boss_hp_shown / boss_max, 0.001),
+		snappedf(boss_hp_ghost / boss_max, 0.001), int(play_time) if Settings.flag("show_timer") else 0,
+		Engine.get_frames_per_second() / 4 if Settings.flag("show_fps") else 0,
+		int(t * ANIM_STEPS) if animated else 0, Settings.flag("vignette"), Settings.flag("show_timer"),
+		Settings.flag("show_fps"), Settings.flag("reduced_motion"), Settings.flag("high_contrast"), iron,
+		snappedf(heat, 0.01)]
+	if key != _last_key:
+		_last_key = key
+		queue_redraw()
 
 
 # ---------------------------------------------------------------- раскладка

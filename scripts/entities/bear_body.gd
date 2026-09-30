@@ -71,6 +71,23 @@ func is_ramming() -> bool:
 	return st == St.DASH or (type == Type.NORMAL and st == St.ROAM and has_grudge())
 
 
+## Медведя достаточно перерисовать, когда изменился его вид: сдвиг и поворот узла холст применяет сам.
+## Покачивание (rotation) — шагами по ~5°: тень чуть отстаёт от поворота, но это доли пикселя.
+## Анимация по времени (хвосты повязок, звёзды, пульс щита и злости) идёт шагами по 1/12 с и только там,
+## где она видна. Раньше все медведи перерисовывались каждый кадр.
+var _last_look: Array = []
+
+
+func refresh_look() -> void:
+	var animated := type == Type.KARATE or type == Type.NINJA or st == St.WINDUP or st == St.AIM 		or st == St.DIZZY or feint or tease_t > 0.0 or shield_t > 0.0 or has_grudge() or order == "rescue"
+	var look := [type, st, fur, bow_color, int(rotation * 12.0), int(heal_glow * 10.0), int(hit_flash * 10.0),
+		int(shield_t * 10.0) if shield_t < 1.5 else 15, feint, tease_t > 0.0, order == "rescue",
+		has_grudge(), int(t * 12.0) if animated else 0]
+	if look != _last_look:
+		_last_look = look
+		queue_redraw()
+
+
 func _draw() -> void:
 	var dark := fur.darkened(0.35)
 	var light := fur.lightened(0.35)
