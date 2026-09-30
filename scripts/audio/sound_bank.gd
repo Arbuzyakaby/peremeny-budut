@@ -4,7 +4,7 @@ extends "res://scripts/audio/synth.gd"
 ## резкие верха срезаны фильтрами; поправка — третьим аргументом to_stream (дБ).
 
 ## Сколько звуков в build_sounds() — для полосы загрузки (тест сверяет с фактом).
-const SOUND_COUNT := 80
+const SOUND_COUNT := 83
 
 const Foley = preload("res://scripts/audio/foley.gd")
 
@@ -144,6 +144,21 @@ func build_sounds() -> Dictionary:
 	# ----- «Контакт» v10.0
 	# шипение змеи: высокий шум с нарастанием и дрожью языка
 	_bank["hiss"] = to_stream(am(noise(0.75, 0.3, 0.6, 9000, 3200, 0.3), 18.0, 0.25), false, -4.0)
+	# ----- доска в «Контакте» трескается (v12.2)
+	# скрип нагретого дерева: узкий шум с неровной дрожью и медленно «плывущий» тон
+	var creak := am(bandpass(noise(0.6, 1.0, 0.9, 0.0, 0.0, 0.14), 180, 900), 13.0, 0.7, true)
+	_normalize(creak, 0.55)
+	_bank["wood_creak"] = to_stream(mix(creak, tone(0.55, 150, 104, W.SAW, 0.07, 0.35, 1.3)), false, -4.0)
+	# излом: сухой треск, глухой удар доски и два вторичных щелчка волокон
+	var snap := mix(_pop(0.18, 0.9, 400, 4500), tone(0.4, 120, 42, W.SINE, 0.7, 0.0, 2.2))
+	snap = mix_at(snap, _pop(0.06, 0.5, 900, 3500), 0.07)
+	snap = mix_at(snap, _pop(0.05, 0.35, 1200, 4000), 0.15)
+	_bank["wood_snap"] = to_stream(mix(snap, noise(0.3, 0.22, 2.5, 1500)), false, -3.0)
+	# щепа: пачка коротких сухих щелчков, затухающих
+	var spl := silence(0.34)
+	for i in 7:
+		spl = mix_at(spl, _pop(0.02, 0.4 * (1.0 - i * 0.11), randf_range(1500, 3500), 6500), i * 0.04 + randf() * 0.02)
+	_bank["splinter"] = to_stream(spl, false, -6.0)
 	# ----- лаборатория (v11.2): фоли-звуки на 44,1 кГц — шаги, часы, спичка, гром, огонь, огнетушитель,
 	# штамп, выключатель, скорлупа, выстрел, рикошет и дождь по окну (foley.gd)
 	var fol := Foley.new().build()

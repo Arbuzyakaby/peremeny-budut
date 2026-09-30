@@ -82,6 +82,8 @@ var shake := 0.0
 ## Отладочный забег (аргументы, автопилот, читы): рекорды и чешуйки не сохраняются.
 var debug_run := false
 var autopilot := false
+## Панель разработчика: враги замерли (не двигаются и не атакуют), змея и боссы живут как обычно.
+var freeze_enemies := false
 ## Страж забега (v11.0): правка счёта в памяти, спидхак, чужой масштаб времени — см. run_guard.gd.
 var guard := RunGuard.new()
 
@@ -782,12 +784,13 @@ func _process(delta: float) -> void:
 				enemies.update_reinforcements(delta)
 			else:
 				enemies.update_helpers(delta)
-			enemies.update_bears(delta, snake, true)
-			enemies.update_forks(delta, snake)
-			enemies.update_pills(delta, snake)
-			enemies.update_dolls(delta, snake)
-			enemies.update_squad(delta, snake)
-			shots.update_drops(delta)
+			if not freeze_enemies:
+				enemies.update_bears(delta, snake, true)
+				enemies.update_forks(delta, snake)
+				enemies.update_pills(delta, snake)
+				enemies.update_dolls(delta, snake)
+				enemies.update_squad(delta, snake)
+				shots.update_drops(delta)
 			shots.update_waves(delta)
 
 

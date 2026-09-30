@@ -12,6 +12,7 @@ extends Node2D
 const Tex = preload("res://scripts/gfx/tex.gd")
 const Fire = preload("res://scripts/ending/fire.gd")
 const Design = preload("res://scripts/ui/design.gd")
+const PlankBreak = preload("res://scripts/contact/plank_break.gd")
 
 enum Ph { CLIMB, HAND, FIRE, GUN, OUT, DONE }
 
@@ -24,6 +25,7 @@ const CLIMB_MAX := 7.0
 const HAND_TIME := 2.6
 const GUN_AT := 2.0           # после вспышки: рука возвращается с пистолетом
 const CRACK_AT := 4.6         # после вспышки: от жара трескается доска в углу — выход (уже под пулями)
+const HEAT_FROM := 0.8        # с этой секунды пожара доску в углу начинает вести от жара
 const SHOT_EVERY := Vector2(0.5, 0.8)
 const BULLET_TIME := 0.09
 const SKIN := Color(0.93, 0.8, 0.7)
@@ -52,12 +54,19 @@ var match_from := Vector2.ZERO
 var match_to := Vector2(640, 96)
 var out_t := 0.0
 var fire_t := 0.0
+var plank: PlankBreak
 
 
 func begin() -> void:
 	g.hud.show_banner("ВСЕ ЗАОДНО. ПОРА ВЫБИРАТЬСЯ!", Color(0.6, 1, 0.5), 2.0)
 	g.hint("Веди всех к верхнему борту — выбираемся из ящика!", 4.0)
 	g.sfx.play_music("")
+	plank = PlankBreak.new()
+	plank.z_as_relative = false  # финал лежит на z 30, а доска — на полу, под змеёй и медведями
+	plank.z_index = 0
+	plank.set_floor_color(_floor_color(Vector2(1190, 660)))
+	plank.sound.connect(func(n: String, pitch: float, vol: float) -> void: g.sfx.play(n, pitch, vol))
+	add_child(plank)
 	_to(Ph.CLIMB)
 
 
@@ -124,6 +133,7 @@ func update(delta: float) -> void:
 			_wants_panic(1.0)
 			_burn_check()
 			_snake_in_fire(delta)
+			plank.set_heat((fire_t - HEAT_FROM) / (CRACK_AT - HEAT_FROM))
 			if fire_t > CRACK_AT and exit_open == 0.0:
 				_crack()
 			if ph == Ph.FIRE:
@@ -154,6 +164,7 @@ func update(delta: float) -> void:
 			if out_t > 1.6:
 				_to(Ph.DONE)
 				contact.start_hideout()
+	plank.update(delta)
 	queue_redraw()
 
 
@@ -235,12 +246,38 @@ func _ignite() -> void:
 
 func _crack() -> void:
 	exit_open = 0.01
-	g.sfx.play("clang", 0.6)
-	g.sfx.play("fork_thud", 0.8)
-	g.add_shake(10.0)
-	g.fx.burst(EXIT, Color(0.45, 0.27, 0.13), 20)
+	plank.snap()  # звук излома, щепа и провисающие половины — внутри доски
+	g.sfx.play("fork_thud", 0.8, -6.0)
+	g.add_shake(12.0)
+	g.vibrate(60)
+	g.fx.burst(EXIT, Color(0.62, 0.42, 0.2), 14, 0.8)
 	g.fx.popup(EXIT + Vector2(-120, -50), "ДОСКА ТРЕСНУЛА!", Color(1, 0.8, 0.4))
 	g.hint("Выход — щель в углу ящика! Туда!", 4.0)
+
+
+## Средний цвет пола вокруг точки (из готовой текстуры арены); прозрачный — если снять не удалось (тесты без экрана).
+func _floor_color(at: Vector2) -> Color:
+	var img: Image = null
+	if g.arena and g.arena.floor_view and DisplayServer.get_name() != "headless":  # без экрана текстур нет
+		img = g.arena.floor_view.get_texture().get_image()
+	if img == null or img.is_empty():
+		return PlankBreak.WOOD
+	var sc := float(img.get_width()) / 1280.0
+	var sum := Color(0, 0, 0, 0)
+	var n := 0
+	for dx in [-36, -18, 0, 18, 36]:
+		for dy in [-30, 0, 30]:
+			var p := ((at + Vector2(dx, dy)) * sc).clamp(Vector2.ZERO, Vector2(img.get_width() - 1, img.get_height() - 1))
+			sum += img.get_pixelv(Vector2i(p))
+			n += 1
+	return sum / float(n)
+
+
+## Отладка (панель разработчика): доска в углу ломается прямо сейчас.
+func debug_crack() -> void:
+	if exit_open == 0.0:
+		plank.set_heat(1.0)
+		_crack()
 
 
 func _shoot() -> void:
@@ -332,16 +369,9 @@ func _draw() -> void:
 		Tex.blob(self, pf["p"], Vector2.ONE * (30.0 + 60.0 * (1.0 - k)), Color(0.75, 0.75, 0.78, 0.35 * k))
 
 
+## Доска ломается в plank_break.gd; здесь — только стрелка-подсказка, когда щель уже открыта.
 func _draw_exit() -> void:
 	var k := exit_open
-	var c := EXIT + Vector2(22, 22)
-	var hole := PackedVector2Array([c + Vector2(-70, 10) * k, c + Vector2(-30, -40) * k, c + Vector2(10, -70) * k,
-		c + Vector2(30, -20) * k, c + Vector2(40, 40), c + Vector2(-20, 40)])
-	draw_colored_polygon(hole, Color(0.03, 0.02, 0.02))
-	draw_polyline(hole, Color(0.55, 0.35, 0.16), 4.0)
-	for i in 4:  # щепки
-		var a := c + Vector2(-60 + i * 22, -10 - i * 14) * k
-		draw_line(a, a + Vector2(14, -6), Color(0.62, 0.42, 0.2), 4.0)
 	if k >= 1.0 and ph != Ph.DONE:  # стрелка-подсказка
 		var bob := sin(t * 6.0) * 8.0
 		var tip := EXIT + Vector2(-70 - bob, -70 - bob)

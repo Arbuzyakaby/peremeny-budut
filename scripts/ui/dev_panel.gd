@@ -3,7 +3,9 @@ extends CanvasLayer
 ## версию в настройках). В шапке — табличка версии и лампа «отладочный забег», под ней — маршрут забега.
 ## Вкладки: ИНФО (производительность и состояние), ЧИТЫ, МИР (этапы, спавн врагов и матрёшек, время,
 ## пасхалки), ИИ (кооператив: уровень отряда, приёмы по кнопке, роли над врагами, счётчики),
-## ДЕБАГ (хитбоксы, безопасная зона, звуки), UI (витрина дизайн-языка), ТЕСТЫ (юнит-тесты в игре).
+## ДЕБАГ (хитбоксы, безопасная зона, пауза времени с шагом кадра, журнал ошибок, звуки), UI (витрина
+## дизайн-языка), ТЕСТЫ (юнит-тесты в игре). С v12.2: заморозка врагов, длина и здоровье змеи, пачки спавна,
+## фазы яичницы, проверка эффектов, события вакханалии в меню, снимок экрана и отчёт в буфер обмена.
 ## Любой чит помечает забег отладочным — рекорды и чешуйки не сохраняются.
 
 const Design = preload("res://scripts/ui/design.gd")
@@ -22,6 +24,8 @@ const Pill = preload("res://scripts/entities/pill.gd")
 const Matryoshka = preload("res://scripts/entities/matryoshka.gd")
 const Snake = preload("res://scripts/entities/snake.gd")
 const Secrets = preload("res://scripts/core/secrets.gd")
+const MenuDemo = preload("res://scripts/game/menu_demo.gd")
+const DevLog = preload("res://scripts/ui/dev_log.gd")
 
 const WIDTH := 500.0
 const TABS := ["ИНФО", "ЧИТЫ", "МИР", "ИИ", "ДЕБАГ", "UI", "ТЕСТЫ"]
@@ -31,6 +35,8 @@ const PAGE_DEBUG := 4
 const COOP_LEVELS := [-1, 0, 1, 2]
 const BEAR_NAMES := ["Обычный", "Боксёр", "Метатель", "Каратист", "Швея", "Ниндзя", "Хлопушка", "Медсестра"]
 const TEST_RUNNER := "res://tests/test_runner.gd"
+## Сколько врагов создаёт кнопка спавна.
+const SPAWN_COUNTS := [1, 3, 5, 10]
 ## Звуки финала — отдельной группой в превью.
 const ENDING_SOUNDS := ["match", "ignite", "burn", "crackle", "thunder", "step", "scribble", "stamp", "extinguisher",
 	"lamp_click", "hatch", "melt"]
@@ -53,10 +59,16 @@ var run_lamp: Control
 var route: Control
 var tabs: Segmented
 var t := 0.0
+var spawn_count := 1
+var log_label: Label
+var log_t := 0.0
+var time_paused := false
+var saved_scale := 1.0
 
 
 func _ready() -> void:
 	layer = 20
+	DevLog.install()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -249,6 +261,10 @@ func _build_info(p: VBoxContainer) -> void:
 	info_label.label_settings.font = Design.font("mono")
 	info_label.label_settings.font_size = 13
 	p.add_child(info_label)
+	var ig := _grid(p, 3)
+	ig.add_child(_btn("КОПИРОВАТЬ ОТЧЁТ", copy_report))
+	ig.add_child(_btn("СНИМОК ЭКРАНА", screenshot))
+	ig.add_child(_btn("ПАПКА ДАННЫХ", func() -> void: OS.shell_open(ProjectSettings.globalize_path("user://"))))
 
 
 func _draw_graph() -> void:
@@ -267,7 +283,7 @@ func _draw_graph() -> void:
 
 func _update_info() -> void:
 	var vp := get_viewport().get_visible_rect().size
-	var lines := [
+	var lines: Array = [
 		"FPS            %d   (кадр %.1f мс)" % [Engine.get_frames_per_second(), frame_ms.back() if frame_ms.size() > 0 else 0.0],
 		"Узлы / объекты %d / %d" % [Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.OBJECT_COUNT)],
 		"Память         %.1f МБ" % (Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0),
@@ -289,7 +305,59 @@ func _update_info() -> void:
 		"Тач            %s" % ("да" if Settings.touch_enabled() else "нет"),
 		"Отладочный забег %s" % ("да" if game.debug_run else "нет"),
 	]
+	lines.append_array(_extra_info())
 	info_label.text = "\n".join(lines)
+
+
+## Строки состояния змеи, яичницы, кадра и демо меню — дополняют список на вкладке ИНФО.
+func _extra_info() -> Array:
+	var out: Array = []
+	var s = game.snake
+	if s != null and is_instance_valid(s):
+		out.append("Змея           длина %d  •  жизни %d/%d  •  стамина %d%%" % [s.length, s.lives, s.max_lives, int(s.stamina * 100.0)])
+	if game.boss != null and is_instance_valid(game.boss):
+		out.append("Яичница        HP %d/%d  •  фаза %d" % [game.boss.hp, game.boss.max_hp, game.boss.phase()])
+	out.append("Время забега   %.1f с  •  счёт %d" % [game.play_time, game.score])
+	if frame_ms.size() > 10:
+		var sorted := frame_ms.duplicate()
+		sorted.sort()
+		var avg := 0.0
+		for v in frame_ms:
+			avg += v
+		avg /= frame_ms.size()
+		out.append("Кадр           средний %.1f  •  максимум %.1f  •  1%% худших %.1f мс" % [avg, sorted.back(), sorted[int(sorted.size() * 0.99)]])
+	if game.menu_demo != null:
+		out.append("Демо меню      событий %d  •  съедено %d  •  комбо %d (рекорд %d)" % [game.menu_demo.events_run, game.menu_demo.eaten,
+			game.menu_demo.combo, game.menu_demo.best_combo])
+	var lg = DevLog.shared
+	if lg != null:
+		out.append("Журнал         ошибок %d  •  предупреждений %d" % [lg.errors, lg.warnings])
+	out.append("Заморозка врагов %s  •  пауза времени %s" % ["да" if game.freeze_enemies else "нет", "да" if time_paused else "нет"])
+	return out
+
+
+## Текст вкладки ИНФО — в буфер обмена (для отчёта об ошибке).
+func copy_report() -> String:
+	_update_info()
+	var text := "Змея против Гигантской Яичницы v%s\n%s" % [ProjectSettings.get_setting("application/config/version", ""), info_label.text]
+	DisplayServer.clipboard_set(text)
+	game.hint("Отчёт скопирован в буфер обмена", 2.0)
+	return text
+
+
+## Снимок экрана без самой панели — в user://shots/. Возвращает путь.
+func screenshot() -> String:
+	var dir := ProjectSettings.globalize_path("user://shots")
+	DirAccess.make_dir_recursive_absolute(dir)
+	var path := dir.path_join("dev_%s.png" % Time.get_datetime_string_from_system().replace(":", "-"))
+	var was := panel.visible
+	panel.visible = false
+	await get_tree().process_frame
+	await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(path)
+	panel.visible = was
+	game.hint("Снимок: " + path, 3.0)
+	return path
 
 
 # ---------------------------------------------------------------- ЧИТЫ
@@ -331,6 +399,51 @@ func _build_cheats(p: VBoxContainer) -> void:
 		scales_btn.disabled = true
 		scales_btn.tooltip_text = "Только в сборке из редактора"
 	g.add_child(scales_btn)
+	_toggle(p, "Заморозить врагов", game.freeze_enemies, func(on: bool) -> void:
+		_cheat()
+		game.freeze_enemies = on)
+	var sg := _grid(p, 2)
+	sg.add_child(_btn("ПОЛНОЕ ЗДОРОВЬЕ", func() -> void:
+		if game.snake:
+			_cheat()
+			game.snake.lives = game.snake.max_lives
+			game.hud.set_lives(game.snake.lives)))
+	sg.add_child(_btn("СТАМИНА 100%", func() -> void:
+		if game.snake:
+			_cheat()
+			game.snake.stamina = game.snake.stamina_max
+			game.snake.exhausted = false))
+	sg.add_child(_btn("+10 ДЛИНЫ", func() -> void:
+		if game.snake:
+			_cheat()
+			game.snake.grow(10)))
+	sg.add_child(_btn("−5 ДЛИНЫ", func() -> void:
+		if game.snake:
+			_cheat()
+			game.snake.length = maxi(game.snake.length - 5, 4)))
+	sg.add_child(_btn("СБРОС ПЕРЕЗАРЯДКИ", func() -> void:
+		if _in_run():
+			_cheat()
+			game.abilities.cooldown = 0.0))
+	sg.add_child(_btn("+1000 ОЧКОВ", func() -> void:
+		if _in_run():
+			_cheat()
+			game.add_score_raw(1000, game.snake.head_pos, "")))
+	sg.add_child(_btn("ВЫБОР УЛУЧШЕНИЙ", func() -> void:
+		if _in_run():
+			_cheat()
+			game.hud.show_perks(Skills.roll_perks(Skills.perk_cards()), "ПРОВЕРКА")))
+	sg.add_child(_btn("УБИТЬ ЗМЕЮ", func() -> void:
+		if _in_run():
+			_cheat()
+			var s = game.snake
+			s.god = false
+			s.safe = false
+			s.invuln = 0.0
+			s.shield = 0
+			s.extra_life = false
+			s.phoenix = false
+			s.take_damage(99, "dev")))
 	_section(p, "ВЫДАТЬ АТАКУ")
 	var ab := _grid(p, 2)
 	for type in Balance.ABILITIES:
@@ -345,6 +458,13 @@ func _build_cheats(p: VBoxContainer) -> void:
 		if game.boss:
 			_cheat()
 			game.boss.dev_set_hp(1)))
+	for ph in 3:  # фазы яичницы: 1 — полное HP, 2 — две трети, 3 — треть
+		g2.add_child(_btn("ЯИЧНИЦА: ФАЗА %d" % (ph + 1), func() -> void:
+			if game.boss:
+				_cheat()
+				game.boss.dev_set_hp(int(ceil(game.boss.max_hp * (3 - ph) / 3.0)))))
+	g2.add_child(_btn("◀ ЭТАП", func() -> void: _step_stage(-1)))
+	g2.add_child(_btn("ЭТАП ▶", func() -> void: _step_stage(1)))
 
 
 func _win_stage() -> void:
@@ -361,6 +481,13 @@ func _win_stage() -> void:
 # ---------------------------------------------------------------- МИР
 
 func _build_world(p: VBoxContainer) -> void:
+	_section(p, "СКОЛЬКО СОЗДАВАТЬ ЗА НАЖАТИЕ")
+	var cnt := Segmented.new()
+	cnt.setup(["×1", "×3", "×5", "×10"], 0, 0.0, true)
+	cnt.changed.connect(func(i: int) -> void: spawn_count = SPAWN_COUNTS[i])
+	p.add_child(cnt)
+	for b in cnt.buttons:
+		b.add_theme_font_size_override("font_size", 11)
 	_section(p, "ПЕРЕЙТИ К ЭТАПУ")
 	var st := _grid(p, 2)
 	for i in Balance.STAGES.size():
@@ -411,6 +538,7 @@ func _build_world(p: VBoxContainer) -> void:
 		game.start_contact()
 		game.contact.debug_skip_to_finale()
 		toggle()))
+	g.add_child(_btn("ДОСКА В КОНТАКТЕ: ТРЕСНУТЬ", _crack_plank))
 	_toggle(p, "Автопилот", game.autopilot, func(on: bool) -> void:
 		_cheat()
 		game.autopilot = on
@@ -427,6 +555,24 @@ func _build_world(p: VBoxContainer) -> void:
 			_cheat()
 		Engine.time_scale = v)
 	_row(p, "Скорость времени", speed)
+	_section(p, "ПРОВЕРКА ЭФФЕКТОВ")
+	var fxg := _grid(p, 3)
+	fxg.add_child(_btn("Подсказка", func() -> void: game.hint("Так выглядит подсказка внизу экрана", 3.0)))
+	fxg.add_child(_btn("Табличка", func() -> void: game.hud.show_banner("ПРОВЕРКА ТАБЛИЧКИ", Design.YOLK, 1.5)))
+	fxg.add_child(_btn("Реплика", func() -> void: game.hud.show_caption("УЧЁНЫЙ-БЮРОКРАТ", "Пункт 12-Б. Немедленно.")))
+	fxg.add_child(_btn("Вспышка", func() -> void: game.hud.overlay.flash(0.8)))
+	fxg.add_child(_btn("Тряска", func() -> void: game.add_shake(20.0)))
+	fxg.add_child(_btn("Всплывашка", func() -> void: game.fx.popup(Vector2(640, 360), "ПРОВЕРКА!", Design.MINT)))
+	fxg.add_child(_btn("Конфетти", func() -> void:
+		for c: Color in [Color(0.95, 0.3, 0.5), Color(0.3, 0.7, 0.95), Color(0.6, 0.9, 0.3), Color(1, 0.85, 0.3)]:
+			game.fx.burst(Vector2(randf_range(300, 980), randf_range(200, 500)), c, 14, 1.3)))
+	fxg.add_child(_btn("Вибро", func() -> void: game.vibrate(120)))
+	_section(p, "ВАКХАНАЛИЯ В МЕНЮ")
+	var dg := _grid(p, 2)
+	for id: String in MenuDemo.EVENTS:
+		dg.add_child(_btn(String(MenuDemo.EVENTS[id]).trim_suffix("!"), func() -> void:
+			if game.menu_demo:
+				game.menu_demo.run_event(id)))
 	_section(p, "ПАСХАЛКИ")
 	secrets_box = Design.vbox(Design.SPACE[1])
 	p.add_child(secrets_box)
@@ -467,17 +613,38 @@ func _spawn(kind: String, type: int) -> void:
 	if not _in_run():
 		return
 	_cheat()
-	match kind:
-		"bear":
-			game.enemies.spawn_bear(type)
-		"fork":
-			game.enemies.spawn_fork(Vector2.INF, type)
-		"pill":
-			game.enemies.spawn_pill(Vector2.INF, type)
-		"doll":
-			game.enemies.spawn_doll(type)
-		"set":
-			game.enemies.spawn_doll_set()
+	for i in spawn_count:
+		match kind:
+			"bear":
+				game.enemies.spawn_bear(type)
+			"fork":
+				game.enemies.spawn_fork(Vector2.INF, type)
+			"pill":
+				game.enemies.spawn_pill(Vector2.INF, type)
+			"doll":
+				game.enemies.spawn_doll(type)
+			"set":
+				game.enemies.spawn_doll_set()
+
+
+## Этап на шаг вперёд или назад (в пределах маршрута).
+func _step_stage(d: int) -> void:
+	var cur: int = game.stage if game.state not in [game.State.MENU, game.State.LOADING] else 0
+	_jump(clampi(cur + d, 0, Balance.STAGES.size() - 1))
+
+
+## Доска в углу ящика ломается сейчас: если финала «Контакта» ещё нет — запускаем его и ждём начала.
+func _crack_plank() -> void:
+	_cheat()
+	if game.state != game.State.CONTACT or game.contact == null:
+		game.start_contact()
+		game.contact.debug_skip_to_finale()
+	toggle()
+	for i in 1800:  # до 30 секунд ждём, пока финал начнётся
+		if game.contact != null and game.contact.finale != null:
+			game.contact.finale.debug_crack()
+			return
+		await get_tree().process_frame
 
 
 ## Список пасхалок: найденные — со штампом-галочкой, остальные — с подсказкой, где искать.
@@ -630,8 +797,48 @@ func _build_debug(p: VBoxContainer) -> void:
 	_toggle(p, "Сенсорное управление на ПК", Settings.choice("touch_mode") == 1, func(on: bool) -> void:
 		Settings.set_value("touch_mode", 1 if on else 0)
 		game.hud.apply_setting("touch_mode"))
+	_toggle(p, "Пауза времени", false, func(on: bool) -> void:
+		_cheat()
+		time_paused = on
+		if on:
+			saved_scale = Engine.time_scale if Engine.time_scale > 0.0 else 1.0
+			Engine.time_scale = 0.0
+		else:
+			Engine.time_scale = saved_scale)
+	var tg := _grid(p, 2)
+	tg.add_child(_btn("+1 КАДР", step_frame))
+	tg.add_child(_btn("+10 КАДРОВ", func() -> void:
+		for i in 10:
+			await step_frame()))
+	_section(p, "ЖУРНАЛ ОШИБОК")
+	log_label = Design.label("", "small", Design.CREAM)
+	log_label.label_settings.font = Design.font("mono")
+	log_label.label_settings.font_size = 11
+	log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	p.add_child(log_label)
+	var lgrid := _grid(p, 2)
+	lgrid.add_child(_btn("ОБНОВИТЬ", _update_log))
+	lgrid.add_child(_btn("ОЧИСТИТЬ ЖУРНАЛ", func() -> void:
+		DevLog.shared.clear()
+		_update_log()))
 	sound_grid = Design.vbox(Design.SPACE[2])
 	p.add_child(sound_grid)
+
+
+## Один кадр при паузе времени: масштаб на миг возвращается к 1.
+func step_frame() -> void:
+	if not time_paused:
+		return
+	Engine.time_scale = 1.0
+	await get_tree().process_frame
+	if time_paused:
+		Engine.time_scale = 0.0
+
+
+func _update_log() -> void:
+	var lg = DevLog.shared
+	var text: String = lg.snapshot() if lg != null else ""
+	log_label.text = text if text != "" else "Пусто — ошибок и предупреждений не было."
 
 
 ## Кнопки звуков строятся при первом показе вкладки — к этому времени звуки уже синтезированы.
@@ -703,6 +910,9 @@ func _process(delta: float) -> void:
 		info_t = 0.25
 		_update_info()
 		graph.queue_redraw()
+	elif info_t <= 0.0 and pages[PAGE_DEBUG].visible:
+		info_t = 0.5
+		_update_log()
 	elif info_t <= 0.0 and pages[PAGE_AI].visible:
 		info_t = 0.25
 		_update_ai()
